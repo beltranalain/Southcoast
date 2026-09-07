@@ -74,6 +74,11 @@ export default function LiveChat() {
 
   const [muted, setMuted] = useState<{ banned: boolean; until: number } | null>(null);
 
+  // Editable display name (people can pick a username instead of their real name)
+  const [editingName, setEditingName] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [nameErr, setNameErr] = useState("");
+
   // Tipping
   const [tipping, setTipping] = useState(false);
   const [tipAmount, setTipAmount] = useState(5);
@@ -197,6 +202,17 @@ export default function LiveChat() {
   async function leave() {
     const auth = getFirebaseAuth();
     if (auth) await signOut(auth);
+  }
+
+  async function saveName() {
+    const auth = getFirebaseAuth();
+    const u = auth?.currentUser;
+    const n = newName.trim();
+    if (!u) return;
+    if (n.length < 2) { setNameErr("Pick a name (2+ characters)."); return; }
+    setNameErr("");
+    try { await updateProfile(u, { displayName: n }); force(); setEditingName(false); }
+    catch { setNameErr("Could not update your name."); }
   }
 
   // Show a thank-you when returning from Stripe checkout, and clean the URL.
@@ -334,7 +350,16 @@ export default function LiveChat() {
 
       {requireAuth && viewer && !isMuted && (
         <div className="chat-who">
-          Signed in as <b>{name}</b> · <button type="button" onClick={leave}>Sign out</button>
+          {editingName ? (
+            <span className="name-edit">
+              <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Pick a display name" maxLength={30} autoFocus onKeyDown={(e) => e.key === "Enter" && saveName()} />
+              <button type="button" onClick={saveName}>Save</button>
+              <button type="button" onClick={() => { setEditingName(false); setNameErr(""); }}>Cancel</button>
+              {nameErr && <span className="form-error" style={{ fontSize: 11 }}>{nameErr}</span>}
+            </span>
+          ) : (
+            <>Signed in as <b>{name}</b> · <button type="button" onClick={() => { setNewName(name); setEditingName(true); }}>Edit name</button> · <button type="button" onClick={leave}>Sign out</button></>
+          )}
         </div>
       )}
     </aside>
