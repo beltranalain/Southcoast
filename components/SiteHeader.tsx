@@ -19,7 +19,7 @@ const BellIcon = () => (
   <svg width="19" height="19" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M6 8a4 4 0 0 1 8 0c0 4 1.5 5 1.5 5h-11S6 12 6 8Z" /><path d="M8.5 16a1.5 1.5 0 0 0 3 0" /></svg>
 );
 
-export default function SiteHeader({ brand = { name: BRAND.name } }: { brand?: { name: string } }) {
+export default function SiteHeader({ brand = { name: BRAND.name } }: { brand?: { name: string; logo?: string } }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -36,7 +36,13 @@ export default function SiteHeader({ brand = { name: BRAND.name } }: { brand?: {
           ))}
         </nav>
 
-        <Link className="brand" href="/">{prefix} <em>{last}</em></Link>
+        <Link className="brand" href="/" aria-label={brand.name}>
+          {brand.logo ? (
+            <img src={brand.logo} alt={brand.name} className="brand-logo" />
+          ) : (
+            <>{prefix} <em>{last}</em></>
+          )}
+        </Link>
 
         <div className="navright">
           <Link href="/library" aria-label="Search"><SearchIcon /></Link>

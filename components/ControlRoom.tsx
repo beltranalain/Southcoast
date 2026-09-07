@@ -38,7 +38,38 @@ export default function ControlRoom() {
       el.style.width = "100%"; el.style.height = "100%"; el.style.objectFit = "cover"; el.style.display = "block";
       stageRef.current.appendChild(el);
     }
-    return () => { if (el && el.parentElement) el.parentElement.removeChild(el); };
+
+    // Drag the pinned comment around the program with a grab cursor.
+    let dragging = false, ox = 0, oy = 0;
+    const toCanvas = (e: PointerEvent) => {
+      const r = el!.getBoundingClientRect();
+      return { x: (e.clientX - r.left) * (broadcast.width / r.width), y: (e.clientY - r.top) * (broadcast.height / r.height) };
+    };
+    const onDown = (e: PointerEvent) => {
+      if (!el) return;
+      const p = toCanvas(e);
+      if (broadcast.hitPin(p.x, p.y)) {
+        dragging = true; const b = broadcast.pinBox(); ox = p.x - b.x; oy = p.y - b.y;
+        el.style.cursor = "grabbing"; el.setPointerCapture?.(e.pointerId); e.preventDefault();
+      }
+    };
+    const onMove = (e: PointerEvent) => {
+      if (!el) return;
+      const p = toCanvas(e);
+      if (dragging) broadcast.setPinPos(p.x - ox, p.y - oy);
+      else el.style.cursor = broadcast.hitPin(p.x, p.y) ? "grab" : "default";
+    };
+    const onUp = () => { if (dragging) { dragging = false; if (el) el.style.cursor = "grab"; } };
+    el?.addEventListener("pointerdown", onDown);
+    el?.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+
+    return () => {
+      el?.removeEventListener("pointerdown", onDown);
+      el?.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      if (el && el.parentElement) el.parentElement.removeChild(el);
+    };
   }, []);
 
   // Chat (monitor + pin source) + overlay (OBS mirror) sockets.
@@ -59,6 +90,8 @@ export default function ControlRoom() {
   const hideBanner = () => { broadcast.hideBanner(); pushOverlay({ action: "hideBanner" }); };
   const clearAll = () => { broadcast.clearGraphics(); pushOverlay({ action: "clear" }); };
   const pin = (m: ChatMessage) => { broadcast.setPinned(m.name, m.text); pushOverlay({ action: "comment", name: m.name, text: m.text }); };
+  const unpin = () => { broadcast.clearPinned(); pushOverlay({ action: "hideComment" }); };
+  const isPinned = (m: ChatMessage) => !!broadcast.pinned && broadcast.pinned.name === m.name && broadcast.pinned.text === m.text;
 
   const live = broadcast.live;
   const ingest = broadcast.ingest;
@@ -133,17 +166,25 @@ export default function ControlRoom() {
                 <button className="btn btn-ghost btn-sm" type="button" onClick={hideBanner}>Hide banner</button>
                 <button className="btn btn-ghost btn-sm" type="button" onClick={clearAll}>Clear all</button>
               </div>
-              <div className="panel-sub">Click a message to pin it on the broadcast:</div>
+              <div className="panel-sub">Pin a message onto the broadcast, then drag it anywhere on the program preview.</div>
               <div style={{ maxHeight: 240, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6 }}>
                 {chat.length === 0 && <p className="muted" style={{ fontSize: "13px" }}>Chat appears here during a broadcast.</p>}
-                {chat.slice().reverse().map((m) => (
-                  <div className="dest-row" key={m.id} style={{ padding: "9px 0" }}>
-                    <div style={{ minWidth: 0 }}><div className="dest-name" style={{ color: "var(--amber)" }}>{m.name}</div><div className="dest-meta" style={{ whiteSpace: "normal" }}>{m.text}</div></div>
-                    <button className="btn btn-ghost btn-sm" type="button" onClick={() => pin(m)}>Pin</button>
-                  </div>
-                ))}
+                {chat.slice().reverse().map((m) => {
+                  const pinned = isPinned(m);
+                  return (
+                    <div className="dest-row" key={m.id} style={{ padding: "9px 0" }}>
+                      <div style={{ minWidth: 0 }}><div className="dest-name" style={{ color: "var(--amber)" }}>{m.name}</div><div className="dest-meta" style={{ whiteSpace: "normal" }}>{m.text}</div></div>
+                      <button className={`btn btn-sm ${pinned ? "btn-primary" : "btn-ghost"}`} type="button" onClick={() => (pinned ? unpin() : pin(m))}>{pinned ? "Pinned" : "Pin"}</button>
+                    </div>
+                  );
+                })}
               </div>
-              {broadcast.pinned && <button className="btn btn-ghost btn-sm" type="button" onClick={() => { broadcast.clearGraphics(); pushOverlay({ action: "hideComment" }); }} style={{ marginTop: 12 }}>Remove pinned comment</button>}
+              {broadcast.pinned && (
+                <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <span className="dest-meta">Pinned: <strong style={{ color: "var(--amber)" }}>{broadcast.pinned.name}</strong> - drag it on the preview to reposition.</span>
+                  <button className="btn btn-ghost btn-sm" type="button" onClick={unpin}>Unpin</button>
+                </div>
+              )}
             </div>
           )}
 

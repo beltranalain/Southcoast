@@ -73,23 +73,6 @@ export default function HomeMarquee({
           <div className="track"><b style={{ width: `${((i + 1) / n) * 100}%` }} /></div>
           <div className="count">{pad(i + 1)}<span> / {pad(n)}</span></div>
         </div>
-
-        <div className="strip">
-          <h2>The slate</h2>
-          <div className="slaterow">
-            {shows.map((show) => {
-              const showLive = Boolean(live?.live) && show.key === "cane-show";
-              return (
-                <Link className="tile" href={show.href} key={show.key} onMouseEnter={() => setI(shows.indexOf(show))}>
-                  <div className={`timg art ${show.art}`}>
-                    {showLive && <span className="lbl">Live now</span>}
-                  </div>
-                  <div className="tb"><h3>{show.title}</h3><p>{show.tag}</p></div>
-                </Link>
-              );
-            })}
-          </div>
-        </div>
       </div>
     </section>
   );

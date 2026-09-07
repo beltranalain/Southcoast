@@ -17,6 +17,17 @@ type Banner = { title: string; subtitle: string } | null;
 type Pinned = { name: string; text: string } | null;
 export type Layout = "grid" | "spotlight";
 
+function roundRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  const rr = Math.min(r, h / 2, w / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rr);
+  ctx.arcTo(x + w, y + h, x, y + h, rr);
+  ctx.arcTo(x, y + h, x, y, rr);
+  ctx.arcTo(x, y, x + w, y, rr);
+  ctx.closePath();
+}
+
 function drawCover(ctx: CanvasRenderingContext2D, v: HTMLVideoElement, x: number, y: number, w: number, h: number) {
   if (!v.videoWidth) { ctx.fillStyle = "#151110"; ctx.fillRect(x, y, w, h); return; }
   const vr = v.videoWidth / v.videoHeight, dr = w / h;
@@ -26,10 +37,15 @@ function drawCover(ctx: CanvasRenderingContext2D, v: HTMLVideoElement, x: number
   ctx.drawImage(v, sx, sy, sw, sh, x, y, w, h);
 }
 
+const PIN_W = 560, PIN_H = 92;
+
 class StudioEngine {
   live = false; connecting = false; error = ""; ingest: Ingest = null;
   layout: Layout = "grid";
   banner: Banner = null; pinned: Pinned = null;
+  // Position (top-left, in canvas px) of the pinned comment - draggable.
+  pinPos = { x: 48, y: H - 210 };
+  readonly width = W; readonly height = H;
   roster: Participant[] = [];
 
   canvas: HTMLCanvasElement | null = null;
@@ -120,12 +136,14 @@ class StudioEngine {
   private drawGraphics(ctx: CanvasRenderingContext2D) {
     ctx.textBaseline = "middle";
     if (this.pinned) {
-      const x = 48, y = H - 210, w = 560, h = 92;
-      ctx.fillStyle = "rgba(10,9,8,.9)"; ctx.fillRect(x, y, w, h);
-      ctx.fillStyle = "#F5A524"; ctx.fillRect(x, y, 6, h);
-      ctx.fillStyle = "#F5A524"; ctx.font = "700 20px Inter, sans-serif"; ctx.fillText(this.pinned.name.toUpperCase(), x + 22, y + 26);
+      const { x, y } = this.pinPos, w = PIN_W, h = PIN_H;
+      // Pill-shaped lower-third (rounded capsule) with an amber outline.
+      roundRectPath(ctx, x, y, w, h, h / 2);
+      ctx.fillStyle = "rgba(10,9,8,.9)"; ctx.fill();
+      ctx.lineWidth = 2; ctx.strokeStyle = "#F5A524"; ctx.stroke();
+      ctx.fillStyle = "#F5A524"; ctx.font = "700 20px Inter, sans-serif"; ctx.fillText(this.pinned.name.toUpperCase(), x + 34, y + 30);
       ctx.fillStyle = "#F3EFE7"; ctx.font = "400 22px Inter, sans-serif";
-      ctx.fillText(this.pinned.text.slice(0, 52), x + 22, y + 62);
+      ctx.fillText(this.pinned.text.slice(0, 46), x + 34, y + 62);
     }
     if (this.banner) {
       const y = H - 96, ph = 56;
@@ -145,8 +163,24 @@ class StudioEngine {
   setBanner(title: string, subtitle: string) { this.banner = title.trim() ? { title, subtitle } : null; this.emit(); }
   hideBanner() { this.banner = null; this.emit(); }
   setPinned(name: string, text: string) { this.pinned = { name, text }; this.emit(); }
+  clearPinned() { this.pinned = null; this.emit(); }
   clearGraphics() { this.banner = null; this.pinned = null; this.emit(); }
   setLayout(l: Layout) { this.layout = l; this.emit(); }
+
+  // ---- Draggable pinned comment (canvas-space px) ----
+  pinBox() { return { x: this.pinPos.x, y: this.pinPos.y, w: PIN_W, h: PIN_H }; }
+  hitPin(cx: number, cy: number) {
+    if (!this.pinned) return false;
+    const b = this.pinBox();
+    return cx >= b.x && cx <= b.x + b.w && cy >= b.y && cy <= b.y + b.h;
+  }
+  setPinPos(x: number, y: number) {
+    this.pinPos = {
+      x: Math.max(0, Math.min(W - PIN_W, x)),
+      y: Math.max(0, Math.min(H - PIN_H, y)),
+    };
+    this.emit();
+  }
 
   async fetchIngest(): Promise<Ingest> {
     try {

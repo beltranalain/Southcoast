@@ -1,13 +1,49 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DEFAULT_BRANDING, type SiteBranding } from "@/lib/siteData";
 import { saveSection, loadConfig } from "@/lib/saveSection";
+
+// Draw the picked image onto a square canvas at `size` px (contain, transparent
+// padding) and return a compact PNG data URL. Keeps the stored value small
+// enough to live directly in the Firestore branding doc - no Firebase Storage.
+function resizeImage(file: File, size: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) throw new Error("Canvas unsupported.");
+        const scale = Math.min(size / img.width, size / img.height);
+        const w = img.width * scale;
+        const h = img.height * scale;
+        ctx.clearRect(0, 0, size, size);
+        ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+        resolve(canvas.toDataURL("image/png"));
+      } catch (e) {
+        reject(e);
+      } finally {
+        URL.revokeObjectURL(url);
+      }
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("That file is not a readable image."));
+    };
+    img.src = url;
+  });
+}
 
 export default function AdminBranding() {
   const [form, setForm] = useState<SiteBranding>(DEFAULT_BRANDING);
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "demo" | "error">("idle");
   const [message, setMessage] = useState("");
+  const logoInput = useRef<HTMLInputElement>(null);
+  const faviconInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadConfig()
@@ -17,6 +53,26 @@ export default function AdminBranding() {
 
   function set<K extends keyof SiteBranding>(key: K, value: SiteBranding[K]) {
     setForm((f) => ({ ...f, [key]: value }));
+  }
+
+  async function onPick(e: React.ChangeEvent<HTMLInputElement>, key: "logo" | "favicon", size: number) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-picking the same file
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setStatus("error");
+      setMessage("Please choose an image file (PNG, JPG, or SVG).");
+      return;
+    }
+    try {
+      const dataUrl = await resizeImage(file, size);
+      set(key, dataUrl);
+      setStatus("idle");
+      setMessage(`${key === "logo" ? "Logo" : "Favicon"} ready. Click Save changes to publish it.`);
+    } catch (err: any) {
+      setStatus("error");
+      setMessage(err.message || "Could not read that image.");
+    }
   }
 
   async function save() {
@@ -61,16 +117,28 @@ export default function AdminBranding() {
         <div>
           <div className="panel">
             <h3>Logo</h3>
-            <div className="panel-sub">Shown in the site header, footer, and admin. Upload arrives with Firebase Storage.</div>
+            <div className="panel-sub">Shown in the site header and admin. Images are resized and stored with your branding - no extra setup.</div>
+            <input ref={logoInput} type="file" accept="image/*" hidden onChange={(e) => onPick(e, "logo", 512)} />
+            <input ref={faviconInput} type="file" accept="image/*" hidden onChange={(e) => onPick(e, "favicon", 64)} />
             <div className="uploader">
-              <div className="logo-prev">SC</div>
-              <div className="up-info"><div className="up-t">Primary logo</div><div className="up-s">Current: placeholder mark. Recommended 512 x 512.</div></div>
-              <button className="btn btn-primary btn-sm" type="button" disabled>Upload logo</button>
+              <div className="logo-prev" style={form.logo ? { background: "none", padding: 0 } : undefined}>
+                {form.logo ? <img src={form.logo} alt="Logo preview" style={{ width: "100%", height: "100%", objectFit: "contain", borderRadius: 10 }} /> : "SC"}
+              </div>
+              <div className="up-info"><div className="up-t">Primary logo</div><div className="up-s">{form.logo ? "Custom logo set." : "Current: placeholder mark."} Recommended 512 x 512.</div></div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button className="btn btn-primary btn-sm" type="button" onClick={() => logoInput.current?.click()}>Upload logo</button>
+                {form.logo && <button className="btn btn-ghost btn-sm" type="button" onClick={() => set("logo", "")}>Remove</button>}
+              </div>
             </div>
             <div className="uploader">
-              <div className="logo-prev fav">SC</div>
+              <div className="logo-prev fav" style={form.favicon ? { background: "none", padding: 0 } : undefined}>
+                {form.favicon ? <img src={form.favicon} alt="Favicon preview" style={{ width: "100%", height: "100%", objectFit: "contain", borderRadius: 8 }} /> : "SC"}
+              </div>
               <div className="up-info"><div className="up-t">Favicon</div><div className="up-s">The small icon in the browser tab. 64 x 64.</div></div>
-              <button className="btn btn-ghost btn-sm" type="button" disabled>Upload</button>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button className="btn btn-ghost btn-sm" type="button" onClick={() => faviconInput.current?.click()}>Upload</button>
+                {form.favicon && <button className="btn btn-ghost btn-sm" type="button" onClick={() => set("favicon", "")}>Remove</button>}
+              </div>
             </div>
           </div>
 
@@ -116,7 +184,13 @@ export default function AdminBranding() {
             <h3>Preview</h3>
             <div className="panel-sub">How the brand reads together.</div>
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
-              <span className="brand-mark" style={{ background: `linear-gradient(135deg, ${form.accent}, #8a6a10)` }}>SC</span>
+              {form.logo ? (
+                <span className="brand-mark" style={{ background: "none", padding: 0, overflow: "hidden" }}>
+                  <img src={form.logo} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                </span>
+              ) : (
+                <span className="brand-mark" style={{ background: `linear-gradient(135deg, ${form.accent}, #8a6a10)` }}>SC</span>
+              )}
               <span className="brand-name">{form.siteName}<span>{form.tagline}</span></span>
             </div>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>

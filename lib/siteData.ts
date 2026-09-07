@@ -154,6 +154,8 @@ export type SiteBranding = {
   accent: string;
   background: string;
   live: string;
+  logo: string; // data URL (resized client-side) or ""
+  favicon: string; // data URL or ""
 };
 
 export const DEFAULT_BRANDING: SiteBranding = {
@@ -163,6 +165,8 @@ export const DEFAULT_BRANDING: SiteBranding = {
   accent: "#F5A524",
   background: "#0A0908",
   live: "#E8402A",
+  logo: "",
+  favicon: "",
 };
 
 export const LIBRARY_FILTERS = [

@@ -30,14 +30,19 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     description:
       "Cane with a Camera - an independent studio making five shows. Live talk, long-form, from the road, and a documentary series. Watch here and on YouTube at the same time.",
+    ...(branding.favicon ? { icons: { icon: branding.favicon } } : {}),
   };
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const { branding } = await getSiteConfig();
+  // Drive the whole design system off the saved accent/background/live colors.
+  // --amber is the token the stylesheet actually uses everywhere.
   const themeVars = {
-    "--accent": branding.accent,
+    "--amber": branding.accent,
     "--orange": branding.accent,
+    "--accent": branding.accent,
+    "--bg": branding.background,
     "--live": branding.live,
   } as CSSProperties;
 
