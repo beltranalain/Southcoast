@@ -70,7 +70,7 @@ img{display:block;max-width:100%}
 .pillbtn .arw{width:34px;height:34px;border-radius:50%;background:var(--amber);display:grid;place-items:center;color:#151107;flex-shrink:0}
 
 /* ---------------- nav (floating brand) ---------------- */
-.nav{position:sticky;top:0;z-index:60;background:rgba(10,9,8,.72);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.nav{position:sticky;top:0;z-index:60;background:linear-gradient(180deg,rgba(10,9,8,.92) 0%,rgba(10,9,8,.55) 55%,rgba(10,9,8,0) 100%);border-bottom:none}
 .nav-in{max-width:var(--max);margin:0 auto;padding:0 var(--pad);height:var(--header-h);display:flex;align-items:center;gap:34px;position:relative}
 .navlinks{display:flex;gap:28px;font-size:14px;font-weight:500;color:rgba(243,239,231,.82)}
 .navlinks a{transition:color .15s}
