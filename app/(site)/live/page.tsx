@@ -8,10 +8,17 @@ import LiveChat from "@/components/LiveChat";
 export const metadata: Metadata = { title: "Live" };
 
 export default async function LivePage() {
-  const liveEmbed = `https://www.youtube.com/embed/live_stream?channel=${PRIMARY_CHANNEL.channelId}`;
   const { schedule } = await getSiteConfig();
   const live = await getLiveInfo(PRIMARY_CHANNEL.channelId);
   const next = schedule[0];
+
+  // Prefer our own Cloudflare Stream player when configured; else YouTube embed.
+  const cfCode = process.env.NEXT_PUBLIC_CF_STREAM_CUSTOMER_CODE;
+  const cfInput = process.env.NEXT_PUBLIC_CF_STREAM_LIVE_INPUT_UID;
+  const onOwnPlatform = Boolean(cfCode && cfInput);
+  const playerSrc = onOwnPlatform
+    ? `https://customer-${cfCode}.cloudflarestream.com/${cfInput}/iframe`
+    : `https://www.youtube.com/embed/live_stream?channel=${PRIMARY_CHANNEL.channelId}`;
 
   return (
     <section className="livehero">
@@ -39,7 +46,7 @@ export default async function LivePage() {
                   : "Auto - shows when live"}
               </span>
               <iframe
-                src={liveEmbed}
+                src={playerSrc}
                 title="South Coast Cane live"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
@@ -79,8 +86,9 @@ export default async function LivePage() {
             )}
 
             <p className="form-note" style={{ marginTop: 16 }}>
-              The player is the real YouTube live embed and turns on automatically during a broadcast.
-              In the full build, our own Cloudflare Stream player takes this spot and YouTube runs as the simulcast.
+              {onOwnPlatform
+                ? "Playing on our own Cloudflare Stream player, simulcasting to YouTube at the same time."
+                : "Showing the YouTube live embed for now. Once Cloudflare Stream is connected, this becomes our own player and YouTube runs as the simulcast."}
             </p>
           </div>
 

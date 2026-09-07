@@ -55,6 +55,94 @@ export async function getLiveInputStatus(
   }
 }
 
+const LIVE_INPUT_UID = process.env.CLOUDFLARE_STREAM_LIVE_INPUT_UID || "";
+
+export type StreamIngest = {
+  uid: string;
+  whipUrl: string; // WebRTC publish endpoint - browser "Go Live"
+  whepUrl: string; // WebRTC playback endpoint
+  rtmpsUrl: string; // OBS "pro mode"
+  streamKey: string; // OBS stream key
+};
+
+async function resolveInputUid(): Promise<string | null> {
+  if (LIVE_INPUT_UID) return LIVE_INPUT_UID;
+  if (!streamConfigured) return null;
+  try {
+    const res = await fetch(`${BASE}/live_inputs`, { headers: headers(), cache: "no-store" });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.result?.[0]?.uid ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// Full ingest + playback details for the configured (or first) live input.
+export async function getLiveInput(): Promise<StreamIngest | null> {
+  if (!streamConfigured) return null;
+  const uid = await resolveInputUid();
+  if (!uid) return null;
+  try {
+    const res = await fetch(`${BASE}/live_inputs/${uid}`, { headers: headers(), cache: "no-store" });
+    if (!res.ok) return null;
+    const r = (await res.json()).result ?? {};
+    return {
+      uid,
+      whipUrl: r.webRTC?.url ?? "",
+      whepUrl: r.webRTCPlayback?.url ?? "",
+      rtmpsUrl: r.rtmps?.url ?? "",
+      streamKey: r.rtmps?.streamKey ?? "",
+    };
+  } catch {
+    return null;
+  }
+}
+
+// ---- Simulcast (Live) Outputs: fan the input out to YouTube etc. ----
+export async function listOutputs(): Promise<any[]> {
+  if (!streamConfigured) return [];
+  const uid = await resolveInputUid();
+  if (!uid) return [];
+  try {
+    const res = await fetch(`${BASE}/live_inputs/${uid}/outputs`, { headers: headers(), cache: "no-store" });
+    if (!res.ok) return [];
+    return (await res.json()).result ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export async function createOutput(url: string, streamKey: string): Promise<{ ok: boolean; error?: string }> {
+  if (!streamConfigured) return { ok: false, error: "Cloudflare Stream not configured." };
+  const uid = await resolveInputUid();
+  if (!uid) return { ok: false, error: "No live input." };
+  try {
+    const res = await fetch(`${BASE}/live_inputs/${uid}/outputs`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ url, streamKey, enabled: true }),
+    });
+    const d = await res.json();
+    if (!d.success) return { ok: false, error: d.errors?.[0]?.message || "Could not add destination." };
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Request failed." };
+  }
+}
+
+export async function deleteOutput(outputId: string): Promise<boolean> {
+  if (!streamConfigured) return false;
+  const uid = await resolveInputUid();
+  if (!uid) return false;
+  try {
+    const res = await fetch(`${BASE}/live_inputs/${uid}/outputs/${outputId}`, { method: "DELETE", headers: headers() });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 // List recorded VOD videos from Stream (past broadcasts + uploads).
 export async function listStreamVideos(): Promise<any[]> {
   if (!streamConfigured) return [];

@@ -44,7 +44,12 @@ export default function SiteFooter({
 
         <div className="legal">
           <span>Copyright {year} {brand.name}. All rights reserved.</span>
-          <span>Streaming on our own platform and on YouTube.</span>
+          <span>
+            Built by{" "}
+            <a href="https://donkeyideas.com" target="_blank" rel="noopener noreferrer" className="credit">
+              Donkey Ideas
+            </a>
+          </span>
         </div>
 
         <div className="megamark" aria-hidden="true">

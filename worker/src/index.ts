@@ -64,6 +64,23 @@ export class ChatRoom {
       return;
     }
 
+    // Studio signaling: participants announce themselves + their Cloudflare
+    // Realtime track names so the host/guests can subscribe. We keep the roster
+    // as per-socket attachments and broadcast it whenever it changes.
+    if (data?.type === "studio") {
+      if (data.action === "join" || data.action === "update") {
+        _ws.serializeAttachment({ participant: data.participant });
+        this.broadcastRoster();
+      } else if (data.action === "leave") {
+        _ws.serializeAttachment(null);
+        this.broadcastRoster();
+      } else if (data.action === "control" || data.action === "signal") {
+        // host -> guest controls (mute/remove) or generic relay
+        this.broadcast(JSON.stringify(data));
+      }
+      return;
+    }
+
     if (data?.type !== "chat") return;
 
     const text = String(data.text ?? "").slice(0, MAX_TEXT).trim();
@@ -88,10 +105,26 @@ export class ChatRoom {
 
   async webSocketClose(): Promise<void> {
     this.broadcastCount();
+    this.broadcastRoster();
   }
 
   async webSocketError(): Promise<void> {
     this.broadcastCount();
+    this.broadcastRoster();
+  }
+
+  private broadcastRoster(): void {
+    const participants = this.state
+      .getWebSockets()
+      .map((ws) => {
+        try {
+          return (ws.deserializeAttachment() as any)?.participant ?? null;
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean);
+    this.broadcast(JSON.stringify({ type: "studio", action: "roster", participants }));
   }
 
   private broadcast(payload: string): void {

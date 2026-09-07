@@ -77,7 +77,10 @@ img{display:block;max-width:100%}
 .navlinks a:hover,.navlinks a.active{color:var(--amber)}
 .brand{position:absolute;left:50%;transform:translateX(-50%);font-family:var(--font-anton),"Anton",sans-serif;font-size:21px;text-transform:uppercase;letter-spacing:.01em;white-space:nowrap}
 .brand em{font-style:normal;color:var(--amber)}
-.navright{margin-left:auto;display:flex;align-items:center;gap:18px;font-size:14px;font-weight:500}
+.navright{margin-left:auto;display:flex;align-items:center;gap:22px;font-size:14px;font-weight:500;color:rgba(243,239,231,.82)}
+.navright>a{display:inline-flex;align-items:center;transition:color .15s}
+.navright>a:hover{color:var(--amber)}
+.navsignin{font-weight:600}
 .livepill{display:inline-flex;align-items:center;gap:8px;color:var(--mute);border:1px solid var(--line);border-radius:999px;padding:8px 16px;font-size:13px;font-weight:600}
 .livepill i{width:7px;height:7px;border-radius:50%;background:var(--mute)}
 .livepill.on{background:var(--live);color:#fff;border-color:var(--live)}
@@ -200,6 +203,8 @@ h2.big{font-size:clamp(30px,4.4vw,56px);line-height:.92}
 .footcol a{display:block;font-size:13px;color:rgba(243,239,231,.82);margin-bottom:10px}
 .footcol a:hover{color:var(--amber)}
 .legal{display:flex;flex-wrap:wrap;gap:20px;justify-content:space-between;padding:22px 0 10px;font-size:12px;color:var(--mute)}
+.legal .credit{color:var(--amber);font-weight:600;transition:opacity .15s}
+.legal .credit:hover{opacity:.75}
 .megamark{overflow:hidden;text-align:center;padding-bottom:8px}
 .megamark span{display:block;font-family:var(--font-anton),"Anton",sans-serif;text-transform:uppercase;font-size:clamp(40px,12.5vw,168px);line-height:.82;white-space:nowrap;background:linear-gradient(180deg,var(--orange2),var(--amber) 46%,rgba(245,165,36,.08) 98%);-webkit-background-clip:text;background-clip:text;color:transparent}
 
@@ -431,7 +436,8 @@ table.data tr:hover td{background:var(--bg3)}
 }
 @media (max-width:820px){
   .navlinks{display:none}
-  .brand{position:static;transform:none;margin:0 auto}
+  .navright{display:none}
+  .brand{position:static;transform:none;margin-right:auto}
   .nav-toggle{display:flex}
   .navlinks.open{display:flex;position:absolute;top:var(--header-h);left:0;right:0;flex-direction:column;gap:2px;background:var(--bg2);border-bottom:1px solid var(--line);padding:12px var(--pad);z-index:55}
   .livehead{grid-template-columns:1fr;gap:20px;align-items:start}
