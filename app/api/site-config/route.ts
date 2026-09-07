@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSiteConfig } from "@/lib/siteConfig";
-import { getAdminAuth, getAdminDb, adminConfigured } from "@/lib/firebaseAdmin";
+import { getAdminDb, adminConfigured } from "@/lib/firebaseAdmin";
+import { requireAdmin } from "@/lib/requireAdmin";
 import { DEFAULT_CONTENT, DEFAULT_BRANDING } from "@/lib/siteData";
 
 // GET  -> current { content, branding } (Firestore over defaults)
@@ -33,16 +34,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ saved: false, demo: true });
   }
 
-  // Verify the admin is signed in.
-  const authHeader = request.headers.get("authorization") || "";
-  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
-  const auth = getAdminAuth();
-  if (!auth || !token) {
-    return NextResponse.json({ error: "Not authorized." }, { status: 401 });
-  }
-  try {
-    await auth.verifyIdToken(token);
-  } catch {
+  // Verify the caller is an admin (not just any signed-in viewer).
+  if (!(await requireAdmin(request))) {
     return NextResponse.json({ error: "Not authorized." }, { status: 401 });
   }
 

@@ -10,9 +10,10 @@ import AirStatus from "@/components/AirStatus";
 export const metadata: Metadata = { title: "Live" };
 
 export default async function LivePage() {
-  const { schedule } = await getSiteConfig();
+  const { schedule, branding } = await getSiteConfig();
   const live = await getLiveInfo(PRIMARY_CHANNEL.channelId);
   const next = schedule[0];
+  const channelBug = branding.showChannelBug ? (branding.channelBug || branding.siteName) : "";
 
   // Prefer our own Cloudflare Stream player when configured; else YouTube embed.
   const cfCode = process.env.NEXT_PUBLIC_CF_STREAM_CUSTOMER_CODE;
@@ -47,6 +48,11 @@ export default async function LivePage() {
                   : "Auto - shows when live"}
               </span>
               <LivePlayer src={playerSrc} />
+              {channelBug && (
+                <div className="lower3">
+                  <span className="l3b" style={{ background: "rgba(10,9,8,.82)" }}>{channelBug}</span>
+                </div>
+              )}
             </div>
 
             <div className="underplayer">

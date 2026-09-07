@@ -151,6 +151,21 @@ export default function AdminBranding() {
             </div>
             <div className="form-field"><label>Domain</label><input type="text" value={form.domain} onChange={(e) => set("domain", e.target.value)} /></div>
           </div>
+
+          <div className="panel">
+            <h3>Live page</h3>
+            <div className="panel-sub">A permanent show-name label (channel bug) on the live player, separate from the on-air banner you control while broadcasting.</div>
+            <label className="check-row">
+              <input type="checkbox" checked={form.showChannelBug} onChange={(e) => set("showChannelBug", e.target.checked)} />
+              <span>Show a permanent show-name label on the live page</span>
+            </label>
+            {form.showChannelBug && (
+              <div className="form-field" style={{ marginTop: 12 }}>
+                <label>Label text</label>
+                <input type="text" value={form.channelBug} placeholder="The South Coast Cane Show" onChange={(e) => set("channelBug", e.target.value)} />
+              </div>
+            )}
+          </div>
         </div>
 
         <div>

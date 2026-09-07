@@ -156,6 +156,8 @@ export type SiteBranding = {
   live: string;
   logo: string; // data URL (resized client-side) or ""
   favicon: string; // data URL or ""
+  showChannelBug: boolean; // permanent show-name label on the live page
+  channelBug: string; // label text (falls back to the show name)
 };
 
 export const DEFAULT_BRANDING: SiteBranding = {
@@ -167,6 +169,8 @@ export const DEFAULT_BRANDING: SiteBranding = {
   live: "#E8402A",
   logo: "",
   favicon: "",
+  showChannelBug: false,
+  channelBug: "The South Coast Cane Show",
 };
 
 export const LIBRARY_FILTERS = [

@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import AdminShell from "@/components/AdminShell";
 import { firebaseConfigured, getFirebaseAuth } from "@/lib/firebase";
+import { isAdminEmail } from "@/lib/admin";
 import { onAuthStateChanged, type User } from "firebase/auth";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -25,16 +26,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return () => unsub();
   }, []);
 
+  const isAdmin = Boolean(user && isAdminEmail(user.email));
+
   useEffect(() => {
-    if (!firebaseConfigured) return;
-    if (checked && !user && !isLogin) router.replace("/admin/login");
-  }, [checked, user, isLogin, router]);
+    if (!firebaseConfigured || isLogin || !checked) return;
+    if (!user) router.replace("/admin/login");
+    else if (!isAdmin) router.replace("/"); // a signed-in viewer, not an admin
+  }, [checked, user, isAdmin, isLogin, router]);
 
   // The login page renders on its own, without the dashboard shell.
   if (isLogin) return <>{children}</>;
 
-  // While verifying auth, avoid flashing protected content.
-  if (firebaseConfigured && (!checked || !user)) {
+  // While verifying auth (or bouncing a non-admin), avoid flashing content.
+  if (firebaseConfigured && (!checked || !isAdmin)) {
     return (
       <div className="signin-wrap">
         <p className="muted">Loading Studio...</p>

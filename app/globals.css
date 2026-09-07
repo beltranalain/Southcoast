@@ -307,6 +307,23 @@ h2.big{font-size:clamp(30px,4.4vw,56px);line-height:.92}
 .chat-f input:focus{outline:none;border-color:var(--amber)}
 .chat-f button{border-radius:999px;background:var(--amber);color:#151107;padding:11px 20px;font-size:13px;font-weight:700}
 .chat-f button[disabled]{opacity:.5;cursor:not-allowed}
+.chat-auth{border-top:1px solid var(--line);padding:15px 16px;display:flex;flex-direction:column;gap:9px}
+.chat-auth-t{font-size:12.5px;font-weight:600;color:var(--cream)}
+.chat-auth .gbtn{justify-content:center;width:100%;background:var(--cream);color:#151110;border-color:transparent;font-weight:600}
+.chat-auth .gbtn:hover{background:#fff;color:#151110}
+.chat-auth-or{display:flex;align-items:center;gap:10px;color:var(--text-dim);font-size:11px}
+.chat-auth-or::before,.chat-auth-or::after{content:"";flex:1;height:1px;background:var(--line)}
+.chat-auth-form{display:flex;flex-direction:column;gap:8px}
+.chat-auth-form input{background:var(--bg);border:1px solid var(--line);color:var(--cream);border-radius:8px;padding:10px 13px;font:inherit;font-size:13px}
+.chat-auth-form input:focus{outline:none;border-color:var(--amber)}
+.chat-auth-form .btn{justify-content:center;width:100%}
+.chat-auth-toggle{align-self:flex-start;color:var(--mute);font-size:12px;text-decoration:underline}
+.chat-auth-toggle:hover{color:var(--amber)}
+.chat-who{padding:9px 16px;border-top:1px solid var(--line);font-size:11.5px;color:var(--mute)}
+.chat-who b{color:var(--cream)}
+.chat-who button{color:var(--amber);font-size:11.5px;text-decoration:underline}
+.check-row{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--cream);cursor:pointer}
+.check-row input{width:17px;height:17px;accent-color:var(--amber);cursor:pointer}
 
 /* ============================================================
    ADMIN DASHBOARD (recolored via tokens)

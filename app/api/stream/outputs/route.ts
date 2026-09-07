@@ -1,15 +1,6 @@
 import { NextResponse } from "next/server";
 import { listOutputs, createOutput, deleteOutput, streamConfigured } from "@/lib/stream";
-import { getAdminAuth, adminConfigured } from "@/lib/firebaseAdmin";
-
-async function requireAdmin(request: Request): Promise<boolean> {
-  if (!adminConfigured) return true; // demo mode
-  const authHeader = request.headers.get("authorization") || "";
-  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
-  const auth = getAdminAuth();
-  if (!auth || !token) return false;
-  try { await auth.verifyIdToken(token); return true; } catch { return false; }
-}
+import { requireAdmin } from "@/lib/requireAdmin";
 
 // GET -> current simulcast outputs
 export async function GET(request: Request) {

@@ -4,7 +4,8 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { BRAND } from "@/lib/siteData";
 import { firebaseConfigured, getFirebaseAuth } from "@/lib/firebase";
-import { signInWithEmailAndPassword } from "firebase/auth";
+import { isAdminEmail } from "@/lib/admin";
+import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 
 export default function AdminLogin() {
   const router = useRouter();
@@ -27,7 +28,12 @@ export default function AdminLogin() {
     try {
       const auth = getFirebaseAuth();
       if (!auth) throw new Error("Auth unavailable.");
-      await signInWithEmailAndPassword(auth, email, password);
+      const cred = await signInWithEmailAndPassword(auth, email, password);
+      if (!isAdminEmail(cred.user.email)) {
+        await signOut(auth);
+        setError("This account isn't an admin.");
+        return;
+      }
       router.push("/admin");
     } catch {
       setError("Sign in failed. Check the email and password.");
