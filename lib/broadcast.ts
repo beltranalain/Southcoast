@@ -47,11 +47,14 @@ class StudioEngine {
   pinPos = { x: 48, y: H - 210 };
   readonly width = W; readonly height = H;
   roster: Participant[] = [];
+  admitted = new Set<string>(); // guest sessionIds currently on the program
+  realtimeReady = false; // true once the SFU session is established
 
   canvas: HTMLCanvasElement | null = null;
   private hostVideo: HTMLVideoElement | null = null;
   private hostStream: MediaStream | null = null;
   private guestVideos = new Map<string, HTMLVideoElement>();
+  private guestAudio = new Map<string, MediaStreamAudioSourceNode>();
   private camId?: string; private micId?: string;
 
   private pc: RTCPeerConnection | null = null;
@@ -198,7 +201,9 @@ class StudioEngine {
       const session = new RealtimeSession((sid, track) => this.onGuestTrack(sid, track));
       this.rtc = session;
       if (this.hostStream) await session.publish(this.hostStream); // creates the SFU session
-    } catch { this.rtc = null; }
+      this.realtimeReady = Boolean(session.sessionId);
+    } catch { this.rtc = null; this.realtimeReady = false; }
+    this.emit();
 
     // Signaling: announce host, receive roster, subscribe to guests.
     if (!WS_BASE) return;
@@ -210,13 +215,10 @@ class StudioEngine {
       let d: any; try { d = JSON.parse(e.data); } catch { return; }
       if (d.type === "studio" && d.action === "roster") {
         this.roster = d.participants.filter((p: Participant) => p.role === "guest");
-        this.roster.forEach((g) => {
-          if (g.sessionId && !this.subscribedGuests.has(g.sessionId) && this.rtc) {
-            this.subscribedGuests.add(g.sessionId);
-            if (g.hasVideo) this.rtc.pull(g.sessionId!, "video").catch(() => {});
-            if (g.hasAudio) this.rtc.pull(g.sessionId!, "audio").catch(() => {});
-          }
-        });
+        // Guests wait in the green room until the host admits them - no auto-pull.
+        // Clean up anyone who was on the program but has since left the room.
+        const present = new Set(this.roster.map((g) => g.sessionId).filter(Boolean) as string[]);
+        Array.from(this.admitted).forEach((sid) => { if (!present.has(sid)) this.removeGuest(sid); });
         this.emit();
       }
     };
@@ -230,8 +232,34 @@ class StudioEngine {
       ms.addTrack(track); v.srcObject = ms; v.play().catch(() => {});
       this.emit();
     } else if (track.kind === "audio" && this.audioCtx && this.audioDest) {
-      try { this.audioCtx.createMediaStreamSource(new MediaStream([track])).connect(this.audioDest); } catch {}
+      try {
+        const src = this.audioCtx.createMediaStreamSource(new MediaStream([track]));
+        src.connect(this.audioDest);
+        this.guestAudio.set(sid, src);
+      } catch {}
     }
+  }
+
+  // ---- Green room: host admits/removes guests to/from the program ----
+  admitGuest(sessionId: string) {
+    if (!sessionId || !this.rtc || this.admitted.has(sessionId)) return;
+    const g = this.roster.find((p) => p.sessionId === sessionId);
+    if (!g) return;
+    this.admitted.add(sessionId);
+    this.subscribedGuests.add(sessionId);
+    if (g.hasVideo) this.rtc.pull(sessionId, "video").catch(() => {});
+    if (g.hasAudio) this.rtc.pull(sessionId, "audio").catch(() => {});
+    this.emit();
+  }
+
+  removeGuest(sessionId: string) {
+    this.admitted.delete(sessionId);
+    this.subscribedGuests.delete(sessionId);
+    const v = this.guestVideos.get(sessionId);
+    if (v) { try { (v.srcObject as MediaStream)?.getTracks().forEach((t) => t.stop()); } catch {} v.srcObject = null; this.guestVideos.delete(sessionId); }
+    const a = this.guestAudio.get(sessionId);
+    if (a) { try { a.disconnect(); } catch {} this.guestAudio.delete(sessionId); }
+    this.emit();
   }
 
   inviteUrl() { return typeof window !== "undefined" ? window.location.origin + "/join/" + ROOM : ""; }

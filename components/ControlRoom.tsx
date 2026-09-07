@@ -202,7 +202,7 @@ export default function ControlRoom() {
           {tab === "guests" && (
             <div className="panel">
               <h3>Invite a guest</h3>
-              <div className="panel-sub">Send this link - they join in the browser (video, audio, both, or neither) and appear in the program.</div>
+              <div className="panel-sub">Send this link - they join in the browser (video, audio, both, or neither), then you Admit them to the program.</div>
               <div className="copybox" style={{ marginBottom: 16 }}>
                 <input type="text" readOnly value={broadcast.inviteUrl()} />
                 <button className="btn btn-ghost btn-sm" type="button" onClick={() => navigator.clipboard?.writeText(broadcast.inviteUrl())}>Copy</button>
@@ -210,10 +210,25 @@ export default function ControlRoom() {
               <div className="panel-sub">In the room</div>
               <div className="dest-row"><div><div className="dest-name">South Coast Cane (you)</div><div className="dest-meta">host</div></div><span className="pill published">On</span></div>
               {broadcast.roster.length === 0 && <p className="muted" style={{ fontSize: "13px", marginTop: 10 }}>No guests yet. Share the link above.</p>}
-              {broadcast.roster.map((p) => (
-                <div className="dest-row" key={p.id}><div><div className="dest-name">{p.name}</div><div className="dest-meta">{p.hasVideo ? "video" : "no video"} · {p.hasAudio ? "audio" : "muted"}</div></div></div>
-              ))}
-              <p className="notice" style={{ marginTop: 14 }}><strong>Guest video needs Cloudflare Realtime connected.</strong> Once its keys are set, guests appear on screen automatically - no OBS.</p>
+              {broadcast.roster.map((p) => {
+                const onStage = Boolean(p.sessionId && broadcast.admitted.has(p.sessionId));
+                return (
+                  <div className="dest-row" key={p.id}>
+                    <div style={{ minWidth: 0 }}>
+                      <div className="dest-name">{p.name}{onStage && <span className="pill published" style={{ marginLeft: 8 }}>On air</span>}</div>
+                      <div className="dest-meta">{p.hasVideo ? "video" : "no video"} · {p.hasAudio ? "audio" : "muted"}</div>
+                    </div>
+                    {onStage ? (
+                      <button className="btn btn-ghost btn-sm" type="button" onClick={() => broadcast.removeGuest(p.sessionId!)}>Remove</button>
+                    ) : (
+                      <button className="btn btn-primary btn-sm" type="button" disabled={!p.sessionId || !broadcast.realtimeReady} onClick={() => broadcast.admitGuest(p.sessionId!)}>Admit</button>
+                    )}
+                  </div>
+                );
+              })}
+              {!broadcast.realtimeReady && (
+                <p className="notice" style={{ marginTop: 14 }}><strong>Connecting to Cloudflare Realtime...</strong> Guests can join now; once the studio connection is up you can admit them to the program.</p>
+              )}
             </div>
           )}
 
