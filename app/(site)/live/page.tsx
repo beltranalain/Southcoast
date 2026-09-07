@@ -100,6 +100,7 @@ export default async function LivePage() {
             <ul className="schedule" style={{ marginTop: 32 }}>
               {schedule.map((s, i) => (
                 <li key={i}>
+                  {s.cover && <img src={s.cover} alt="" className="cover-thumb sm" />}
                   <span className="when">{s.when}</span>
                   <span className="what"><strong>{s.title}</strong><span>{s.note}</span></span>
                 </li>

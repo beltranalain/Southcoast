@@ -47,12 +47,18 @@ export async function POST(request: Request) {
       // data.items = array of { when, title, note }
       const items = Array.isArray(data.items) ? data.items : [];
       const clean = items
-        .slice(0, 50)
-        .map((it: any) => ({
-          when: String(it.when ?? "").slice(0, 80),
-          title: String(it.title ?? "").slice(0, 120),
-          note: String(it.note ?? "").slice(0, 160),
-        }))
+        .slice(0, 20)
+        .map((it: any) => {
+          const cover = typeof it.cover === "string" ? it.cover : "";
+          return {
+            when: String(it.when ?? "").slice(0, 80),
+            title: String(it.title ?? "").slice(0, 120),
+            note: String(it.note ?? "").slice(0, 160),
+            // Only keep small inline cover images (resized client-side) so the
+            // schedule doc stays well under Firestore's 1MB limit.
+            cover: cover.startsWith("data:image") && cover.length < 200_000 ? cover : "",
+          };
+        })
         .filter((it: any) => it.title);
       await db.collection("site").doc("schedule").set({ items: clean });
       return NextResponse.json({ saved: true });

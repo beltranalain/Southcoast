@@ -124,7 +124,7 @@ export const DEMO_VIDEOS: DemoVideo[] = [
   { title: "Coast Highway at Dusk", seriesKey: "riding", seriesName: "Riding with South Coast Cane", badge: "Riding", duration: "24:50" },
 ];
 
-export type ScheduleItem = { when: string; title: string; note: string };
+export type ScheduleItem = { when: string; title: string; note: string; cover?: string };
 
 // Empty by default - the creator adds real broadcasts in Studio -> Schedule.
 export const SCHEDULE: ScheduleItem[] = [

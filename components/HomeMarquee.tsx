@@ -12,8 +12,10 @@ const pad = (n: number) => String(n).padStart(2, "0");
 
 export default function HomeMarquee({
   live,
+  nextShow,
 }: {
   live: { live: boolean; viewers: number | null } | null;
+  nextShow?: { when: string; title: string } | null;
 }) {
   const shows = SERIES;
   const n = shows.length;
@@ -53,6 +55,9 @@ export default function HomeMarquee({
               <Link className="b1" href="/live"><Play />{isLive ? "Watch live" : "Go to live"}</Link>
               <Link className="b2" href={s.href}>See the show</Link>
             </div>
+            {!isLive && nextShow && (
+              <div className="nextlive"><span className="nl-dot" />Next live <b>{nextShow.when}</b>{nextShow.title ? <> · {nextShow.title}</> : null}</div>
+            )}
           </div>
 
           <div className="peek">
