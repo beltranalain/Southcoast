@@ -171,6 +171,11 @@ export default function ControlRoom() {
             ) : (
               <button className="btn btn-ghost btn-sm" type="button" onClick={() => broadcast.startScreenShare()}>Share screen</button>
             )}
+            {broadcast.recording ? (
+              <button className="btn btn-ghost btn-sm" type="button" onClick={() => broadcast.stopRecording()}><span className="rec-dot" />Stop recording</button>
+            ) : (
+              <button className="btn btn-ghost btn-sm" type="button" onClick={() => broadcast.startRecording()}>Record locally</button>
+            )}
             <Link className="btn btn-ghost btn-sm" href="/live" target="_blank">Open live page</Link>
           </div>
           {ingest === null && <div className="notice" style={{ marginTop: 14 }}><strong>Cloudflare Stream not connected.</strong> Preview works; Go Live turns on once the Stream keys are set.</div>}

@@ -20,6 +20,28 @@ const LABEL: Record<Status, string> = { ok: "Working", fail: "Error", off: "Not 
 export default function AdminSettings() {
   const [health, setHealth] = useState<Health | null>(null);
   const [checking, setChecking] = useState(true);
+  const [recording, setRecording] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const token = await getIdToken();
+        const r = await fetch("/api/stream/recording", { headers: token ? { Authorization: `Bearer ${token}` } : {}, cache: "no-store" });
+        const d = await r.json();
+        if (r.ok) setRecording(Boolean(d.enabled));
+      } catch { /* leave null */ }
+    })();
+  }, []);
+
+  async function toggleRecording(v: boolean) {
+    setRecording(v);
+    const token = await getIdToken();
+    await fetch("/api/stream/recording", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify({ enabled: v }),
+    }).catch(() => {});
+  }
 
   async function run() {
     setChecking(true);
@@ -88,8 +110,8 @@ export default function AdminSettings() {
               <label className="toggle"><input type="checkbox" defaultChecked /><span className="track" /></label>
             </div>
             <div className="dest-row">
-              <div><div className="dest-name">Auto-save broadcasts to library</div><div className="dest-meta">Recording kept as VOD</div></div>
-              <label className="toggle"><input type="checkbox" defaultChecked /><span className="track" /></label>
+              <div><div className="dest-name">Auto-save broadcasts to library</div><div className="dest-meta">Records each broadcast as a VOD on your own site (adds Cloudflare storage cost)</div></div>
+              <label className="toggle"><input type="checkbox" checked={recording ?? false} disabled={recording === null} onChange={(e) => toggleRecording(e.target.checked)} /><span className="track" /></label>
             </div>
             <div className="dest-row">
               <div><div className="dest-name">Enable live chat</div><div className="dest-meta">On the live page</div></div>

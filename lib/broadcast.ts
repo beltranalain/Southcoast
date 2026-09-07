@@ -64,6 +64,7 @@ class StudioEngine {
   layout: Layout = "grid";
   screenSharing = false;
   screenLayout: "full" | "pip" | "split" = "pip";
+  recording = false; // local (browser) recording of the program
   banner: Banner = null; pinned: Pinned = null;
   tipAlert: { name: string; amount: number; message: string } | null = null;
   private tipTimer: ReturnType<typeof setTimeout> | null = null;
@@ -93,6 +94,8 @@ class StudioEngine {
   private ws: WebSocket | null = null;
   private subscribedGuests = new Set<string>();
 
+  private recorder: MediaRecorder | null = null;
+  private recChunks: Blob[] = [];
   private audioCtx: AudioContext | null = null;
   private audioDest: MediaStreamAudioDestinationNode | null = null;
   private hostAudioSrc: MediaStreamAudioSourceNode | null = null;
@@ -458,6 +461,42 @@ class StudioEngine {
       this.live = true;
     } catch (e: any) { this.error = e.message || "Could not go live."; this.pc?.close(); this.pc = null; }
     finally { this.connecting = false; this.emit(); }
+  }
+
+  // ---- Local recording: save the program to a file on the host's computer ----
+  startRecording() {
+    if (this.recording || !this.canvas || !this.audioDest) return;
+    try {
+      const canvasStream = this.canvas.captureStream(30);
+      const out = new MediaStream(canvasStream.getVideoTracks());
+      this.audioDest.stream.getAudioTracks().forEach((t) => out.addTrack(t));
+      const mime = typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
+        ? "video/webm;codecs=vp9,opus" : "video/webm";
+      this.recorder = new MediaRecorder(out, { mimeType: mime, videoBitsPerSecond: 5_000_000 });
+      this.recChunks = [];
+      this.recorder.ondataavailable = (e) => { if (e.data.size) this.recChunks.push(e.data); };
+      this.recorder.onstop = () => {
+        const blob = new Blob(this.recChunks, { type: "video/webm" });
+        this.recChunks = [];
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
+        a.href = url; a.download = `broadcast-${stamp}.webm`;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 15000);
+      };
+      this.recorder.start(1000);
+      this.recording = true; this.emit();
+    } catch {
+      this.error = "Local recording isn't supported in this browser."; this.emit();
+    }
+  }
+
+  stopRecording() {
+    if (!this.recording) return;
+    try { this.recorder?.stop(); } catch {}
+    this.recorder = null;
+    this.recording = false; this.emit();
   }
 
   stop() { this.pc?.close(); this.pc = null; this.live = false; this.emit(); }

@@ -15,6 +15,7 @@
 "","2. Deploy & connect","Set up Stripe webhook","checkout.session.completed -> /api/tips/webhook","STRIPE_WEBHOOK_SECRET","-","Copy the signing secret"
 "","2. Deploy & connect","Deploy the chat Worker","If using a new Cloudflare account","-","-","wrangler deploy + set CHAT_ADMIN_SECRET"
 "","2. Deploy & connect","Point domain DNS at Vercel","Custom domain live","-","-","Add domain in Vercel + registrar DNS"
+"","2. Deploy & connect","Cloudflare token: add Account Analytics Read","So the Costs page shows delivery minutes/cost","-","-","Otherwise delivery shows a dash; storage still tracks"
 "","3. Verify","Settings page all green","Firebase, YouTube, Stream, Chat, Stripe","-","-","Admin > Settings (live status)"
 "","3. Verify","Test Go Live + simulcast","Browser broadcast to site + YouTube","-","-",""
 "","3. Verify","Test guest join","Invite link on a 2nd device","-","-","Admit from Guests tab"

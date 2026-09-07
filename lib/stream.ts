@@ -143,6 +143,37 @@ export async function deleteOutput(outputId: string): Promise<boolean> {
   }
 }
 
+// ---- Auto-recording: keep every broadcast as a VOD in the Library ----
+export async function getRecordingMode(): Promise<"automatic" | "off" | null> {
+  if (!streamConfigured) return null;
+  const uid = await resolveInputUid();
+  if (!uid) return null;
+  try {
+    const res = await fetch(`${BASE}/live_inputs/${uid}`, { headers: headers(), cache: "no-store" });
+    if (!res.ok) return null;
+    const r = (await res.json()).result ?? {};
+    return r.recording?.mode === "automatic" ? "automatic" : "off";
+  } catch {
+    return null;
+  }
+}
+
+export async function setRecordingMode(enabled: boolean): Promise<boolean> {
+  if (!streamConfigured) return false;
+  const uid = await resolveInputUid();
+  if (!uid) return false;
+  try {
+    const res = await fetch(`${BASE}/live_inputs/${uid}`, {
+      method: "PUT",
+      headers: headers(),
+      body: JSON.stringify({ recording: { mode: enabled ? "automatic" : "off" } }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 // List recorded VOD videos from Stream (past broadcasts + uploads).
 export async function listStreamVideos(): Promise<any[]> {
   if (!streamConfigured) return [];
