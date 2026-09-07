@@ -3,10 +3,12 @@
 import { usePathname } from "next/navigation";
 import SiteFooter from "@/components/SiteFooter";
 
-// The home page is a single, no-scroll marquee, so it carries no footer.
-// Every other page still shows the full footer (links + Donkey Ideas credit).
+// The home (single no-scroll marquee) and the live page (self-contained
+// player + chat) carry no footer. Every other page shows the full footer.
+const NO_FOOTER = ["/", "/live"];
+
 export default function ConditionalFooter({ brand }: { brand: { name: string; tagline: string } }) {
   const pathname = usePathname();
-  if (pathname === "/") return null;
+  if (NO_FOOTER.includes(pathname)) return null;
   return <SiteFooter brand={brand} />;
 }
