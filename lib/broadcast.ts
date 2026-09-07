@@ -65,6 +65,8 @@ class StudioEngine {
   screenSharing = false;
   screenLayout: "full" | "pip" | "split" = "pip";
   banner: Banner = null; pinned: Pinned = null;
+  tipAlert: { name: string; amount: number; message: string } | null = null;
+  private tipTimer: ReturnType<typeof setTimeout> | null = null;
   // Positions (top-left, canvas px) of the draggable on-air graphics.
   pinPos = { x: 48, y: H - 210 };
   bannerPos = { x: 48, y: H - 96 };
@@ -209,6 +211,18 @@ class StudioEngine {
       ctx.fillStyle = "#F3EFE7"; ctx.font = "400 22px Inter, sans-serif";
       ctx.fillText(this.pinned.text.slice(0, 46), x + 34, y + 62);
     }
+    if (this.tipAlert) {
+      const { name, amount, message } = this.tipAlert;
+      const bw = 620, bh = message ? 128 : 92, x = (W - bw) / 2, y = 40;
+      ctx.save();
+      roundRectPath(ctx, x, y, bw, bh, 18);
+      ctx.fillStyle = "#F5A524"; ctx.fill();
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#151107"; ctx.font = "700 40px Anton, sans-serif";
+      ctx.fillText(`${name} tipped $${amount.toFixed(2)}`, W / 2, y + 42);
+      if (message) { ctx.font = "400 24px Inter, sans-serif"; ctx.fillText(message.slice(0, 60), W / 2, y + 90); }
+      ctx.textAlign = "left"; ctx.restore();
+    }
     if (this.banner) {
       const { x, y } = this.bannerPos, ph = 56;
       ctx.font = "400 34px Anton, sans-serif";
@@ -231,6 +245,13 @@ class StudioEngine {
   hideBanner() { this.banner = null; this.emit(); }
   setPinned(name: string, text: string) { this.pinned = { name, text }; this.emit(); }
   clearPinned() { this.pinned = null; this.emit(); }
+  // Pop a tip alert onto the broadcast for a few seconds (auto-clears).
+  showTipAlert(name: string, amount: number, message: string) {
+    this.tipAlert = { name, amount, message };
+    if (this.tipTimer) clearTimeout(this.tipTimer);
+    this.tipTimer = setTimeout(() => { this.tipAlert = null; this.emit(); }, 9000);
+    this.emit();
+  }
   clearGraphics() { this.banner = null; this.pinned = null; this.emit(); }
   setLayout(l: Layout) { this.layout = l; this.emit(); }
 

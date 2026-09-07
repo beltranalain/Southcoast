@@ -15,11 +15,13 @@ import {
   type User,
 } from "firebase/auth";
 
-type ChatMessage = { id: string; name: string; text: string; ts: number };
+type ChatMessage = { id: string; name: string; text: string; ts: number; tip?: number };
 
 const WS_BASE = process.env.NEXT_PUBLIC_CHAT_WS_URL || "";
 const ROOM = "live";
 const HOST = "South Coast Cane";
+const TIPS_ENABLED = Boolean(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
+const TIP_PRESETS = [2, 5, 10, 20];
 
 const DEMO: ChatMessage[] = [
   { id: "d1", name: "OrangeBowl82", text: "been saying this since August", ts: 0 },
@@ -71,6 +73,14 @@ export default function LiveChat() {
   const [authBusy, setAuthBusy] = useState(false);
 
   const [muted, setMuted] = useState<{ banned: boolean; until: number } | null>(null);
+
+  // Tipping
+  const [tipping, setTipping] = useState(false);
+  const [tipAmount, setTipAmount] = useState(5);
+  const [tipMsg, setTipMsg] = useState("");
+  const [tipBusy, setTipBusy] = useState(false);
+  const [tipErr, setTipErr] = useState("");
+  const [tipThanks, setTipThanks] = useState(false);
 
   const wsRef = useRef<WebSocket | null>(null);
   const bodyRef = useRef<HTMLDivElement | null>(null);
@@ -189,6 +199,34 @@ export default function LiveChat() {
     if (auth) await signOut(auth);
   }
 
+  // Show a thank-you when returning from Stripe checkout, and clean the URL.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const p = new URLSearchParams(window.location.search);
+    if (p.get("tip") === "thanks") {
+      setTipThanks(true);
+      window.history.replaceState({}, "", window.location.pathname);
+      const t = setTimeout(() => setTipThanks(false), 8000);
+      return () => clearTimeout(t);
+    }
+  }, []);
+
+  async function startTip() {
+    const amount = Math.max(1, Math.min(500, Number(tipAmount) || 0));
+    setTipErr(""); setTipBusy(true);
+    try {
+      const res = await fetch("/api/tips/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount, message: tipMsg.trim(), name, uid: getFirebaseAuth()?.currentUser?.uid || "" }),
+      });
+      const d = await res.json();
+      if (d.url) { window.location.href = d.url; return; }
+      setTipErr(d.error || "Could not start checkout.");
+    } catch { setTipErr("Could not start checkout."); }
+    finally { setTipBusy(false); }
+  }
+
   const showAuth = enabled && requireAuth && authReady && !viewer;
 
   return (
@@ -205,11 +243,17 @@ export default function LiveChat() {
       </div>
       <div className="chat-b" ref={bodyRef}>
         {messages.length === 0 && <p className="muted" style={{ fontSize: "13px" }}>No messages yet. Say hello.</p>}
-        {messages.map((m) => (
-          <div className={`msg${m.name === HOST ? " host" : ""}`} key={m.id}>
-            <span className="src">Site</span><b>{m.name}</b>{m.text}
-          </div>
-        ))}
+        {messages.map((m) =>
+          m.tip ? (
+            <div className="msg tipmsg" key={m.id}>
+              <span className="tipamt">${m.tip.toFixed(2)}</span><b>{m.name}</b>{m.text ? <span> {m.text}</span> : null}
+            </div>
+          ) : (
+            <div className={`msg${m.name === HOST ? " host" : ""}`} key={m.id}>
+              <span className="src">Site</span><b>{m.name}</b>{m.text}
+            </div>
+          )
+        )}
         {!enabled && (
           <p style={{ marginTop: 14, color: "var(--text-dim)", fontSize: "12px" }}>
             Chat backend connects when NEXT_PUBLIC_CHAT_WS_URL is set.
@@ -258,6 +302,30 @@ export default function LiveChat() {
           <button type="submit" disabled={!canSend || isMuted}>Send</button>
         </form>
       )}
+
+      {tipThanks && <div className="tip-thanks">Thanks for the tip! It'll show on the stream.</div>}
+
+      {!showAuth && canSend && !isMuted && TIPS_ENABLED && (
+        tipping ? (
+          <div className="tip-panel">
+            <div className="tip-row">
+              {TIP_PRESETS.map((a) => (
+                <button key={a} type="button" className={`tip-chip${tipAmount === a ? " on" : ""}`} onClick={() => setTipAmount(a)}>${a}</button>
+              ))}
+              <input type="number" min={1} max={500} value={tipAmount} onChange={(e) => setTipAmount(Number(e.target.value))} className="tip-custom" aria-label="Custom tip amount" />
+            </div>
+            <input type="text" placeholder="Add a message (optional)" value={tipMsg} onChange={(e) => setTipMsg(e.target.value)} maxLength={200} className="tip-message" />
+            <div className="tip-actions">
+              <button type="button" className="btn btn-primary btn-sm" onClick={startTip} disabled={tipBusy}>{tipBusy ? "..." : `Tip $${Math.max(1, Math.min(500, Number(tipAmount) || 0))}`}</button>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setTipping(false); setTipErr(""); }}>Cancel</button>
+            </div>
+            {tipErr && <p className="form-error" style={{ fontSize: 12 }}>{tipErr}</p>}
+          </div>
+        ) : (
+          <button type="button" className="tip-open" onClick={() => setTipping(true)}>Send a tip</button>
+        )
+      )}
+
       {isMuted && (
         <div className="chat-who" style={{ color: "var(--live)" }}>
           {muted?.banned ? "You've been removed from this chat by the host." : "You're on a timeout - you can watch, but can't chat for a bit."}

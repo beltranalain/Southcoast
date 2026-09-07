@@ -8,7 +8,7 @@ import SimulcastManager from "@/components/SimulcastManager";
 
 const WS_BASE = process.env.NEXT_PUBLIC_CHAT_WS_URL || "";
 type Tab = "onair" | "chat" | "guests" | "sources";
-type ChatMessage = { id: string; name: string; text: string; uid?: string };
+type ChatMessage = { id: string; name: string; text: string; uid?: string; tip?: number };
 
 export default function ControlRoom() {
   const [, force] = useReducer((x) => x + 1, 0);
@@ -82,7 +82,8 @@ export default function ControlRoom() {
     const cw = new WebSocket(`${WS_BASE}/room/live/ws`);
     cw.onmessage = (e) => { let d: any; try { d = JSON.parse(e.data); } catch { return; }
       if (d.type === "history" && Array.isArray(d.messages)) setChat(d.messages.slice(-60));
-      else if (d.type === "chat") setChat((p) => [...p.slice(-59), d]); };
+      else if (d.type === "chat") setChat((p) => [...p.slice(-59), d]);
+      else if (d.type === "tip") broadcast.showTipAlert(d.name, d.amount, d.message); };
     chatWs.current = cw;
     return () => { ow.close(); cw.close(); };
   }, []);
@@ -228,7 +229,9 @@ export default function ControlRoom() {
                 {chat.length === 0 && <p className="muted" style={{ fontSize: "13px" }}>No messages yet.</p>}
                 {chat.map((m) => (
                   <div className="mod-row" key={m.id}>
-                    <div className="msg" style={{ minWidth: 0 }}><span className="src">Site</span><b>{m.name}</b> {m.text}</div>
+                    <div className={`msg${m.tip ? " tipmsg" : ""}`} style={{ minWidth: 0 }}>
+                      {m.tip ? <><span className="tipamt">${m.tip.toFixed(2)}</span><b>{m.name}</b>{m.text ? <span> {m.text}</span> : null}</> : <><span className="src">Site</span><b>{m.name}</b> {m.text}</>}
+                    </div>
                     {m.uid && (
                       <div className="mod-actions">
                         <button className="btn btn-ghost btn-xs" type="button" title="5 minute timeout" onClick={() => moderate("timeout", m, 300)}>Timeout</button>

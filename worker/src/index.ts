@@ -15,6 +15,7 @@ type ChatMessage = {
   name: string;
   text: string;
   uid: string; // signed-in viewer id (for moderation)
+  tip?: number; // dollar amount when this is a paid tip message
   ts: number;
 };
 
@@ -31,11 +32,12 @@ export class ChatRoom {
 
   async fetch(request: Request): Promise<Response> {
     if (request.headers.get("Upgrade") !== "websocket") {
-      // Host moderation call (the shared secret is checked at the edge before
-      // this ever runs): { action: "ban"|"timeout"|"unban", uid, name, seconds }
+      // Secret-gated POSTs (checked at the edge): /moderate and /tip.
       if (request.method === "POST") {
         try {
-          await this.handleModerate(await request.json());
+          const body = await request.json();
+          if (new URL(request.url).pathname.endsWith("/tip")) await this.handleTip(body);
+          else await this.handleModerate(body);
           return new Response("ok");
         } catch {
           return new Response("bad request", { status: 400 });
@@ -144,6 +146,24 @@ export class ChatRoom {
     return null;
   }
 
+  // A paid tip: store it as a highlighted chat message + broadcast a tip event
+  // so the studio can pop an on-air alert.
+  private async handleTip(body: any): Promise<void> {
+    const name = (String(body?.name ?? "A viewer").slice(0, MAX_NAME).trim() || "A viewer").replace(/[\r\n]/g, " ");
+    const amount = Math.max(0, Math.round(Number(body?.amount) * 100) / 100);
+    const message = String(body?.message ?? "").slice(0, MAX_TEXT).replace(/[\r\n]/g, " ");
+    if (!amount) return;
+
+    const msg: ChatMessage = { type: "chat", id: crypto.randomUUID(), name, text: message, uid: "", tip: amount, ts: Date.now() };
+    const history = (await this.state.storage.get<ChatMessage[]>("history")) ?? [];
+    history.push(msg);
+    while (history.length > MAX_HISTORY) history.shift();
+    await this.state.storage.put("history", history);
+
+    this.broadcast(JSON.stringify(msg));
+    this.broadcast(JSON.stringify({ type: "tip", id: msg.id, name, amount, message, ts: msg.ts }));
+  }
+
   // Host moderation: ban / unban / timeout a viewer by uid.
   private async handleModerate(body: any): Promise<void> {
     const action = String(body?.action ?? "");
@@ -209,14 +229,14 @@ export default {
       return stub.fetch(request);
     }
 
-    // Route: POST /room/<roomName>/moderate  ->  host ban/timeout (secret-gated).
-    const mod = url.pathname.match(/^\/room\/([A-Za-z0-9_-]{1,64})\/moderate$/);
-    if (mod && request.method === "POST") {
+    // Routes: POST /room/<roomName>/moderate | /tip  (server-only, secret-gated).
+    const secured = url.pathname.match(/^\/room\/([A-Za-z0-9_-]{1,64})\/(moderate|tip)$/);
+    if (secured && request.method === "POST") {
       const auth = request.headers.get("Authorization") || "";
       if (!env.CHAT_ADMIN_SECRET || auth !== `Bearer ${env.CHAT_ADMIN_SECRET}`) {
         return new Response("unauthorized", { status: 401 });
       }
-      const id = env.CHAT_ROOM.idFromName(mod[1]);
+      const id = env.CHAT_ROOM.idFromName(secured[1]);
       return env.CHAT_ROOM.get(id).fetch(request);
     }
 
