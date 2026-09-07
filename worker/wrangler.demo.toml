@@ -1,0 +1,22 @@
+# Separate chat/guest Worker for the DEMO instance, so demo chat + guest
+# sessions never mix with the real client's rooms. Same code, different name =
+# its own Durable Object namespace.
+#
+# Deploy:   cd worker && npx wrangler deploy -c wrangler.demo.toml
+# Secret:   "<your-demo-secret>" | npx wrangler secret put CHAT_ADMIN_SECRET -c wrangler.demo.toml
+#
+# Then point the demo Vercel project's NEXT_PUBLIC_CHAT_WS_URL at this worker's
+# URL (wss://cwac-demo-chat.<subdomain>.workers.dev) and use the same secret in
+# the demo's CHAT_ADMIN_SECRET.
+
+name = "cwac-demo-chat"
+main = "src/index.ts"
+compatibility_date = "2025-01-15"
+
+[[durable_objects.bindings]]
+name = "CHAT_ROOM"
+class_name = "ChatRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ChatRoom"]
