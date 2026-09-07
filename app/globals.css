@@ -350,6 +350,17 @@ h2.big{font-size:clamp(30px,4.4vw,56px);line-height:.92}
 .tip-log-name{font-size:14px;font-weight:600}
 .tip-log-msg{font-size:12.5px;color:var(--mute);margin-top:2px}
 .tip-log-when{font-size:12px;flex-shrink:0}
+/* integration health */
+.health{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;flex-shrink:0}
+.health-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.health-ok{color:var(--ok)}
+.health-ok .health-dot{background:var(--ok);box-shadow:0 0 8px rgba(111,191,115,.5)}
+.health-fail{color:var(--live)}
+.health-fail .health-dot{background:var(--live);box-shadow:0 0 8px var(--live-glow)}
+.health-off{color:var(--mute)}
+.health-off .health-dot{background:var(--mute)}
+.health-checking{color:var(--mute)}
+.health-checking .health-dot{background:var(--amber);animation:pulse 1.2s infinite}
 .check-row{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--cream);cursor:pointer}
 .check-row input{width:17px;height:17px;accent-color:var(--amber);cursor:pointer}
 .mod-row{display:flex;align-items:center;gap:10px;justify-content:space-between}

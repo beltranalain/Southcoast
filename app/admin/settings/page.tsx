@@ -1,41 +1,47 @@
-// Read-only integration status. Reflects which services have their keys set in
-// the server environment (Vercel env vars / Cloudflare). Never shows secret
-// values - secrets live in env vars, not in the dashboard.
-const INTEGRATIONS = [
-  {
-    name: "Firebase",
-    detail: "Admin sign-in, content, and image storage",
-    ok: Boolean(process.env.NEXT_PUBLIC_FIREBASE_API_KEY && process.env.FIREBASE_ADMIN_PROJECT_ID),
-  },
-  {
-    name: "YouTube Data API",
-    detail: "Pulls real videos and live status",
-    ok: Boolean(process.env.YOUTUBE_API_KEY),
-  },
-  {
-    name: "Cloudflare Stream",
-    detail: "Live ingest, simulcast, and video storage",
-    ok: Boolean(process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_STREAM_API_TOKEN),
-  },
-  {
-    name: "Live chat (Cloudflare Durable Objects)",
-    detail: "Real-time chat Worker",
-    ok: Boolean(process.env.NEXT_PUBLIC_CHAT_WS_URL),
-  },
-  {
-    name: "Contact email (Resend)",
-    detail: "Delivers contact-form messages",
-    ok: Boolean(process.env.RESEND_API_KEY),
-  },
+"use client";
+
+import { useEffect, useState } from "react";
+import { getIdToken } from "@/lib/firebase";
+
+type Status = "ok" | "fail" | "off";
+type Health = Record<string, Status>;
+
+const INTEGRATIONS: { key: string; name: string; detail: string }[] = [
+  { key: "firebase", name: "Firebase", detail: "Admin sign-in, content, and user accounts" },
+  { key: "youtube", name: "YouTube Data API", detail: "Pulls real videos and live status" },
+  { key: "stream", name: "Cloudflare Stream", detail: "Live ingest, simulcast, and video storage" },
+  { key: "chat", name: "Live chat (Cloudflare Durable Objects)", detail: "Real-time chat + guest Worker" },
+  { key: "stripe", name: "Stripe", detail: "Tips and payments" },
+  { key: "resend", name: "Contact email (Resend)", detail: "Delivers contact-form messages" },
 ];
 
+const LABEL: Record<Status, string> = { ok: "Working", fail: "Error", off: "Not set up" };
+
 export default function AdminSettings() {
+  const [health, setHealth] = useState<Health | null>(null);
+  const [checking, setChecking] = useState(true);
+
+  async function run() {
+    setChecking(true);
+    try {
+      const token = await getIdToken();
+      const res = await fetch("/api/admin/health", { headers: token ? { Authorization: `Bearer ${token}` } : {}, cache: "no-store" });
+      const d = await res.json();
+      if (res.ok) setHealth(d);
+    } catch { /* leave last */ }
+    finally { setChecking(false); }
+  }
+  useEffect(() => { run(); }, []);
+
   return (
     <>
       <div className="admin-topbar">
         <div>
           <h1>Settings</h1>
           <div className="sub">Connections and platform basics.</div>
+        </div>
+        <div className="admin-actions">
+          <button className="btn btn-ghost btn-sm" type="button" onClick={run} disabled={checking}>{checking ? "Checking..." : "Re-check"}</button>
         </div>
       </div>
 
@@ -44,20 +50,25 @@ export default function AdminSettings() {
           <div className="panel">
             <h3>Integrations</h3>
             <div className="panel-sub">
-              Managed by your developer through secure environment variables. This view is
-              read-only - no keys are shown here.
+              Live status - each service is pinged to confirm it&apos;s working. Keys are managed
+              securely in environment variables and are never shown or editable here.
             </div>
-            {INTEGRATIONS.map((i) => (
-              <div className="dest-row" key={i.name}>
-                <div>
-                  <div className="dest-name">{i.name}</div>
-                  <div className="dest-meta">{i.detail}</div>
+            {INTEGRATIONS.map((i) => {
+              const s: Status | undefined = health?.[i.key];
+              const cls = checking && !health ? "checking" : s === "ok" ? "ok" : s === "fail" ? "fail" : "off";
+              return (
+                <div className="dest-row" key={i.key}>
+                  <div>
+                    <div className="dest-name">{i.name}</div>
+                    <div className="dest-meta">{i.detail}</div>
+                  </div>
+                  <span className={`health health-${cls}`}>
+                    <span className="health-dot" />
+                    {checking && !health ? "Checking..." : s ? LABEL[s] : "-"}
+                  </span>
                 </div>
-                <span className={`pill ${i.ok ? "published" : "draft"}`}>
-                  {i.ok ? "Connected" : "Not connected"}
-                </span>
-              </div>
-            ))}
+              );
+            })}
           </div>
           <div className="panel">
             <h3>Brand</h3>
