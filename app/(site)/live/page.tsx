@@ -4,6 +4,8 @@ import { PRIMARY_CHANNEL } from "@/lib/channels";
 import { getSiteConfig } from "@/lib/siteConfig";
 import { getLiveInfo } from "@/lib/youtube";
 import LiveChat from "@/components/LiveChat";
+import LivePlayer from "@/components/LivePlayer";
+import AirStatus from "@/components/AirStatus";
 
 export const metadata: Metadata = { title: "Live" };
 
@@ -29,7 +31,7 @@ export default async function LivePage() {
             <h1 className="anton">Live from the South Coast</h1>
           </div>
           <div className="elapsed">
-            <b>{live.live ? "On air" : "Off air"}</b>
+            <AirStatus initial={live.live} />
             <span>Air status</span>
           </div>
         </div>
@@ -37,7 +39,6 @@ export default async function LivePage() {
         <div className="livegrid">
           <div>
             <div className="playerwell art a1">
-              <span className="badge"><i />Live</span>
               <span className="viewers">
                 {live.live
                   ? live.viewers != null
@@ -45,12 +46,7 @@ export default async function LivePage() {
                     : "Live now"
                   : "Auto - shows when live"}
               </span>
-              <iframe
-                src={playerSrc}
-                title="South Coast Cane live"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-              />
+              <LivePlayer src={playerSrc} />
               <div className="lower3">
                 <span className="l3a">South Coast Cane</span>
                 <span className="l3b">The South Coast Cane Show</span>
