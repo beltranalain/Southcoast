@@ -29,6 +29,14 @@ img{display:block;max-width:100%}
 :focus-visible{outline:2px solid var(--amber);outline-offset:3px}
 [hidden]{display:none!important}
 
+/* ---------------- scrollbars (match the dark UI, no white default) ---------------- */
+*{scrollbar-width:thin;scrollbar-color:rgba(243,239,231,.2) transparent}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(243,239,231,.18);border-radius:999px;border:2px solid transparent;background-clip:padding-box}
+::-webkit-scrollbar-thumb:hover{background:rgba(243,239,231,.34);background-clip:padding-box}
+::-webkit-scrollbar-corner{background:transparent}
+
 .anton{font-family:var(--font-anton),"Anton",sans-serif;font-weight:400;text-transform:uppercase;line-height:.88;letter-spacing:.002em}
 .or{color:var(--amber)}
 .wrap{max-width:var(--max);margin:0 auto;padding:0 var(--pad);width:100%}
