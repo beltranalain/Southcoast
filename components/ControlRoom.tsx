@@ -151,10 +151,23 @@ export default function ControlRoom() {
             ) : (
               <button className="btn btn-ghost" type="button" onClick={() => broadcast.stop()}>Stop broadcast</button>
             )}
-            <div className="filters" style={{ margin: 0 }}>
-              <button className={`filter-btn${broadcast.layout === "grid" ? " active" : ""}`} type="button" onClick={() => broadcast.setLayout("grid")}>Grid</button>
-              <button className={`filter-btn${broadcast.layout === "spotlight" ? " active" : ""}`} type="button" onClick={() => broadcast.setLayout("spotlight")}>Spotlight</button>
-            </div>
+            {broadcast.screenSharing ? (
+              <div className="filters" style={{ margin: 0 }}>
+                <button className={`filter-btn${broadcast.screenLayout === "full" ? " active" : ""}`} type="button" onClick={() => broadcast.setScreenLayout("full")}>Full</button>
+                <button className={`filter-btn${broadcast.screenLayout === "pip" ? " active" : ""}`} type="button" onClick={() => broadcast.setScreenLayout("pip")}>PIP</button>
+                <button className={`filter-btn${broadcast.screenLayout === "split" ? " active" : ""}`} type="button" onClick={() => broadcast.setScreenLayout("split")}>Split</button>
+              </div>
+            ) : (
+              <div className="filters" style={{ margin: 0 }}>
+                <button className={`filter-btn${broadcast.layout === "grid" ? " active" : ""}`} type="button" onClick={() => broadcast.setLayout("grid")}>Grid</button>
+                <button className={`filter-btn${broadcast.layout === "spotlight" ? " active" : ""}`} type="button" onClick={() => broadcast.setLayout("spotlight")}>Spotlight</button>
+              </div>
+            )}
+            {broadcast.screenSharing ? (
+              <button className="btn btn-ghost btn-sm" type="button" onClick={() => broadcast.stopScreenShare()}>Stop sharing</button>
+            ) : (
+              <button className="btn btn-ghost btn-sm" type="button" onClick={() => broadcast.startScreenShare()}>Share screen</button>
+            )}
             <Link className="btn btn-ghost btn-sm" href="/live" target="_blank">Open live page</Link>
           </div>
           {ingest === null && <div className="notice" style={{ marginTop: 14 }}><strong>Cloudflare Stream not connected.</strong> Preview works; Go Live turns on once the Stream keys are set.</div>}

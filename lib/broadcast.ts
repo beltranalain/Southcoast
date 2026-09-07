@@ -37,11 +37,24 @@ function drawCover(ctx: CanvasRenderingContext2D, v: HTMLVideoElement, x: number
   ctx.drawImage(v, sx, sy, sw, sh, x, y, w, h);
 }
 
+// Fit the whole source inside the box (letterboxed) - for screen shares so no
+// content is cropped, since shared screens/tabs come in many aspect ratios.
+function drawContain(ctx: CanvasRenderingContext2D, v: HTMLVideoElement, x: number, y: number, w: number, h: number) {
+  ctx.fillStyle = "#000"; ctx.fillRect(x, y, w, h);
+  if (!v.videoWidth) return;
+  const vr = v.videoWidth / v.videoHeight, dr = w / h;
+  let dw = w, dh = h;
+  if (vr > dr) dh = w / vr; else dw = h * vr;
+  ctx.drawImage(v, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+}
+
 const PIN_W = 560, PIN_H = 92;
 
 class StudioEngine {
   live = false; connecting = false; error = ""; ingest: Ingest = null;
   layout: Layout = "grid";
+  screenSharing = false;
+  screenLayout: "full" | "pip" | "split" = "pip";
   banner: Banner = null; pinned: Pinned = null;
   // Positions (top-left, canvas px) of the draggable on-air graphics.
   pinPos = { x: 48, y: H - 210 };
@@ -57,6 +70,9 @@ class StudioEngine {
   private hostStream: MediaStream | null = null;
   private guestVideos = new Map<string, HTMLVideoElement>();
   private guestAudio = new Map<string, MediaStreamAudioSourceNode>();
+  private screenStream: MediaStream | null = null;
+  private screenVideo: HTMLVideoElement | null = null;
+  private screenAudioSrc: MediaStreamAudioSourceNode | null = null;
   private camId?: string; private micId?: string;
 
   private pc: RTCPeerConnection | null = null;
@@ -135,17 +151,21 @@ class StudioEngine {
     this.lastDraw = now;
     ctx.fillStyle = "#0A0908"; ctx.fillRect(0, 0, W, H);
     const sources = [this.hostVideo, ...Array.from(this.guestVideos.values())].filter(Boolean) as HTMLVideoElement[];
-    const n = sources.length || 1;
-    const gap = 8;
-    if (this.layout === "spotlight" && n > 1) {
-      const strip = 300;
-      drawCover(ctx, sources[0], 0, 0, W - strip - gap, H);
-      const ch = (H - gap * (n - 2)) / (n - 1);
-      sources.slice(1).forEach((v, i) => drawCover(ctx, v, W - strip, i * (ch + gap), strip, ch));
+    if (this.screenSharing && this.screenVideo && this.screenVideo.videoWidth) {
+      this.drawScreenLayout(ctx, sources);
     } else {
-      const cols = Math.ceil(Math.sqrt(n)), rows = Math.ceil(n / cols);
-      const cw = (W - gap * (cols - 1)) / cols, chh = (H - gap * (rows - 1)) / rows;
-      sources.forEach((v, i) => { const c = i % cols, r = Math.floor(i / cols); drawCover(ctx, v, c * (cw + gap), r * (chh + gap), cw, chh); });
+      const n = sources.length || 1;
+      const gap = 8;
+      if (this.layout === "spotlight" && n > 1) {
+        const strip = 300;
+        drawCover(ctx, sources[0], 0, 0, W - strip - gap, H);
+        const ch = (H - gap * (n - 2)) / (n - 1);
+        sources.slice(1).forEach((v, i) => drawCover(ctx, v, W - strip, i * (ch + gap), strip, ch));
+      } else {
+        const cols = Math.ceil(Math.sqrt(n)), rows = Math.ceil(n / cols);
+        const cw = (W - gap * (cols - 1)) / cols, chh = (H - gap * (rows - 1)) / rows;
+        sources.forEach((v, i) => { const c = i % cols, r = Math.floor(i / cols); drawCover(ctx, v, c * (cw + gap), r * (chh + gap), cw, chh); });
+      }
     }
     this.drawGraphics(ctx);
   }
@@ -200,6 +220,54 @@ class StudioEngine {
   clearPinned() { this.pinned = null; this.emit(); }
   clearGraphics() { this.banner = null; this.pinned = null; this.emit(); }
   setLayout(l: Layout) { this.layout = l; this.emit(); }
+
+  // ---- Screen / tab / window share (host) ----
+  async startScreenShare() {
+    try {
+      const s = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 30 }, audio: true } as MediaStreamConstraints);
+      this.screenStream = s;
+      if (!this.screenVideo) {
+        this.screenVideo = document.createElement("video");
+        this.screenVideo.muted = true; this.screenVideo.autoplay = true; (this.screenVideo as any).playsInline = true;
+      }
+      this.screenVideo.srcObject = s; this.screenVideo.play().catch(() => {});
+      // Mix shared tab/system audio into the program (e.g. a video's sound).
+      if (this.audioCtx && this.audioDest && s.getAudioTracks().length) {
+        try { this.screenAudioSrc = this.audioCtx.createMediaStreamSource(new MediaStream(s.getAudioTracks())); this.screenAudioSrc.connect(this.audioDest); } catch {}
+      }
+      // The browser's own "Stop sharing" ends the track.
+      s.getVideoTracks()[0]?.addEventListener("ended", () => this.stopScreenShare());
+      this.screenSharing = true; this.emit();
+    } catch { /* user cancelled the picker */ }
+  }
+
+  stopScreenShare() {
+    this.screenStream?.getTracks().forEach((t) => t.stop());
+    this.screenStream = null;
+    if (this.screenVideo) this.screenVideo.srcObject = null;
+    try { this.screenAudioSrc?.disconnect(); } catch {}
+    this.screenAudioSrc = null;
+    this.screenSharing = false; this.emit();
+  }
+
+  setScreenLayout(l: "full" | "pip" | "split") { this.screenLayout = l; this.emit(); }
+
+  private drawScreenLayout(ctx: CanvasRenderingContext2D, people: HTMLVideoElement[]) {
+    const screen = this.screenVideo!;
+    if (this.screenLayout === "split") {
+      const sw = Math.round(W * 0.66);
+      drawContain(ctx, screen, 0, 0, sw, H);
+      const n = Math.max(people.length, 1);
+      const cw = W - sw, chh = H / n;
+      people.forEach((v, i) => drawCover(ctx, v, sw, i * chh, cw, chh));
+    } else {
+      drawContain(ctx, screen, 0, 0, W, H);
+      if (this.screenLayout === "pip" && people.length) {
+        const pw = 320, ph = 180, pad = 22, gap = 12;
+        people.slice(0, 2).forEach((v, i) => drawCover(ctx, v, W - pw - pad, H - ph - pad - i * (ph + gap), pw, ph));
+      }
+    }
+  }
 
   // ---- Draggable pinned comment (canvas-space px) ----
   pinBox() { return { x: this.pinPos.x, y: this.pinPos.y, w: PIN_W, h: PIN_H }; }
