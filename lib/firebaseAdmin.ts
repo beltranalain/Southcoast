@@ -23,15 +23,25 @@ let adminApp: App | null = null;
 export function getAdminApp(): App | null {
   if (!adminConfigured) return null;
   if (!adminApp) {
-    adminApp = getApps().length
-      ? getApps()[0]
-      : initializeApp({
-          credential: cert({
-            projectId,
-            clientEmail,
-            privateKey,
-          }),
-        });
+    try {
+      adminApp = getApps().length
+        ? getApps()[0]
+        : initializeApp({
+            credential: cert({
+              projectId,
+              clientEmail,
+              privateKey,
+            }),
+          });
+    } catch (e) {
+      // Almost always a malformed FIREBASE_ADMIN_PRIVATE_KEY (e.g. wrapped in
+      // quotes on the host). Degrade gracefully instead of 500-ing routes.
+      console.error(
+        "Firebase Admin init failed - check FIREBASE_ADMIN_PRIVATE_KEY (no surrounding quotes, keep the \\n):",
+        (e as Error)?.message
+      );
+      return null;
+    }
   }
   return adminApp;
 }
