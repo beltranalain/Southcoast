@@ -55,6 +55,8 @@ export default function LiveChat() {
   const [authErr, setAuthErr] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
 
+  const [muted, setMuted] = useState<{ banned: boolean; until: number } | null>(null);
+
   const wsRef = useRef<WebSocket | null>(null);
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -92,6 +94,14 @@ export default function LiveChat() {
         if (data.type === "history" && Array.isArray(data.messages)) setMessages(data.messages);
         else if (data.type === "chat") setMessages((prev) => [...prev.slice(-199), data]);
         else if (data.type === "count") setCount(data.count);
+        else if (data.type === "muted") setMuted({ banned: Boolean(data.banned), until: Number(data.until) || 0 });
+        else if (data.type === "moderation") {
+          const auth = getFirebaseAuth();
+          if (auth?.currentUser && data.uid === auth.currentUser.uid) {
+            if (data.action === "unban") setMuted(null);
+            else setMuted({ banned: data.action === "ban", until: Number(data.until) || 0 });
+          }
+        }
       };
     }
     connect();
@@ -106,11 +116,14 @@ export default function LiveChat() {
     if (bodyRef.current) bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
   }, [messages]);
 
+  const isMuted = Boolean(muted && (muted.banned || muted.until > Date.now()));
+
   function send(e: React.FormEvent) {
     e.preventDefault();
     const text = draft.trim();
-    if (!text || !canSend || !wsRef.current) return;
-    wsRef.current.send(JSON.stringify({ type: "chat", name, text }));
+    if (!text || !canSend || isMuted || !wsRef.current) return;
+    const uid = getFirebaseAuth()?.currentUser?.uid || "";
+    wsRef.current.send(JSON.stringify({ type: "chat", name, text, uid }));
     setDraft("");
   }
 
@@ -210,16 +223,25 @@ export default function LiveChat() {
             type="text"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            placeholder={canSend ? `Chatting as ${name}` : connected ? "Connecting..." : "Say something"}
-            disabled={!canSend}
+            placeholder={
+              isMuted
+                ? muted?.banned ? "You've been removed from chat" : "You're on timeout"
+                : canSend ? `Chatting as ${name}` : connected ? "Connecting..." : "Say something"
+            }
+            disabled={!canSend || isMuted}
             maxLength={500}
             aria-label="Chat message"
           />
-          <button type="submit" disabled={!canSend}>Send</button>
+          <button type="submit" disabled={!canSend || isMuted}>Send</button>
         </form>
       )}
+      {isMuted && (
+        <div className="chat-who" style={{ color: "var(--live)" }}>
+          {muted?.banned ? "You've been removed from this chat by the host." : "You're on a timeout - you can watch, but can't chat for a bit."}
+        </div>
+      )}
 
-      {requireAuth && viewer && (
+      {requireAuth && viewer && !isMuted && (
         <div className="chat-who">
           Signed in as <b>{name}</b> · <button type="button" onClick={leave}>Sign out</button>
         </div>

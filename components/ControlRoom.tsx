@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useEffect, useReducer, useRef, useState } from "react";
 import { broadcast } from "@/lib/broadcast";
+import { getIdToken } from "@/lib/firebase";
 import SimulcastManager from "@/components/SimulcastManager";
 
 const WS_BASE = process.env.NEXT_PUBLIC_CHAT_WS_URL || "";
 type Tab = "onair" | "chat" | "guests" | "sources";
-type ChatMessage = { id: string; name: string; text: string };
+type ChatMessage = { id: string; name: string; text: string; uid?: string };
 
 export default function ControlRoom() {
   const [, force] = useReducer((x) => x + 1, 0);
@@ -91,6 +92,20 @@ export default function ControlRoom() {
   const clearAll = () => { broadcast.clearGraphics(); pushOverlay({ action: "clear" }); };
   const pin = (m: ChatMessage) => { broadcast.setPinned(m.name, m.text); pushOverlay({ action: "comment", name: m.name, text: m.text }); };
   const unpin = () => { broadcast.clearPinned(); pushOverlay({ action: "hideComment" }); };
+  const [modMsg, setModMsg] = useState("");
+  const moderate = async (action: "ban" | "timeout" | "unban", m: ChatMessage, seconds?: number) => {
+    if (!m.uid) { setModMsg("This viewer isn't signed in, so they can't be moderated."); return; }
+    setModMsg("");
+    try {
+      const token = await getIdToken();
+      const res = await fetch("/api/chat/moderate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ action, room: "live", uid: m.uid, name: m.name, seconds }),
+      });
+      setModMsg(res.ok ? `${m.name} ${action === "ban" ? "removed" : action === "timeout" ? "timed out" : "restored"}.` : "Could not apply that.");
+    } catch { setModMsg("Moderation request failed."); }
+  };
   const isPinned = (m: ChatMessage) => !!broadcast.pinned && broadcast.pinned.name === m.name && broadcast.pinned.text === m.text;
 
   const live = broadcast.live;
@@ -192,10 +207,21 @@ export default function ControlRoom() {
           {tab === "chat" && (
             <div className="panel">
               <h3>Live chat</h3>
-              <div className="panel-sub">Site + YouTube, merged.</div>
-              <div style={{ maxHeight: 420, overflowY: "auto", display: "flex", flexDirection: "column", gap: 12 }}>
+              <div className="panel-sub">Site + YouTube, merged. Timeout or remove a signed-in viewer from here.</div>
+              {modMsg && <p className="form-ok" style={{ fontSize: "12.5px", marginBottom: 10 }}>{modMsg}</p>}
+              <div style={{ maxHeight: 460, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10 }}>
                 {chat.length === 0 && <p className="muted" style={{ fontSize: "13px" }}>No messages yet.</p>}
-                {chat.map((m) => <div className="msg" key={m.id}><span className="src">Site</span><b>{m.name}</b> {m.text}</div>)}
+                {chat.map((m) => (
+                  <div className="mod-row" key={m.id}>
+                    <div className="msg" style={{ minWidth: 0 }}><span className="src">Site</span><b>{m.name}</b> {m.text}</div>
+                    {m.uid && (
+                      <div className="mod-actions">
+                        <button className="btn btn-ghost btn-xs" type="button" title="5 minute timeout" onClick={() => moderate("timeout", m, 300)}>Timeout</button>
+                        <button className="btn btn-ghost btn-xs" type="button" title="Remove from chat" onClick={() => moderate("ban", m)}>Ban</button>
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
           )}

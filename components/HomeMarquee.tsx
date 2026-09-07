@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { SERIES } from "@/lib/siteData";
+import HomeBackdrop from "@/components/HomeBackdrop";
 
 const Play = () => (
   <svg width="13" height="15" viewBox="0 0 13 15" fill="currentColor"><path d="M0 0l13 7.5L0 15z" /></svg>
@@ -30,6 +31,7 @@ export default function HomeMarquee({
   return (
     <section className="shell">
       <div className="shell-art" />
+      <HomeBackdrop />
       <div className="scrim" />
       <div className="scrim2" />
       <div className="wrap">

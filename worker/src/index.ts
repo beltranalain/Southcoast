@@ -6,6 +6,7 @@
 
 export interface Env {
   CHAT_ROOM: DurableObjectNamespace;
+  CHAT_ADMIN_SECRET?: string; // shared secret for host moderation calls
 }
 
 type ChatMessage = {
@@ -13,6 +14,7 @@ type ChatMessage = {
   id: string;
   name: string;
   text: string;
+  uid: string; // signed-in viewer id (for moderation)
   ts: number;
 };
 
@@ -29,6 +31,16 @@ export class ChatRoom {
 
   async fetch(request: Request): Promise<Response> {
     if (request.headers.get("Upgrade") !== "websocket") {
+      // Host moderation call (the shared secret is checked at the edge before
+      // this ever runs): { action: "ban"|"timeout"|"unban", uid, name, seconds }
+      if (request.method === "POST") {
+        try {
+          await this.handleModerate(await request.json());
+          return new Response("ok");
+        } catch {
+          return new Response("bad request", { status: 400 });
+        }
+      }
       return new Response("Expected a WebSocket upgrade.", { status: 426 });
     }
 
@@ -83,6 +95,13 @@ export class ChatRoom {
 
     if (data?.type !== "chat") return;
 
+    const uid = String(data.uid ?? "").slice(0, 128);
+    const muted = await this.mutedState(uid);
+    if (muted) {
+      try { _ws.send(JSON.stringify({ type: "muted", banned: muted.banned, until: muted.until })); } catch {}
+      return;
+    }
+
     const text = String(data.text ?? "").slice(0, MAX_TEXT).trim();
     const name = (String(data.name ?? "Guest").slice(0, MAX_NAME).trim() || "Guest").replace(/[\r\n]/g, " ");
     if (!text) return;
@@ -92,6 +111,7 @@ export class ChatRoom {
       id: crypto.randomUUID(),
       name,
       text,
+      uid,
       ts: Date.now(),
     };
 
@@ -111,6 +131,39 @@ export class ChatRoom {
   async webSocketError(): Promise<void> {
     this.broadcastCount();
     this.broadcastRoster();
+  }
+
+  // Is this uid banned (permanent) or timed out (until a future ts)?
+  private async mutedState(uid: string): Promise<{ banned: boolean; until: number } | null> {
+    if (!uid) return null;
+    const bans = (await this.state.storage.get<string[]>("bans")) ?? [];
+    if (bans.includes(uid)) return { banned: true, until: 0 };
+    const timeouts = (await this.state.storage.get<Record<string, number>>("timeouts")) ?? {};
+    const until = timeouts[uid] ?? 0;
+    if (until > Date.now()) return { banned: false, until };
+    return null;
+  }
+
+  // Host moderation: ban / unban / timeout a viewer by uid.
+  private async handleModerate(body: any): Promise<void> {
+    const action = String(body?.action ?? "");
+    const uid = String(body?.uid ?? "").slice(0, 128);
+    const name = String(body?.name ?? "").slice(0, MAX_NAME);
+    if (!uid) return;
+
+    const bans = new Set((await this.state.storage.get<string[]>("bans")) ?? []);
+    const timeouts = (await this.state.storage.get<Record<string, number>>("timeouts")) ?? {};
+
+    if (action === "ban") { bans.add(uid); delete timeouts[uid]; }
+    else if (action === "unban") { bans.delete(uid); delete timeouts[uid]; }
+    else if (action === "timeout") {
+      const secs = Math.min(Math.max(Number(body?.seconds) || 300, 30), 86400);
+      timeouts[uid] = Date.now() + secs * 1000;
+    } else return;
+
+    await this.state.storage.put("bans", Array.from(bans));
+    await this.state.storage.put("timeouts", timeouts);
+    this.broadcast(JSON.stringify({ type: "moderation", action, uid, name, until: timeouts[uid] ?? 0 }));
   }
 
   private broadcastRoster(): void {
@@ -154,6 +207,17 @@ export default {
       const id = env.CHAT_ROOM.idFromName(roomName);
       const stub = env.CHAT_ROOM.get(id);
       return stub.fetch(request);
+    }
+
+    // Route: POST /room/<roomName>/moderate  ->  host ban/timeout (secret-gated).
+    const mod = url.pathname.match(/^\/room\/([A-Za-z0-9_-]{1,64})\/moderate$/);
+    if (mod && request.method === "POST") {
+      const auth = request.headers.get("Authorization") || "";
+      if (!env.CHAT_ADMIN_SECRET || auth !== `Bearer ${env.CHAT_ADMIN_SECRET}`) {
+        return new Response("unauthorized", { status: 401 });
+      }
+      const id = env.CHAT_ROOM.idFromName(mod[1]);
+      return env.CHAT_ROOM.get(id).fetch(request);
     }
 
     return new Response("South Coast Cane chat worker is running.", {
