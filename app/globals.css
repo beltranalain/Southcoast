@@ -95,6 +95,7 @@ img{display:block;max-width:100%}
 .shell-art::after{content:"";position:absolute;inset:0;opacity:.2;mix-blend-mode:overlay;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E")}
 .home-bg{position:absolute;inset:0;z-index:0;overflow:hidden}
 .home-bg iframe{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);min-width:100%;min-height:100%;width:177.78vh;height:56.25vw;border:0;pointer-events:none}
+.home-bg-img{position:absolute;inset:0;background-size:cover;background-position:center;background-repeat:no-repeat}
 .scrim{position:absolute;inset:0;z-index:1;background:linear-gradient(100deg,rgba(10,9,8,.94) 0%,rgba(10,9,8,.72) 34%,rgba(10,9,8,.18) 62%,rgba(10,9,8,.55) 100%)}
 .scrim2{position:absolute;inset:0;z-index:1;background:linear-gradient(transparent 55%,rgba(10,9,8,.9))}
 .shell .wrap{position:relative;z-index:5;flex:1;display:flex;flex-direction:column;padding-top:calc(var(--header-h) + 4px);padding-bottom:46px}
@@ -570,6 +571,9 @@ table.data tr:hover td{background:var(--bg3)}
   .brand{position:static;transform:none;margin-right:auto}
   .nav-toggle{display:flex}
   .navlinks.open{display:flex;position:absolute;top:var(--header-h);left:0;right:0;flex-direction:column;gap:2px;background:var(--bg2);border-bottom:1px solid var(--line);padding:12px var(--pad);z-index:55}
+  /* Hero grows with its content instead of clipping inside a locked 100vh. */
+  .shell{height:auto;min-height:100svh}
+  .shell .wrap{padding-bottom:36px}
   .livehead{grid-template-columns:1fr;gap:20px;align-items:start}
   .livehead .elapsed{text-align:left}
   .about{grid-template-columns:1fr;gap:30px}
@@ -578,7 +582,7 @@ table.data tr:hover td{background:var(--bg3)}
   .footgrid{grid-template-columns:1fr 1fr}
 }
 @media (max-width:560px){
-  :root{--pad:20px}
+  :root{--pad:20px;--header-h:64px}
   .sec{padding-top:72px}
   .slaterow{grid-template-columns:1fr 1fr}
   .cat{width:calc(50% - 8px)}
@@ -589,5 +593,32 @@ table.data tr:hover td{background:var(--bg3)}
   .stat-grid{grid-template-columns:1fr}
   .admin-main{padding:20px}
   .peekcard{width:230px}
+
+  /* --- home hero on phones --- */
+  .mhero{gap:24px;padding-top:24px}
+  .mhero h1{font-size:clamp(34px,11vw,52px);margin-bottom:16px}
+  .blurb{font-size:14.5px;margin-bottom:16px}
+  .metaline{margin-bottom:22px}
+  /* full-width, easy-to-tap primary actions */
+  .cta{gap:10px}
+  .cta .b1,.cta .b2{flex:1 1 auto;justify-content:center;padding:14px 22px}
+  /* next-show card: stretch full width, tighten cover */
+  .nextcard{display:flex;width:100%;gap:12px;margin-top:20px;padding:10px 14px 10px 10px}
+  .nc-cover{width:104px;height:59px}
+  .nc-title{font-size:15.5px}
+  .nc-when{font-size:13px}
+  /* carousel controls: smaller circles + numerals */
+  .controls{gap:14px;padding-top:18px}
+  .circ{width:46px;height:46px}
+  .count{font-size:22px}
+  .count span{font-size:13px}
+
+  /* --- live page on phones --- */
+  .livehero{padding-top:calc(var(--header-h) + 16px)}
+  .chat{height:clamp(380px,70vh,520px)}
+  .lower3 .l3a{font-size:16px;padding:7px 12px}
+  .lower3 .l3b{font-size:11px;padding:7px 12px}
+  .playerwell .badge,.playerwell .viewers{left:12px;top:12px}
+  .playerwell .viewers{left:auto;right:12px}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}

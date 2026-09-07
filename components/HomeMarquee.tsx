@@ -34,7 +34,7 @@ export default function HomeMarquee({
   return (
     <section className="shell">
       <div className="shell-art" />
-      <HomeBackdrop />
+      <HomeBackdrop cover={!isLive ? nextShow?.cover : undefined} />
       <div className="scrim" />
       <div className="scrim2" />
       <div className="wrap">
