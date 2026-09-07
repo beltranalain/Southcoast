@@ -61,12 +61,20 @@ export default function AdminSchedule() {
   const [note, setNote] = useState("");
   const [cover, setCover] = useState("");
   const [message, setMessage] = useState("");
+  const [now, setNow] = useState(0);
   const coverInput = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     loadConfig()
       .then((cfg) => Array.isArray(cfg?.schedule) && setItems(cfg.schedule))
       .catch(() => {});
+  }, []);
+
+  // Track time so past broadcasts can be flagged "Expired" (refreshes each min).
+  useEffect(() => {
+    setNow(Date.now());
+    const id = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(id);
   }, []);
 
   // Auto-save whenever the list changes (so nothing is lost on navigation).
@@ -110,6 +118,13 @@ export default function AdminSchedule() {
     router.push("/admin/go-live");
   }
 
+  // Remove every broadcast whose start time has already passed.
+  async function clearExpired() {
+    const list = items.filter((s) => (s.startsAt ?? 0) > Date.now());
+    setItems(list);
+    await persist(list);
+  }
+
   return (
     <>
       <div className="admin-topbar">
@@ -122,21 +137,34 @@ export default function AdminSchedule() {
 
       <div className="two-col">
         <div className="panel">
-          <h3>Upcoming broadcasts</h3>
-          <div className="panel-sub">Saved automatically as you add them. Soonest first.</div>
+          <div className="mod-row" style={{ marginBottom: 4 }}>
+            <div>
+              <h3>Upcoming broadcasts</h3>
+              <div className="panel-sub" style={{ marginBottom: 0 }}>Saved automatically as you add them. Soonest first.</div>
+            </div>
+            {items.some((s) => now > 0 && (s.startsAt ?? 0) <= now) && (
+              <button className="btn btn-ghost btn-sm" type="button" onClick={clearExpired}>Clear expired</button>
+            )}
+          </div>
           {items.length ? (
-            <ul className="schedule">
-              {items.map((s, i) => (
-                <li key={i}>
-                  {s.cover && <img src={s.cover} alt="" className="cover-thumb sm" />}
-                  <span className="when">{s.when}</span>
-                  <span className="what"><strong>{s.title}</strong><span>{s.note}</span></span>
-                  <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexShrink: 0 }}>
-                    <button className="btn btn-primary btn-sm" type="button" onClick={() => goLive(i)}>Go live</button>
-                    <button className="btn btn-ghost btn-sm" type="button" onClick={() => removeAt(i)}>Remove</button>
-                  </div>
-                </li>
-              ))}
+            <ul className="schedule" style={{ marginTop: 14 }}>
+              {items
+                .map((s, idx) => ({ s, idx, expired: now > 0 && (s.startsAt ?? 0) <= now }))
+                .sort((a, b) => (a.expired ? 1 : 0) - (b.expired ? 1 : 0) || (a.s.startsAt ?? 0) - (b.s.startsAt ?? 0))
+                .map(({ s, idx, expired }) => (
+                  <li key={idx} style={expired ? { opacity: 0.55 } : undefined}>
+                    {s.cover && <img src={s.cover} alt="" className="cover-thumb sm" />}
+                    <span className="when">{s.when}</span>
+                    <span className="what">
+                      <strong>{s.title}{expired && <span className="pill draft" style={{ marginLeft: 8 }}>Expired</span>}</strong>
+                      <span>{s.note}</span>
+                    </span>
+                    <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexShrink: 0 }}>
+                      {!expired && <button className="btn btn-primary btn-sm" type="button" onClick={() => goLive(idx)}>Go live</button>}
+                      <button className="btn btn-ghost btn-sm" type="button" onClick={() => removeAt(idx)}>Remove</button>
+                    </div>
+                  </li>
+                ))}
             </ul>
           ) : (
             <p className="muted" style={{ fontSize: "13.5px" }}>No broadcasts scheduled yet. Add one on the right.</p>
