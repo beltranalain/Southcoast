@@ -39,8 +39,8 @@ export default function ControlRoom() {
       stageRef.current.appendChild(el);
     }
 
-    // Drag the pinned comment around the program with a grab cursor.
-    let dragging = false, ox = 0, oy = 0;
+    // Drag the pinned comment or the banner around the program with a grab cursor.
+    let drag: null | "pin" | "banner" = null, ox = 0, oy = 0;
     const toCanvas = (e: PointerEvent) => {
       const r = el!.getBoundingClientRect();
       return { x: (e.clientX - r.left) * (broadcast.width / r.width), y: (e.clientY - r.top) * (broadcast.height / r.height) };
@@ -48,18 +48,18 @@ export default function ControlRoom() {
     const onDown = (e: PointerEvent) => {
       if (!el) return;
       const p = toCanvas(e);
-      if (broadcast.hitPin(p.x, p.y)) {
-        dragging = true; const b = broadcast.pinBox(); ox = p.x - b.x; oy = p.y - b.y;
-        el.style.cursor = "grabbing"; el.setPointerCapture?.(e.pointerId); e.preventDefault();
-      }
+      if (broadcast.hitPin(p.x, p.y)) { drag = "pin"; const b = broadcast.pinBox(); ox = p.x - b.x; oy = p.y - b.y; }
+      else if (broadcast.hitBanner(p.x, p.y)) { drag = "banner"; const b = broadcast.bannerBox(); ox = p.x - b.x; oy = p.y - b.y; }
+      if (drag) { el.style.cursor = "grabbing"; el.setPointerCapture?.(e.pointerId); e.preventDefault(); }
     };
     const onMove = (e: PointerEvent) => {
       if (!el) return;
       const p = toCanvas(e);
-      if (dragging) broadcast.setPinPos(p.x - ox, p.y - oy);
-      else el.style.cursor = broadcast.hitPin(p.x, p.y) ? "grab" : "default";
+      if (drag === "pin") broadcast.setPinPos(p.x - ox, p.y - oy);
+      else if (drag === "banner") broadcast.setBannerPos(p.x - ox, p.y - oy);
+      else el.style.cursor = broadcast.hitPin(p.x, p.y) || broadcast.hitBanner(p.x, p.y) ? "grab" : "default";
     };
-    const onUp = () => { if (dragging) { dragging = false; if (el) el.style.cursor = "grab"; } };
+    const onUp = () => { if (drag) { drag = null; if (el) el.style.cursor = "grab"; } };
     el?.addEventListener("pointerdown", onDown);
     el?.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
@@ -166,6 +166,7 @@ export default function ControlRoom() {
                 <button className="btn btn-ghost btn-sm" type="button" onClick={hideBanner}>Hide banner</button>
                 <button className="btn btn-ghost btn-sm" type="button" onClick={clearAll}>Clear all</button>
               </div>
+              <p className="form-note" style={{ marginTop: -8, marginBottom: 16 }}>Drag the banner on the program preview to place it anywhere.</p>
               <div className="panel-sub">Pin a message onto the broadcast, then drag it anywhere on the program preview.</div>
               <div style={{ maxHeight: 240, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6 }}>
                 {chat.length === 0 && <p className="muted" style={{ fontSize: "13px" }}>Chat appears here during a broadcast.</p>}

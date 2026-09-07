@@ -43,8 +43,10 @@ class StudioEngine {
   live = false; connecting = false; error = ""; ingest: Ingest = null;
   layout: Layout = "grid";
   banner: Banner = null; pinned: Pinned = null;
-  // Position (top-left, in canvas px) of the pinned comment - draggable.
+  // Positions (top-left, canvas px) of the draggable on-air graphics.
   pinPos = { x: 48, y: H - 210 };
+  bannerPos = { x: 48, y: H - 96 };
+  private bannerRect = { x: 48, y: H - 96, w: 0, h: 56 };
   readonly width = W; readonly height = H;
   roster: Participant[] = [];
   admitted = new Set<string>(); // guest sessionIds currently on the program
@@ -68,6 +70,9 @@ class StudioEngine {
   private raf = 0;
   private started = false;
   private subs = new Set<() => void>();
+  private ctx2d: CanvasRenderingContext2D | null = null;
+  private lastDraw = 0;
+  private clock: ScriptProcessorNode | null = null;
 
   subscribe(fn: () => void) { this.subs.add(fn); return () => { this.subs.delete(fn); }; }
   private emit() { this.subs.forEach((f) => f()); }
@@ -114,26 +119,49 @@ class StudioEngine {
   }
 
   private startCompositing() {
-    const canvas = this.canvas!; const ctx = canvas.getContext("2d")!;
-    const draw = () => {
-      ctx.fillStyle = "#0A0908"; ctx.fillRect(0, 0, W, H);
-      const sources = [this.hostVideo, ...Array.from(this.guestVideos.values())].filter(Boolean) as HTMLVideoElement[];
-      const n = sources.length || 1;
-      const gap = 8;
-      if (this.layout === "spotlight" && n > 1) {
-        const strip = 300;
-        drawCover(ctx, sources[0], 0, 0, W - strip - gap, H);
-        const ch = (H - gap * (n - 2)) / (n - 1);
-        sources.slice(1).forEach((v, i) => drawCover(ctx, v, W - strip, i * (ch + gap), strip, ch));
-      } else {
-        const cols = Math.ceil(Math.sqrt(n)), rows = Math.ceil(n / cols);
-        const cw = (W - gap * (cols - 1)) / cols, chh = (H - gap * (rows - 1)) / rows;
-        sources.forEach((v, i) => { const c = i % cols, r = Math.floor(i / cols); drawCover(ctx, v, c * (cw + gap), r * (chh + gap), cw, chh); });
-      }
-      this.drawGraphics(ctx);
-      this.raf = requestAnimationFrame(draw);
-    };
-    draw();
+    this.ctx2d = this.canvas!.getContext("2d");
+    const loop = () => { this.renderFrame(); this.raf = requestAnimationFrame(loop); };
+    loop();
+    this.startBackgroundClock();
+  }
+
+  // Draw one composited frame. Called by both requestAnimationFrame (smooth
+  // while the tab is focused) and an audio-clock (keeps firing when the tab is
+  // backgrounded). The timestamp gate caps to ~30fps and de-dupes the two.
+  private renderFrame() {
+    const ctx = this.ctx2d; if (!ctx) return;
+    const now = typeof performance !== "undefined" ? performance.now() : 0;
+    if (now - this.lastDraw < 1000 / 30) return;
+    this.lastDraw = now;
+    ctx.fillStyle = "#0A0908"; ctx.fillRect(0, 0, W, H);
+    const sources = [this.hostVideo, ...Array.from(this.guestVideos.values())].filter(Boolean) as HTMLVideoElement[];
+    const n = sources.length || 1;
+    const gap = 8;
+    if (this.layout === "spotlight" && n > 1) {
+      const strip = 300;
+      drawCover(ctx, sources[0], 0, 0, W - strip - gap, H);
+      const ch = (H - gap * (n - 2)) / (n - 1);
+      sources.slice(1).forEach((v, i) => drawCover(ctx, v, W - strip, i * (ch + gap), strip, ch));
+    } else {
+      const cols = Math.ceil(Math.sqrt(n)), rows = Math.ceil(n / cols);
+      const cw = (W - gap * (cols - 1)) / cols, chh = (H - gap * (rows - 1)) / rows;
+      sources.forEach((v, i) => { const c = i % cols, r = Math.floor(i / cols); drawCover(ctx, v, c * (cw + gap), r * (chh + gap), cw, chh); });
+    }
+    this.drawGraphics(ctx);
+  }
+
+  // A silent ScriptProcessorNode fires on the audio thread, which browsers do
+  // NOT throttle when the tab is hidden - so the canvas keeps compositing (and
+  // captureStream keeps producing frames) even after switching windows/tabs.
+  private startBackgroundClock() {
+    if (!this.audioCtx || this.clock) return;
+    try {
+      const sp = this.audioCtx.createScriptProcessor(1024, 1, 1);
+      sp.onaudioprocess = () => this.renderFrame();
+      const mute = this.audioCtx.createGain(); mute.gain.value = 0;
+      sp.connect(mute); mute.connect(this.audioCtx.destination);
+      this.clock = sp;
+    } catch { /* ScriptProcessor unsupported - rAF still covers the visible case */ }
   }
 
   private drawGraphics(ctx: CanvasRenderingContext2D) {
@@ -149,17 +177,20 @@ class StudioEngine {
       ctx.fillText(this.pinned.text.slice(0, 46), x + 34, y + 62);
     }
     if (this.banner) {
-      const y = H - 96, ph = 56;
+      const { x, y } = this.bannerPos, ph = 56;
       ctx.font = "400 34px Anton, sans-serif";
       const tw = ctx.measureText(this.banner.title.toUpperCase()).width + 44;
-      ctx.fillStyle = "#F5A524"; ctx.fillRect(48, y, tw, ph);
-      ctx.fillStyle = "#151107"; ctx.fillText(this.banner.title.toUpperCase(), 70, y + ph / 2 + 2);
+      ctx.fillStyle = "#F5A524"; ctx.fillRect(x, y, tw, ph);
+      ctx.fillStyle = "#151107"; ctx.fillText(this.banner.title.toUpperCase(), x + 22, y + ph / 2 + 2);
+      let total = tw;
       if (this.banner.subtitle) {
         ctx.font = "500 18px Inter, sans-serif";
         const sw = ctx.measureText(this.banner.subtitle).width + 40;
-        ctx.fillStyle = "rgba(10,9,8,.9)"; ctx.fillRect(48 + tw, y, sw, ph);
-        ctx.fillStyle = "#F3EFE7"; ctx.fillText(this.banner.subtitle, 68 + tw, y + ph / 2 + 1);
+        ctx.fillStyle = "rgba(10,9,8,.9)"; ctx.fillRect(x + tw, y, sw, ph);
+        ctx.fillStyle = "#F3EFE7"; ctx.fillText(this.banner.subtitle, x + tw + 20, y + ph / 2 + 1);
+        total += sw;
       }
+      this.bannerRect = { x, y, w: total, h: ph };
     }
   }
 
@@ -181,6 +212,22 @@ class StudioEngine {
     this.pinPos = {
       x: Math.max(0, Math.min(W - PIN_W, x)),
       y: Math.max(0, Math.min(H - PIN_H, y)),
+    };
+    this.emit();
+  }
+
+  // ---- Draggable banner (lower-third) ----
+  bannerBox() { return { ...this.bannerRect }; }
+  hitBanner(cx: number, cy: number) {
+    if (!this.banner) return false;
+    const b = this.bannerRect;
+    return b.w > 0 && cx >= b.x && cx <= b.x + b.w && cy >= b.y && cy <= b.y + b.h;
+  }
+  setBannerPos(x: number, y: number) {
+    const w = this.bannerRect.w || 200, h = this.bannerRect.h || 56;
+    this.bannerPos = {
+      x: Math.max(0, Math.min(W - w, x)),
+      y: Math.max(0, Math.min(H - h, y)),
     };
     this.emit();
   }
@@ -268,6 +315,8 @@ class StudioEngine {
     if (this.live || this.connecting) return;
     this.connecting = true; this.error = ""; this.emit();
     try {
+      this.audioCtx?.resume().catch(() => {}); // keep the background clock alive
+      this.startBackgroundClock();
       const ingest = this.ingest || (await this.fetchIngest());
       if (!ingest?.whipUrl) throw new Error("Cloudflare Stream is not connected.");
       const canvasStream = this.canvas!.captureStream(30);
