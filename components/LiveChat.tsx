@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useReducer, useRef, useState } from "react";
+import TipModal from "@/components/TipModal";
 import { firebaseConfigured, getFirebaseAuth } from "@/lib/firebase";
 import {
   GoogleAuthProvider,
@@ -85,6 +86,7 @@ export default function LiveChat() {
   const [tipBusy, setTipBusy] = useState(false);
   const [tipErr, setTipErr] = useState("");
   const [tipThanks, setTipThanks] = useState(false);
+  const [tipSecret, setTipSecret] = useState<string | null>(null); // open modal when set
 
   const wsRef = useRef<WebSocket | null>(null);
   const bodyRef = useRef<HTMLDivElement | null>(null);
@@ -226,20 +228,29 @@ export default function LiveChat() {
     }
   }, []);
 
+  const tipValue = Math.max(1, Math.min(500, Number(tipAmount) || 0));
+
   async function startTip() {
-    const amount = Math.max(1, Math.min(500, Number(tipAmount) || 0));
     setTipErr(""); setTipBusy(true);
     try {
       const res = await fetch("/api/tips/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount, message: tipMsg.trim(), name, uid: getFirebaseAuth()?.currentUser?.uid || "" }),
+        body: JSON.stringify({ amount: tipValue, message: tipMsg.trim(), name, uid: getFirebaseAuth()?.currentUser?.uid || "" }),
       });
       const d = await res.json();
-      if (d.url) { window.location.href = d.url; return; }
-      setTipErr(d.error || "Could not start checkout.");
-    } catch { setTipErr("Could not start checkout."); }
+      if (d.clientSecret) { setTipSecret(d.clientSecret); return; } // open the on-site modal
+      setTipErr(d.error || "Could not start the tip.");
+    } catch { setTipErr("Could not start the tip."); }
     finally { setTipBusy(false); }
+  }
+
+  function onTipPaid() {
+    setTipSecret(null);
+    setTipping(false);
+    setTipMsg("");
+    setTipThanks(true);
+    setTimeout(() => setTipThanks(false), 8000);
   }
 
   const showAuth = enabled && requireAuth && authReady && !viewer;
@@ -331,7 +342,7 @@ export default function LiveChat() {
             </div>
             <input type="text" placeholder="Add a message (optional)" value={tipMsg} onChange={(e) => setTipMsg(e.target.value)} maxLength={200} className="tip-message" />
             <div className="tip-actions">
-              <button type="button" className="btn btn-primary btn-sm" onClick={startTip} disabled={tipBusy}>{tipBusy ? "..." : `Tip $${Math.max(1, Math.min(500, Number(tipAmount) || 0))}`}</button>
+              <button type="button" className="btn btn-primary btn-sm" onClick={startTip} disabled={tipBusy}>{tipBusy ? "..." : `Tip $${tipValue}`}</button>
               <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setTipping(false); setTipErr(""); }}>Cancel</button>
             </div>
             {tipErr && <p className="form-error" style={{ fontSize: 12 }}>{tipErr}</p>}
@@ -360,6 +371,15 @@ export default function LiveChat() {
             <>Signed in as <b>{name}</b> · <button type="button" onClick={() => { setNewName(name); setEditingName(true); }}>Edit name</button> · <button type="button" onClick={leave}>Sign out</button></>
           )}
         </div>
+      )}
+
+      {tipSecret && (
+        <TipModal
+          clientSecret={tipSecret}
+          amount={tipValue}
+          onSuccess={onTipPaid}
+          onClose={() => setTipSecret(null)}
+        />
       )}
     </aside>
   );

@@ -26,10 +26,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Bad signature." }, { status: 400 });
   }
 
-  if (event.type === "checkout.session.completed") {
-    const s = event.data.object;
-    const amount = (s.amount_total ?? 0) / 100;
-    const md = s.metadata || {};
+  // Tips are paid via an on-site Payment Element (PaymentIntent). Also still
+  // accept checkout.session.completed for backwards compatibility.
+  const isPI = event.type === "payment_intent.succeeded";
+  const isCS = event.type === "checkout.session.completed";
+  if (isPI || isCS) {
+    const obj = event.data.object;
+    const md = obj.metadata || {};
+    // Only process our tips (ignore any unrelated payments on the account).
+    if (isPI && md.kind !== "tip") return NextResponse.json({ received: true });
+
+    const amount = (isPI ? obj.amount ?? obj.amount_received ?? 0 : obj.amount_total ?? 0) / 100;
     const name = String(md.name || "A viewer");
     const message = String(md.message || "");
     const room = String(md.room || "live");
@@ -49,7 +56,7 @@ export async function POST(request: Request) {
     // Record it for the admin.
     try {
       const db = getAdminDb();
-      await db?.collection("tips").add({ name, amount, message, uid, ts: Date.now(), sessionId: s.id });
+      await db?.collection("tips").add({ name, amount, message, uid, ts: Date.now(), sessionId: obj.id });
     } catch { /* ignore */ }
   }
 

@@ -384,6 +384,18 @@ h2.big{font-size:clamp(30px,4.4vw,56px);line-height:.92}
 .tip-actions{display:flex;gap:8px}
 .tip-actions .btn{flex:1;justify-content:center}
 .tip-thanks{margin:0 16px 12px;background:rgba(111,191,115,.14);border:1px solid rgba(111,191,115,.4);color:#9fe0a2;border-radius:10px;padding:10px 13px;font-size:12.5px}
+/* on-site tip modal (Stripe Payment Element) */
+.tipm-overlay{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(6,5,5,.72);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
+.tipm-card{width:100%;max-width:420px;background:var(--bg2);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);overflow:hidden}
+.tipm-head{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--line)}
+.tipm-head b{font-size:14px;letter-spacing:.02em}
+.tipm-x{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;color:var(--mute)}
+.tipm-x:hover{color:var(--ink);background:var(--bg3)}
+.tipm-form{padding:18px}
+.tipm-actions{display:flex;gap:10px;margin-top:16px}
+.tipm-actions .btn{flex:1;justify-content:center}
+.tipm-foot{text-align:center;color:var(--text-dim);font-size:11px;margin-top:12px}
+.tipm-foot strong{color:var(--mute)}
 .tip-log{display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid rgba(243,239,231,.07)}
 .tip-log-amt{font-family:var(--font-anton),"Anton",sans-serif;font-size:20px;color:var(--amber);min-width:74px}
 .tip-log-mid{flex:1;min-width:0}

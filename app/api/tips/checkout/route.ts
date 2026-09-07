@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { getStripe, stripeConfigured } from "@/lib/stripe";
-import { getSiteConfig } from "@/lib/siteConfig";
 
 export const dynamic = "force-dynamic";
 
-// POST { amount (dollars), message?, name?, uid? } -> a Stripe Checkout URL.
+// POST { amount (dollars), message?, name?, uid?, room? } -> a PaymentIntent
+// client secret. The tip is paid in an on-site modal (Stripe Payment Element),
+// not a hosted redirect. The webhook (payment_intent.succeeded) fans it out.
 export async function POST(request: Request) {
   if (!stripeConfigured) {
     return NextResponse.json({ error: "Tipping isn't set up yet." }, { status: 400 });
@@ -24,28 +25,17 @@ export async function POST(request: Request) {
   const uid = String(body.uid || "").slice(0, 128);
   const room = String(body.room || "live");
 
-  const { branding } = await getSiteConfig();
-  const origin = new URL(request.url).origin;
-
   try {
-    const session = await stripe.checkout.sessions.create({
-      mode: "payment",
-      line_items: [
-        {
-          price_data: {
-            currency: "usd",
-            unit_amount: Math.round(dollars * 100),
-            product_data: { name: `Tip to ${branding.siteName}` },
-          },
-          quantity: 1,
-        },
-      ],
-      metadata: { name, message, uid, room },
-      success_url: `${origin}/live?tip=thanks`,
-      cancel_url: `${origin}/live?tip=cancel`,
+    const intent = await stripe.paymentIntents.create({
+      amount: Math.round(dollars * 100),
+      currency: "usd",
+      // `kind: "tip"` lets the webhook ignore any unrelated payments.
+      metadata: { kind: "tip", name, message, uid, room },
+      automatic_payment_methods: { enabled: true },
+      description: "Tip",
     });
-    return NextResponse.json({ url: session.url });
+    return NextResponse.json({ clientSecret: intent.client_secret });
   } catch {
-    return NextResponse.json({ error: "Could not start checkout." }, { status: 502 });
+    return NextResponse.json({ error: "Could not start the tip." }, { status: 502 });
   }
 }
