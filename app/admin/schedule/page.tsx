@@ -4,10 +4,31 @@ import { useEffect, useRef, useState } from "react";
 import type { ScheduleItem } from "@/lib/siteData";
 import { saveSection, loadConfig } from "@/lib/saveSection";
 
-const EMPTY: ScheduleItem = { when: "", title: "", note: "", cover: "" };
+const TZ_OPTIONS = [
+  { id: "America/New_York", label: "Eastern (ET)" },
+  { id: "America/Chicago", label: "Central (CT)" },
+  { id: "America/Denver", label: "Mountain (MT)" },
+  { id: "America/Los_Angeles", label: "Pacific (PT)" },
+];
 
-// Resize a picked image to a 16:9 cover thumbnail (WebP) small enough to store
-// inline with the schedule.
+// Interpret a datetime-local wall-clock ("2026-09-11T20:00") as a time in `tz`
+// and return the UTC epoch ms (DST-correct via Intl).
+function wallClockToEpoch(local: string, tz: string): number {
+  const naive = new Date(local + ":00Z").getTime();
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit",
+  }).formatToParts(naive).reduce((a: any, p) => { a[p.type] = p.value; return a; }, {});
+  const asTz = Date.UTC(+parts.year, +parts.month - 1, +parts.day, +parts.hour, +parts.minute, +parts.second);
+  return naive - (asTz - naive);
+}
+
+function fmtWhen(epoch: number, tz: string): string {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: tz, weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short",
+  }).format(epoch);
+}
+
+// Resize a picked image to a 16:9 cover thumbnail (WebP).
 function resizeCover(file: File, w = 480, h = 270): Promise<string> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
@@ -32,18 +53,13 @@ function resizeCover(file: File, w = 480, h = 270): Promise<string> {
 
 export default function AdminSchedule() {
   const [items, setItems] = useState<ScheduleItem[]>([]);
-  const [draft, setDraft] = useState<ScheduleItem>(EMPTY);
-  const [status, setStatus] = useState<"idle" | "saving" | "saved" | "demo" | "error">("idle");
+  const [dt, setDt] = useState("");
+  const [tz, setTz] = useState("America/New_York");
+  const [title, setTitle] = useState("");
+  const [note, setNote] = useState("");
+  const [cover, setCover] = useState("");
   const [message, setMessage] = useState("");
   const coverInput = useRef<HTMLInputElement | null>(null);
-
-  async function pickCover(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    try { setDraft((d) => ({ ...d, cover: "" })); const url = await resizeCover(file); setDraft((d) => ({ ...d, cover: url })); }
-    catch { setMessage("Could not read that image."); }
-  }
 
   useEffect(() => {
     loadConfig()
@@ -51,31 +67,38 @@ export default function AdminSchedule() {
       .catch(() => {});
   }, []);
 
-  function addDraft() {
-    if (!draft.title.trim()) return;
-    setItems((v) => [...v, { ...draft }]);
-    setDraft(EMPTY);
-  }
-  function removeAt(idx: number) {
-    setItems((v) => v.filter((_, i) => i !== idx));
+  // Auto-save whenever the list changes (so nothing is lost on navigation).
+  async function persist(list: ScheduleItem[]) {
+    try {
+      const res = await saveSection("schedule", { items: list });
+      setMessage(res.saved ? "Saved." : "Preview only - connect Firebase to save.");
+    } catch {
+      setMessage("Could not save.");
+    }
   }
 
-  async function save() {
-    setStatus("saving");
-    setMessage("");
-    try {
-      const res = await saveSection("schedule", { items });
-      if (res.saved) {
-        setStatus("saved");
-        setMessage("Saved. This schedule now shows on the Live page.");
-      } else {
-        setStatus("demo");
-        setMessage("Preview only - connect Firebase to save changes.");
-      }
-    } catch (e: any) {
-      setStatus("error");
-      setMessage(e.message || "Could not save.");
-    }
+  async function pickCover(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    try { setCover(""); setCover(await resizeCover(file)); }
+    catch { setMessage("Could not read that image."); }
+  }
+
+  async function addItem() {
+    if (!title.trim() || !dt) { setMessage("Add a date/time and a show name."); return; }
+    const startsAt = wallClockToEpoch(dt, tz);
+    const item: ScheduleItem = { title: title.trim(), note: note.trim(), cover, startsAt, tz, when: fmtWhen(startsAt, tz) };
+    const list = [...items, item].sort((a, b) => (a.startsAt ?? 0) - (b.startsAt ?? 0));
+    setItems(list);
+    setDt(""); setTitle(""); setNote(""); setCover("");
+    await persist(list);
+  }
+
+  async function removeAt(idx: number) {
+    const list = items.filter((_, i) => i !== idx);
+    setItems(list);
+    await persist(list);
   }
 
   return (
@@ -83,25 +106,15 @@ export default function AdminSchedule() {
       <div className="admin-topbar">
         <div>
           <h1>Schedule</h1>
-          <div className="sub">Add your real broadcasts. These publish to the Live page.</div>
+          <div className="sub">Add your real broadcasts. These publish to the Home + Live page and save automatically.</div>
         </div>
-        <div className="admin-actions">
-          <button className="btn btn-primary btn-sm" type="button" onClick={save} disabled={status === "saving"}>
-            {status === "saving" ? "Saving..." : "Save schedule"}
-          </button>
-        </div>
+        {message && <div className="admin-actions"><span className="form-ok" style={{ margin: 0 }}>{message}</span></div>}
       </div>
-
-      {message && (
-        <div className={status === "error" ? "form-error" : "form-ok"} style={{ marginBottom: 18 }}>
-          {message}
-        </div>
-      )}
 
       <div className="two-col">
         <div className="panel">
           <h3>Upcoming broadcasts</h3>
-          <div className="panel-sub">Nothing fake here - this list starts empty and shows only what you add.</div>
+          <div className="panel-sub">Saved automatically as you add them. Soonest first.</div>
           {items.length ? (
             <ul className="schedule">
               {items.map((s, i) => (
@@ -120,21 +133,23 @@ export default function AdminSchedule() {
 
         <div className="panel">
           <h3>Add a broadcast</h3>
-          <div className="panel-sub">When, what, and a short note.</div>
-          <div className="form-field"><label>When</label><input type="text" placeholder="Thu, 8:00 PM ET" value={draft.when} onChange={(e) => setDraft({ ...draft, when: e.target.value })} /></div>
-          <div className="form-field"><label>Show</label><input type="text" placeholder="The South Coast Cane Show" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} /></div>
-          <div className="form-field"><label>Note</label><input type="text" placeholder="Weekly flagship broadcast" value={draft.note} onChange={(e) => setDraft({ ...draft, note: e.target.value })} /></div>
+          <div className="panel-sub">Date, time, and timezone - viewers see a live countdown.</div>
+          <div className="panel-split">
+            <div className="form-field"><label>Date &amp; time</label><input type="datetime-local" value={dt} onChange={(e) => setDt(e.target.value)} /></div>
+            <div className="form-field"><label>Timezone</label><select value={tz} onChange={(e) => setTz(e.target.value)}>{TZ_OPTIONS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}</select></div>
+          </div>
+          <div className="form-field"><label>Show</label><input type="text" placeholder="The South Coast Cane Show" value={title} onChange={(e) => setTitle(e.target.value)} /></div>
+          <div className="form-field"><label>Note</label><input type="text" placeholder="Weekly flagship broadcast" value={note} onChange={(e) => setNote(e.target.value)} /></div>
           <div className="form-field">
             <label>Cover image (optional)</label>
             <input ref={coverInput} type="file" accept="image/*" hidden onChange={pickCover} />
             <div className="cover-pick">
-              {draft.cover ? <img src={draft.cover} alt="" className="cover-thumb" /> : <div className="cover-thumb empty">16:9</div>}
-              <button className="btn btn-ghost btn-sm" type="button" onClick={() => coverInput.current?.click()}>{draft.cover ? "Change" : "Upload cover"}</button>
-              {draft.cover && <button className="btn btn-ghost btn-sm" type="button" onClick={() => setDraft((d) => ({ ...d, cover: "" }))}>Remove</button>}
+              {cover ? <img src={cover} alt="" className="cover-thumb" /> : <div className="cover-thumb empty">16:9</div>}
+              <button className="btn btn-ghost btn-sm" type="button" onClick={() => coverInput.current?.click()}>{cover ? "Change" : "Upload cover"}</button>
+              {cover && <button className="btn btn-ghost btn-sm" type="button" onClick={() => setCover("")}>Remove</button>}
             </div>
           </div>
-          <button className="btn btn-ghost btn-sm" type="button" onClick={addDraft} style={{ width: "100%", justifyContent: "center" }}>Add to list</button>
-          <p className="form-note">Remember to press Save schedule when done.</p>
+          <button className="btn btn-primary btn-sm" type="button" onClick={addItem} style={{ width: "100%", justifyContent: "center" }}>Add broadcast</button>
         </div>
       </div>
     </>

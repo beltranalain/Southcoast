@@ -54,6 +54,8 @@ export async function POST(request: Request) {
             when: String(it.when ?? "").slice(0, 80),
             title: String(it.title ?? "").slice(0, 120),
             note: String(it.note ?? "").slice(0, 160),
+            startsAt: Number(it.startsAt) || 0,
+            tz: String(it.tz ?? "").slice(0, 40),
             // Only keep small inline cover images (resized client-side) so the
             // schedule doc stays well under Firestore's 1MB limit.
             cover: cover.startsWith("data:image") && cover.length < 200_000 ? cover : "",

@@ -8,7 +8,7 @@ export default async function HomePage() {
     getLiveInfo(PRIMARY_CHANNEL.channelId),
     getSiteConfig(),
   ]);
-  const next = schedule[0] ? { when: schedule[0].when, title: schedule[0].title } : null;
+  const next = schedule[0] ? { when: schedule[0].when, title: schedule[0].title, startsAt: schedule[0].startsAt ?? 0 } : null;
 
   return <HomeMarquee live={{ live: live.live, viewers: live.viewers }} nextShow={next} />;
 }

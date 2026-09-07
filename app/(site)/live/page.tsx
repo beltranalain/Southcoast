@@ -6,6 +6,7 @@ import { getLiveInfo } from "@/lib/youtube";
 import LiveChat from "@/components/LiveChat";
 import LivePlayer from "@/components/LivePlayer";
 import AirStatus from "@/components/AirStatus";
+import Countdown from "@/components/Countdown";
 
 export const metadata: Metadata = { title: "Live" };
 
@@ -75,7 +76,7 @@ export default async function LivePage() {
                 <span className="nl">Up next</span>
                 <div>
                   <b>{next.title}</b>
-                  <span>{next.when}{next.note ? ` - ${next.note}` : ""}</span>
+                  <span>{next.when}{next.note ? ` - ${next.note}` : ""}{next.startsAt ? <> · <Countdown startsAt={next.startsAt} className="or" /></> : null}</span>
                 </div>
                 <span className="arw">
                   <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 8h11M9 4l4 4-4 4" /></svg>

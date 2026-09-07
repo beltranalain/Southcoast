@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { SERIES } from "@/lib/siteData";
 import HomeBackdrop from "@/components/HomeBackdrop";
+import Countdown from "@/components/Countdown";
 
 const Play = () => (
   <svg width="13" height="15" viewBox="0 0 13 15" fill="currentColor"><path d="M0 0l13 7.5L0 15z" /></svg>
@@ -15,7 +16,7 @@ export default function HomeMarquee({
   nextShow,
 }: {
   live: { live: boolean; viewers: number | null } | null;
-  nextShow?: { when: string; title: string } | null;
+  nextShow?: { when: string; title: string; startsAt?: number } | null;
 }) {
   const shows = SERIES;
   const n = shows.length;
@@ -56,7 +57,10 @@ export default function HomeMarquee({
               <Link className="b2" href={s.href}>See the show</Link>
             </div>
             {!isLive && nextShow && (
-              <div className="nextlive"><span className="nl-dot" />Next live <b>{nextShow.when}</b>{nextShow.title ? <> · {nextShow.title}</> : null}</div>
+              <div className="nextlive">
+                <span className="nl-dot" />Next live <b>{nextShow.when}</b>
+                {nextShow.startsAt ? <Countdown startsAt={nextShow.startsAt} className="nl-count" /> : nextShow.title ? <> · {nextShow.title}</> : null}
+              </div>
             )}
           </div>
 

@@ -112,6 +112,8 @@ img{display:block;max-width:100%}
 .cta{display:flex;flex-wrap:wrap;gap:12px}
 .nextlive{display:inline-flex;align-items:center;gap:9px;margin-top:22px;font-size:13.5px;color:rgba(243,239,231,.82);border:1px solid var(--line);border-radius:999px;padding:8px 16px}
 .nextlive b{color:var(--amber);font-weight:700}
+.nl-count{color:var(--amber);font-weight:700;margin-left:4px}
+.nl-count::before{content:"· "}
 .nl-dot{width:7px;height:7px;border-radius:50%;background:var(--amber);flex-shrink:0;box-shadow:0 0 8px rgba(245,165,36,.55)}
 .cover-pick{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .cover-thumb{width:96px;height:54px;object-fit:cover;border-radius:8px;flex-shrink:0;border:1px solid var(--line)}
