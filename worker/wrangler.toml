@@ -1,0 +1,12 @@
+name = "south-coast-cane-chat"
+main = "src/index.ts"
+compatibility_date = "2025-01-15"
+
+# SQLite-backed Durable Objects run on the free Workers plan.
+[[durable_objects.bindings]]
+name = "CHAT_ROOM"
+class_name = "ChatRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ChatRoom"]

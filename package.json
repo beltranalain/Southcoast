@@ -1,0 +1,26 @@
+{
+  "name": "south-coast-cane",
+  "version": "0.1.0",
+  "private": true,
+  "description": "South Coast Cane - creator website and live platform (Vercel + Cloudflare Stream + Firebase)",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "firebase": "^11.3.0",
+    "firebase-admin": "^13.0.2",
+    "next": "^15.1.6",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "server-only": "^0.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.7.0"
+  }
+}
