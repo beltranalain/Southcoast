@@ -48,6 +48,15 @@ function drawContain(ctx: CanvasRenderingContext2D, v: HTMLVideoElement, x: numb
   ctx.drawImage(v, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
 }
 
+// Rounded-corner variants (match the site's rounded UI). r is corner radius px.
+const TILE_R = 18;
+function drawCoverRounded(ctx: CanvasRenderingContext2D, v: HTMLVideoElement, x: number, y: number, w: number, h: number, r = TILE_R) {
+  ctx.save(); roundRectPath(ctx, x, y, w, h, r); ctx.clip(); drawCover(ctx, v, x, y, w, h); ctx.restore();
+}
+function drawContainRounded(ctx: CanvasRenderingContext2D, v: HTMLVideoElement, x: number, y: number, w: number, h: number, r = TILE_R) {
+  ctx.save(); roundRectPath(ctx, x, y, w, h, r); ctx.clip(); drawContain(ctx, v, x, y, w, h); ctx.restore();
+}
+
 const PIN_W = 560, PIN_H = 92;
 
 class StudioEngine {
@@ -60,6 +69,8 @@ class StudioEngine {
   pinPos = { x: 48, y: H - 210 };
   bannerPos = { x: 48, y: H - 96 };
   private bannerRect = { x: 48, y: H - 96, w: 0, h: 56 };
+  pipPos = { x: W - 320 - 22, y: H - 180 - 22 };
+  private pipRect = { x: W - 320 - 22, y: H - 180 - 22, w: 320, h: 180 };
   readonly width = W; readonly height = H;
   roster: Participant[] = [];
   admitted = new Set<string>(); // guest sessionIds currently on the program
@@ -155,16 +166,18 @@ class StudioEngine {
       this.drawScreenLayout(ctx, sources);
     } else {
       const n = sources.length || 1;
-      const gap = 8;
+      const gap = 10;
       if (this.layout === "spotlight" && n > 1) {
         const strip = 300;
-        drawCover(ctx, sources[0], 0, 0, W - strip - gap, H);
+        drawCoverRounded(ctx, sources[0], 0, 0, W - strip - gap, H);
         const ch = (H - gap * (n - 2)) / (n - 1);
-        sources.slice(1).forEach((v, i) => drawCover(ctx, v, W - strip, i * (ch + gap), strip, ch));
+        sources.slice(1).forEach((v, i) => drawCoverRounded(ctx, v, W - strip, i * (ch + gap), strip, ch));
+      } else if (n === 1) {
+        drawCover(ctx, sources[0], 0, 0, W, H); // single camera fills the frame
       } else {
         const cols = Math.ceil(Math.sqrt(n)), rows = Math.ceil(n / cols);
         const cw = (W - gap * (cols - 1)) / cols, chh = (H - gap * (rows - 1)) / rows;
-        sources.forEach((v, i) => { const c = i % cols, r = Math.floor(i / cols); drawCover(ctx, v, c * (cw + gap), r * (chh + gap), cw, chh); });
+        sources.forEach((v, i) => { const c = i % cols, r = Math.floor(i / cols); drawCoverRounded(ctx, v, c * (cw + gap), r * (chh + gap), cw, chh); });
       }
     }
     this.drawGraphics(ctx);
@@ -255,16 +268,28 @@ class StudioEngine {
   private drawScreenLayout(ctx: CanvasRenderingContext2D, people: HTMLVideoElement[]) {
     const screen = this.screenVideo!;
     if (this.screenLayout === "split") {
-      const sw = Math.round(W * 0.66);
-      drawContain(ctx, screen, 0, 0, sw, H);
+      const gap = 10, sw = Math.round(W * 0.64);
+      drawContainRounded(ctx, screen, 0, 0, sw, H);
       const n = Math.max(people.length, 1);
-      const cw = W - sw, chh = H / n;
-      people.forEach((v, i) => drawCover(ctx, v, sw, i * chh, cw, chh));
+      const cw = W - sw - gap, chh = (H - gap * (n - 1)) / n;
+      people.forEach((v, i) => drawCoverRounded(ctx, v, sw + gap, i * (chh + gap), cw, chh));
     } else {
-      drawContain(ctx, screen, 0, 0, W, H);
+      drawContain(ctx, screen, 0, 0, W, H); // full-bleed shared screen
       if (this.screenLayout === "pip" && people.length) {
-        const pw = 320, ph = 180, pad = 22, gap = 12;
-        people.slice(0, 2).forEach((v, i) => drawCover(ctx, v, W - pw - pad, H - ph - pad - i * (ph + gap), pw, ph));
+        const pw = 320, ph = 180, gap = 14;
+        const list = people.slice(0, 2);
+        const groupH = list.length * ph + (list.length - 1) * gap;
+        // Keep the (draggable) group on-canvas.
+        const x = Math.max(0, Math.min(W - pw, this.pipPos.x));
+        const y = Math.max(0, Math.min(H - groupH, this.pipPos.y));
+        this.pipPos = { x, y };
+        this.pipRect = { x, y, w: pw, h: groupH };
+        list.forEach((v, i) => {
+          const by = y + i * (ph + gap);
+          drawCoverRounded(ctx, v, x, by, pw, ph, 16);
+          roundRectPath(ctx, x, by, pw, ph, 16);
+          ctx.lineWidth = 3; ctx.strokeStyle = "rgba(255,255,255,.18)"; ctx.stroke();
+        });
       }
     }
   }
@@ -296,6 +321,21 @@ class StudioEngine {
     this.bannerPos = {
       x: Math.max(0, Math.min(W - w, x)),
       y: Math.max(0, Math.min(H - h, y)),
+    };
+    this.emit();
+  }
+
+  // ---- Draggable PIP camera box (only in screen-share PIP mode) ----
+  pipBox() { return { ...this.pipRect }; }
+  hitPip(cx: number, cy: number) {
+    if (!(this.screenSharing && this.screenLayout === "pip")) return false;
+    const b = this.pipRect;
+    return cx >= b.x && cx <= b.x + b.w && cy >= b.y && cy <= b.y + b.h;
+  }
+  setPipPos(x: number, y: number) {
+    this.pipPos = {
+      x: Math.max(0, Math.min(W - this.pipRect.w, x)),
+      y: Math.max(0, Math.min(H - this.pipRect.h, y)),
     };
     this.emit();
   }

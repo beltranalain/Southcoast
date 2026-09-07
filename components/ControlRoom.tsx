@@ -40,8 +40,8 @@ export default function ControlRoom() {
       stageRef.current.appendChild(el);
     }
 
-    // Drag the pinned comment or the banner around the program with a grab cursor.
-    let drag: null | "pin" | "banner" = null, ox = 0, oy = 0;
+    // Drag the pinned comment, banner, or PIP camera around with a grab cursor.
+    let drag: null | "pin" | "banner" | "pip" = null, ox = 0, oy = 0;
     const toCanvas = (e: PointerEvent) => {
       const r = el!.getBoundingClientRect();
       return { x: (e.clientX - r.left) * (broadcast.width / r.width), y: (e.clientY - r.top) * (broadcast.height / r.height) };
@@ -51,6 +51,7 @@ export default function ControlRoom() {
       const p = toCanvas(e);
       if (broadcast.hitPin(p.x, p.y)) { drag = "pin"; const b = broadcast.pinBox(); ox = p.x - b.x; oy = p.y - b.y; }
       else if (broadcast.hitBanner(p.x, p.y)) { drag = "banner"; const b = broadcast.bannerBox(); ox = p.x - b.x; oy = p.y - b.y; }
+      else if (broadcast.hitPip(p.x, p.y)) { drag = "pip"; const b = broadcast.pipBox(); ox = p.x - b.x; oy = p.y - b.y; }
       if (drag) { el.style.cursor = "grabbing"; el.setPointerCapture?.(e.pointerId); e.preventDefault(); }
     };
     const onMove = (e: PointerEvent) => {
@@ -58,7 +59,8 @@ export default function ControlRoom() {
       const p = toCanvas(e);
       if (drag === "pin") broadcast.setPinPos(p.x - ox, p.y - oy);
       else if (drag === "banner") broadcast.setBannerPos(p.x - ox, p.y - oy);
-      else el.style.cursor = broadcast.hitPin(p.x, p.y) || broadcast.hitBanner(p.x, p.y) ? "grab" : "default";
+      else if (drag === "pip") broadcast.setPipPos(p.x - ox, p.y - oy);
+      else el.style.cursor = broadcast.hitPin(p.x, p.y) || broadcast.hitBanner(p.x, p.y) || broadcast.hitPip(p.x, p.y) ? "grab" : "default";
     };
     const onUp = () => { if (drag) { drag = null; if (el) el.style.cursor = "grab"; } };
     el?.addEventListener("pointerdown", onDown);
