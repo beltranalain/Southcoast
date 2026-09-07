@@ -20,7 +20,6 @@ type ChatMessage = { id: string; name: string; text: string; ts: number; tip?: n
 const WS_BASE = process.env.NEXT_PUBLIC_CHAT_WS_URL || "";
 const ROOM = "live";
 const HOST = "South Coast Cane";
-const TIPS_ENABLED = Boolean(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
 const TIP_PRESETS = [2, 5, 10, 20];
 
 const DEMO: ChatMessage[] = [
@@ -321,7 +320,7 @@ export default function LiveChat() {
 
       {tipThanks && <div className="tip-thanks">Thanks for the tip! It'll show on the stream.</div>}
 
-      {!showAuth && canSend && !isMuted && TIPS_ENABLED && (
+      {!showAuth && canSend && !isMuted && (
         tipping ? (
           <div className="tip-panel">
             <div className="tip-row">
