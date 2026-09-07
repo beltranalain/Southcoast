@@ -117,6 +117,20 @@ img{display:block;max-width:100%}
 .cover-thumb{width:96px;height:54px;object-fit:cover;border-radius:8px;flex-shrink:0;border:1px solid var(--line)}
 .cover-thumb.empty{display:grid;place-items:center;background:var(--bg);color:var(--text-dim);font-size:11px}
 .cover-thumb.sm{width:66px;height:37px}
+/* costs */
+.cost-total{font-family:var(--font-anton),"Anton",sans-serif;font-size:46px;line-height:1;color:var(--amber)}
+.cost-total span{font-size:18px;color:var(--mute)}
+.budget-bar{margin-top:16px;height:10px;border-radius:999px;background:var(--bg);border:1px solid var(--line);overflow:hidden}
+.budget-fill{height:100%;border-radius:999px;transition:width .3s}
+.budget-fill.ok{background:var(--ok)}
+.budget-fill.warn{background:var(--amber)}
+.budget-fill.over{background:var(--live)}
+.cost-val{font-family:var(--font-anton),"Anton",sans-serif;font-size:18px;color:var(--cream);flex-shrink:0}
+.cost-val.free{font-family:var(--font);font-size:12px;font-weight:600;color:var(--ok);border:1px solid rgba(111,191,115,.4);border-radius:999px;padding:3px 11px}
+.pricelist{list-style:none;margin-top:6px}
+.pricelist li{display:flex;justify-content:space-between;gap:14px;padding:9px 0;border-bottom:1px solid rgba(243,239,231,.07);font-size:13px}
+.pricelist li span{color:var(--mute)}
+.pricelist li b{color:var(--cream);text-align:right}
 .peek{display:flex;gap:16px;justify-content:flex-end;padding-bottom:6px}
 .peekcard{width:270px;flex-shrink:0;border-radius:8px;overflow:hidden;position:relative;box-shadow:0 18px 44px rgba(0,0,0,.5)}
 .peekcard:nth-child(2){transform:translateX(30px);opacity:.72}

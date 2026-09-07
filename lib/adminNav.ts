@@ -9,6 +9,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { href: "/admin/branding", label: "Branding" },
   { href: "/admin/users", label: "Users" },
   { href: "/admin/tips", label: "Tips" },
+  { href: "/admin/costs", label: "Costs" },
   { href: "/admin/analytics", label: "Analytics" },
   { href: "/admin/settings", label: "Settings" },
 ];
