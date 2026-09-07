@@ -479,6 +479,19 @@ h2.big{font-size:clamp(30px,4.4vw,56px);line-height:.92}
 .stat-card .v{font-family:var(--font-anton),"Anton",sans-serif;font-size:2rem;margin-top:10px;letter-spacing:.01em}
 .stat-card .d{font-size:12.5px;margin-top:6px;color:var(--ok)}
 .stat-card .d.flat{color:var(--mute)}
+.stat-grid.g5{grid-template-columns:repeat(5,1fr)}
+@media (max-width:1080px){.stat-grid.g5{grid-template-columns:repeat(3,1fr)}}
+@media (max-width:620px){.stat-grid.g5{grid-template-columns:repeat(2,1fr)}}
+/* mini bar charts (admin overview) */
+.chart{width:100%}
+.chart-bars{display:flex;align-items:flex-end;gap:8px;padding-top:22px}
+.chart-col{flex:1;min-width:0;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:6px;position:relative}
+.chart-bar{width:100%;max-width:54px;border-radius:6px 6px 0 0;background:linear-gradient(180deg,var(--orange2),var(--amber));transition:filter .15s;min-height:2px}
+.chart-col:hover .chart-bar{filter:brightness(1.12)}
+.chart-val{font-size:10.5px;color:var(--mute);font-variant-numeric:tabular-nums;white-space:nowrap;line-height:1}
+.chart-labels{display:flex;gap:8px;margin-top:8px}
+.chart-labels span{flex:1;text-align:center;font-size:10.5px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chart-empty{font-size:13px;text-align:center;margin-top:12px}
 .panel{background:var(--bg2);border:1px solid var(--line);border-radius:16px;padding:22px 24px;margin-bottom:22px}
 .panel h3{font-size:1.05rem;font-weight:700;margin-bottom:4px}
 .panel .panel-sub{color:var(--mute);font-size:13px;margin-bottom:18px}

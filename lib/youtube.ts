@@ -96,3 +96,24 @@ export async function getAllStats(channelIds: string[]): Promise<ChannelStats | 
     return null;
   }
 }
+
+export type ChannelStatRow = { channelId: string; subscribers: number; views: number; videos: number };
+
+// Per-channel statistics (for comparison charts). One API call.
+export async function getStatsByChannel(channelIds: string[]): Promise<ChannelStatRow[]> {
+  if (!KEY || channelIds.length === 0) return [];
+  const url = `${API}/channels?part=statistics&id=${channelIds.join(",")}&key=${KEY}`;
+  try {
+    const res = await fetch(url, { next: { revalidate: 1800 } });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data.items ?? []).map((it: any) => ({
+      channelId: String(it.id || ""),
+      subscribers: Number(it.statistics?.subscriberCount || 0),
+      views: Number(it.statistics?.viewCount || 0),
+      videos: Number(it.statistics?.videoCount || 0),
+    }));
+  } catch {
+    return [];
+  }
+}
