@@ -47,10 +47,6 @@ export default async function LivePage() {
                   : "Auto - shows when live"}
               </span>
               <LivePlayer src={playerSrc} />
-              <div className="lower3">
-                <span className="l3a">South Coast Cane</span>
-                <span className="l3b">The South Coast Cane Show</span>
-              </div>
             </div>
 
             <div className="underplayer">
