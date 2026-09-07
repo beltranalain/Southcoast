@@ -361,11 +361,14 @@ export default function ControlRoom() {
                 <label>Background removal</label>
                 <select value={scene.mode} onChange={(e) => updateScene({ mode: e.target.value as SceneCfg["mode"] })}>
                   <option value="none">None (host fills the frame)</option>
+                  <option value="ml">AI virtual background (no green screen)</option>
                   <option value="chroma">Green screen (chroma key)</option>
-                  <option value="ml" disabled>AI virtual background (coming soon)</option>
                 </select>
               </div>
 
+              {scene.mode === "ml" && (
+                <p className="form-note" style={{ marginTop: -4, marginBottom: 8 }}>In-browser AI removes your background - no green screen. First time, give it a few seconds to load the model, then upload a background below.</p>
+              )}
               {scene.mode === "chroma" && (
                 <div className="form-field">
                   <label>Green-screen color</label>

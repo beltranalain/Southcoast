@@ -120,6 +120,11 @@ class StudioEngine {
   private sceneFrame: HTMLImageElement | null = null;
   private sceneLogo: HTMLImageElement | null = null;
   private keyCanvas: HTMLCanvasElement | null = null;
+  private segmenter: any = null;
+  private segReady = false;
+  private segLoading = false;
+  private inputCanvas: HTMLCanvasElement | null = null;
+  private maskCanvas: HTMLCanvasElement | null = null;
   private audioCtx: AudioContext | null = null;
   private audioDest: MediaStreamAudioDestinationNode | null = null;
   private hostAudioSrc: MediaStreamAudioSourceNode | null = null;
@@ -313,7 +318,8 @@ class StudioEngine {
     const host = this.hostVideo;
     if (host && host.videoWidth) {
       if (this.sceneMode === "chroma") this.drawChromaHost(ctx, host);
-      else drawCover(ctx, host, 0, 0, W, H); // "none"/"ml" fallback: host fills over bg
+      else if (this.sceneMode === "ml") this.drawMlHost(ctx, host);
+      else drawCover(ctx, host, 0, 0, W, H);
     }
 
     if (this.sceneFrame?.complete && this.sceneFrame.naturalWidth) ctx.drawImage(this.sceneFrame, 0, 0, W, H);
@@ -321,6 +327,67 @@ class StudioEngine {
       const lw = 170, lh = lw * (this.sceneLogo.naturalHeight / this.sceneLogo.naturalWidth || 0.4);
       ctx.drawImage(this.sceneLogo, (W - lw) / 2, 22, lw, lh);
     }
+  }
+
+  // Lazily load MediaPipe's selfie segmentation model (from CDN, on first use).
+  private async ensureSegmenter() {
+    if (this.segReady || this.segLoading) return;
+    this.segLoading = true;
+    try {
+      const V = "0.10.14";
+      const vision: any = await import(/* webpackIgnore: true */ `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${V}/vision_bundle.mjs`);
+      const fileset = await vision.FilesetResolver.forVisionTasks(`https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${V}/wasm`);
+      const opts = (delegate: "GPU" | "CPU") => ({
+        baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite", delegate },
+        runningMode: "VIDEO" as const,
+        outputConfidenceMasks: true,
+        outputCategoryMask: false,
+      });
+      try {
+        this.segmenter = await vision.ImageSegmenter.createFromOptions(fileset, opts("GPU"));
+      } catch {
+        this.segmenter = await vision.ImageSegmenter.createFromOptions(fileset, opts("CPU"));
+      }
+      this.segReady = true;
+    } catch {
+      this.error = "Couldn't load the AI background. Check your connection and try again.";
+    } finally {
+      this.segLoading = false;
+      this.emit();
+    }
+  }
+
+  // AI virtual background: segment the person out (no green screen) and draw
+  // them over the scene background - like Zoom/Meet.
+  private drawMlHost(ctx: CanvasRenderingContext2D, v: HTMLVideoElement) {
+    if (!this.segReady) { this.ensureSegmenter(); drawCover(ctx, v, 0, 0, W, H); return; }
+    const IW = 640, IH = 360;
+    if (!this.inputCanvas) { this.inputCanvas = document.createElement("canvas"); this.inputCanvas.width = IW; this.inputCanvas.height = IH; }
+    const ictx = this.inputCanvas.getContext("2d", { willReadFrequently: true });
+    if (!ictx) { drawCover(ctx, v, 0, 0, W, H); return; }
+    coverDraw(ictx, v, v.videoWidth, v.videoHeight, 0, 0, IW, IH);
+
+    let result: any;
+    try { result = this.segmenter.segmentForVideo(this.inputCanvas, performance.now()); } catch { drawCover(ctx, v, 0, 0, W, H); return; }
+    const mask = result?.confidenceMasks?.[0];
+    if (!mask) { try { result?.close?.(); } catch {} drawCover(ctx, v, 0, 0, W, H); return; }
+
+    const floats = mask.getAsFloat32Array();
+    const mw = mask.width, mh = mask.height;
+    if (!this.maskCanvas) this.maskCanvas = document.createElement("canvas");
+    if (this.maskCanvas.width !== mw || this.maskCanvas.height !== mh) { this.maskCanvas.width = mw; this.maskCanvas.height = mh; }
+    const mctx = this.maskCanvas.getContext("2d")!;
+    const id = mctx.createImageData(mw, mh);
+    const dd = id.data;
+    for (let i = 0; i < floats.length; i++) { dd[i * 4] = 255; dd[i * 4 + 1] = 255; dd[i * 4 + 2] = 255; dd[i * 4 + 3] = Math.round(floats[i] * 255); }
+    mctx.putImageData(id, 0, 0);
+    try { result.close(); } catch {}
+
+    // Keep only the person (mask alpha) in the framed host, then draw over the bg.
+    ictx.globalCompositeOperation = "destination-in";
+    ictx.drawImage(this.maskCanvas, 0, 0, mw, mh, 0, 0, IW, IH);
+    ictx.globalCompositeOperation = "source-over";
+    ctx.drawImage(this.inputCanvas, 0, 0, IW, IH, 0, 0, W, H);
   }
 
   // Green-screen key: knock out the chroma color so the background shows through.
