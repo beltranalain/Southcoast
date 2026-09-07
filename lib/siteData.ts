@@ -182,6 +182,9 @@ export type SiteScene = {
   background: string; // data URL
   frame: string; // transparent PNG overlay, data URL
   logo: string; // data URL (top-center)
+  tickerOn: boolean; // rotating lower-third news ticker
+  tickerLabel: string; // colored label box on the left (e.g. "CWTV")
+  ticker: string; // messages, one per line - scroll across the bottom
 };
 
 export const DEFAULT_SCENE: SiteScene = {
@@ -191,6 +194,9 @@ export const DEFAULT_SCENE: SiteScene = {
   background: "",
   frame: "",
   logo: "",
+  tickerOn: false,
+  tickerLabel: "",
+  ticker: "",
 };
 
 export const LIBRARY_FILTERS = [

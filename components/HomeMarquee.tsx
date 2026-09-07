@@ -16,7 +16,7 @@ export default function HomeMarquee({
   nextShow,
 }: {
   live: { live: boolean; viewers: number | null } | null;
-  nextShow?: { when: string; title: string; startsAt?: number } | null;
+  nextShow?: { when: string; title: string; startsAt?: number; cover?: string } | null;
 }) {
   const shows = SERIES;
   const n = shows.length;
@@ -57,10 +57,21 @@ export default function HomeMarquee({
               <Link className="b2" href={s.href}>See the show</Link>
             </div>
             {!isLive && nextShow && (
-              <div className="nextlive">
-                <span className="nl-dot" />Next live <b>{nextShow.when}</b>
-                {nextShow.startsAt ? <Countdown startsAt={nextShow.startsAt} className="nl-count" /> : nextShow.title ? <> · {nextShow.title}</> : null}
-              </div>
+              <Link href="/live" className="nextcard">
+                {nextShow.cover ? (
+                  <img className="nc-cover" src={nextShow.cover} alt="" />
+                ) : (
+                  <div className="nc-cover empty"><Play /></div>
+                )}
+                <div className="nc-body">
+                  <div className="nc-eyebrow"><span className="nl-dot" />Next live show</div>
+                  {nextShow.title && <div className="nc-title">{nextShow.title}</div>}
+                  <div className="nc-when">
+                    <b>{nextShow.when}</b>
+                    {nextShow.startsAt ? <Countdown startsAt={nextShow.startsAt} className="nl-count" /> : null}
+                  </div>
+                </div>
+              </Link>
             )}
           </div>
 

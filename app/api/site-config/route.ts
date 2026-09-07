@@ -75,6 +75,9 @@ export async function POST(request: Request) {
         background: img(data.background),
         frame: img(data.frame),
         logo: img(data.logo),
+        tickerOn: Boolean(data.tickerOn),
+        tickerLabel: String(data.tickerLabel ?? "").slice(0, 40),
+        ticker: String(data.ticker ?? "").slice(0, 2000),
       };
       await db.collection("site").doc("scene").set(clean);
       return NextResponse.json({ saved: true });

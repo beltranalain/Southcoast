@@ -85,6 +85,11 @@ class StudioEngine {
   sceneEnabled = false;
   sceneMode: "none" | "chroma" | "ml" = "chroma";
   chromaColor = "#00b140";
+  // Rotating lower-third ticker (news-style scroll along the bottom)
+  tickerOn = false;
+  tickerLabel = "";
+  private tickerText = "";
+  private tickerX = 0;
   banner: Banner = null; pinned: Pinned = null;
   tipAlert: { name: string; amount: number; message: string } | null = null;
   private tipTimer: ReturnType<typeof setTimeout> | null = null;
@@ -235,8 +240,43 @@ class StudioEngine {
     } catch { /* ScriptProcessor unsupported - rAF still covers the visible case */ }
   }
 
+  // News-style ticker: a colored label box + text scrolling right-to-left along
+  // the very bottom. Drawn on top of everything, in every scene mode.
+  private drawTicker(ctx: CanvasRenderingContext2D) {
+    if (!this.tickerOn || !this.tickerText) return;
+    const h = 46, y = H - h;
+    ctx.save();
+    ctx.textBaseline = "middle";
+    // Bar background + amber top accent line.
+    ctx.fillStyle = "rgba(10,9,8,.92)"; ctx.fillRect(0, y, W, h);
+    ctx.fillStyle = "#F5A524"; ctx.fillRect(0, y, W, 2);
+
+    // Left label box.
+    let textStart = 0;
+    if (this.tickerLabel) {
+      ctx.font = "700 22px Anton, sans-serif";
+      const lw = ctx.measureText(this.tickerLabel.toUpperCase()).width + 40;
+      ctx.fillStyle = "#F5A524"; ctx.fillRect(0, y, lw, h);
+      ctx.fillStyle = "#151107"; ctx.fillText(this.tickerLabel.toUpperCase(), 20, y + h / 2 + 1);
+      textStart = lw;
+    }
+
+    // Scrolling text region (clipped so it slides under the label).
+    ctx.beginPath(); ctx.rect(textStart, y, W - textStart, h); ctx.clip();
+    ctx.font = "500 22px Inter, sans-serif"; ctx.fillStyle = "#F3EFE7";
+    const tw = ctx.measureText(this.tickerText).width;
+    const gap = 90;
+    this.tickerX -= 2; // ~60px/s at 30fps
+    if (this.tickerX < -(tw + gap)) this.tickerX += tw + gap;
+    const x0 = textStart + 24 + this.tickerX;
+    ctx.fillText(this.tickerText, x0, y + h / 2 + 1);
+    ctx.fillText(this.tickerText, x0 + tw + gap, y + h / 2 + 1); // second copy = seamless loop
+    ctx.restore();
+  }
+
   private drawGraphics(ctx: CanvasRenderingContext2D) {
     ctx.textBaseline = "middle";
+    this.drawTicker(ctx);
     if (this.pinned) {
       const { x, y } = this.pinPos, w = PIN_W, h = PIN_H;
       // Pill-shaped lower-third (rounded capsule) with an amber outline.
@@ -298,18 +338,27 @@ class StudioEngine {
     img.src = dataUrl;
     return img;
   }
-  setScene(cfg: Partial<{ enabled: boolean; mode: "none" | "chroma" | "ml"; chroma: string; background: string; frame: string; logo: string }>) {
+  setScene(cfg: Partial<{ enabled: boolean; mode: "none" | "chroma" | "ml"; chroma: string; background: string; frame: string; logo: string; tickerOn: boolean; tickerLabel: string; ticker: string }>) {
     if (typeof cfg.enabled === "boolean") this.sceneEnabled = cfg.enabled;
     if (cfg.mode) this.sceneMode = cfg.mode;
     if (cfg.chroma) this.chromaColor = cfg.chroma;
     if (cfg.background !== undefined) this.sceneBg = this.loadImg(cfg.background);
     if (cfg.frame !== undefined) this.sceneFrame = this.loadImg(cfg.frame);
     if (cfg.logo !== undefined) this.sceneLogo = this.loadImg(cfg.logo);
+    if (typeof cfg.tickerOn === "boolean") this.tickerOn = cfg.tickerOn;
+    if (cfg.tickerLabel !== undefined) this.tickerLabel = cfg.tickerLabel;
+    if (cfg.ticker !== undefined) this.setTickerText(cfg.ticker);
     this.emit();
   }
   setSceneEnabled(v: boolean) { this.sceneEnabled = v; this.emit(); }
   setSceneMode(m: "none" | "chroma" | "ml") { this.sceneMode = m; this.emit(); }
   setChromaColor(c: string) { this.chromaColor = c; this.emit(); }
+
+  // Join the ticker lines into one scrolling string (separated by a bullet).
+  private setTickerText(raw: string) {
+    const items = raw.split("\n").map((s) => s.trim()).filter(Boolean);
+    this.tickerText = items.join("      •      ");
+  }
 
   private drawScene(ctx: CanvasRenderingContext2D) {
     if (this.sceneBg?.complete && this.sceneBg.naturalWidth) coverDraw(ctx, this.sceneBg, this.sceneBg.naturalWidth, this.sceneBg.naturalHeight, 0, 0, W, H);

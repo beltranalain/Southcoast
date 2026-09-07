@@ -9,7 +9,7 @@ import SimulcastManager from "@/components/SimulcastManager";
 const WS_BASE = process.env.NEXT_PUBLIC_CHAT_WS_URL || "";
 type Tab = "onair" | "chat" | "guests" | "sources" | "scene";
 type ChatMessage = { id: string; name: string; text: string; uid?: string; tip?: number };
-type SceneCfg = { enabled: boolean; mode: "none" | "chroma" | "ml"; chroma: string; background: string; frame: string; logo: string };
+type SceneCfg = { enabled: boolean; mode: "none" | "chroma" | "ml"; chroma: string; background: string; frame: string; logo: string; tickerOn: boolean; tickerLabel: string; ticker: string };
 
 // Resize a picked image for a scene layer (cover fill or contain). Frame/logo
 // keep transparency (PNG); background uses WebP.
@@ -41,7 +41,7 @@ export default function ControlRoom() {
   const [title, setTitle] = useState("");
   const [subtitle, setSubtitle] = useState("");
   const [reveal, setReveal] = useState(false);
-  const [scene, setScene] = useState<SceneCfg>({ enabled: false, mode: "chroma", chroma: "#00b140", background: "", frame: "", logo: "" });
+  const [scene, setScene] = useState<SceneCfg>({ enabled: false, mode: "chroma", chroma: "#00b140", background: "", frame: "", logo: "", tickerOn: false, tickerLabel: "", ticker: "" });
   const [sceneMsg, setSceneMsg] = useState("");
 
   const stageRef = useRef<HTMLDivElement | null>(null);
@@ -55,7 +55,7 @@ export default function ControlRoom() {
   useEffect(() => {
     fetch("/api/site-config", { cache: "no-store" })
       .then((r) => r.json())
-      .then((d) => { if (d?.scene) { setScene(d.scene); broadcast.setScene(d.scene); } })
+      .then((d) => { if (d?.scene) { const sc = { tickerOn: false, tickerLabel: "", ticker: "", ...d.scene }; setScene(sc); broadcast.setScene(sc); } })
       .catch(() => {});
   }, []);
 
@@ -393,6 +393,23 @@ export default function ControlRoom() {
                   <button className="btn btn-ghost btn-sm" type="button" onClick={() => sceneLogoInput.current?.click()}>{scene.logo ? "Change" : "Upload"}</button>
                 </div>
               </div>
+
+              <div className="dest-row" style={{ marginTop: 18 }}>
+                <div><div className="dest-name">Rotating ticker</div><div className="dest-meta">News-style scroll along the bottom (works in any mode)</div></div>
+                <label className="toggle"><input type="checkbox" checked={scene.tickerOn} onChange={(e) => updateScene({ tickerOn: e.target.checked })} /><span className="track" /></label>
+              </div>
+              {scene.tickerOn && (
+                <>
+                  <div className="form-field">
+                    <label>Label (optional)</label>
+                    <input type="text" value={scene.tickerLabel} maxLength={40} placeholder="e.g. CWTV" onChange={(e) => updateScene({ tickerLabel: e.target.value })} />
+                  </div>
+                  <div className="form-field">
+                    <label>Messages (one per line)</label>
+                    <textarea rows={3} value={scene.ticker} maxLength={2000} placeholder={"Welcome to the show\nFollow us @southcoastcane\nNew episode every week"} onChange={(e) => updateScene({ ticker: e.target.value })} />
+                  </div>
+                </>
+              )}
 
               <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 16 }}>
                 <button className="btn btn-primary btn-sm" type="button" onClick={saveScene}>Save scene</button>
