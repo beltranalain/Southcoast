@@ -7,7 +7,7 @@ import { saveSection, loadConfig } from "@/lib/saveSection";
 // Draw the picked image onto a square canvas at `size` px (contain, transparent
 // padding) and return a compact PNG data URL. Keeps the stored value small
 // enough to live directly in the Firestore branding doc - no Firebase Storage.
-function resizeImage(file: File, size: number): Promise<string> {
+function resizeImage(file: File, size: number, fill = false): Promise<string> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
     const img = new Image();
@@ -18,12 +18,21 @@ function resizeImage(file: File, size: number): Promise<string> {
         canvas.height = size;
         const ctx = canvas.getContext("2d");
         if (!ctx) throw new Error("Canvas unsupported.");
-        const scale = Math.min(size / img.width, size / img.height);
-        const w = img.width * scale;
-        const h = img.height * scale;
         ctx.clearRect(0, 0, size, size);
-        ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
-        resolve(canvas.toDataURL("image/png"));
+        if (fill) {
+          // Cover the whole square (crop overflow) - for a logo shown as a badge.
+          const scale = Math.max(size / img.width, size / img.height);
+          const w = img.width * scale, h = img.height * scale;
+          ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+        } else {
+          // Contain (letterboxed) - keeps the whole image, for favicons.
+          const scale = Math.min(size / img.width, size / img.height);
+          const w = img.width * scale, h = img.height * scale;
+          ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+        }
+        // WebP is much smaller than PNG for photos and supports transparency.
+        const webp = canvas.toDataURL("image/webp", 0.85);
+        resolve(webp.startsWith("data:image/webp") ? webp : canvas.toDataURL("image/png"));
       } catch (e) {
         reject(e);
       } finally {
@@ -65,7 +74,7 @@ export default function AdminBranding() {
       return;
     }
     try {
-      const dataUrl = await resizeImage(file, size);
+      const dataUrl = await resizeImage(file, size, key === "logo");
       set(key, dataUrl);
       setStatus("idle");
       setMessage(`${key === "logo" ? "Logo" : "Favicon"} ready. Click Save changes to publish it.`);
