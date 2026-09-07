@@ -7,8 +7,30 @@ import { getIdToken } from "@/lib/firebase";
 import SimulcastManager from "@/components/SimulcastManager";
 
 const WS_BASE = process.env.NEXT_PUBLIC_CHAT_WS_URL || "";
-type Tab = "onair" | "chat" | "guests" | "sources";
+type Tab = "onair" | "chat" | "guests" | "sources" | "scene";
 type ChatMessage = { id: string; name: string; text: string; uid?: string; tip?: number };
+type SceneCfg = { enabled: boolean; mode: "none" | "chroma" | "ml"; chroma: string; background: string; frame: string; logo: string };
+
+// Resize a picked image for a scene layer (cover fill or contain). Frame/logo
+// keep transparency (PNG); background uses WebP.
+function resizeScene(file: File, w: number, h: number, cover: boolean, png: boolean): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const c = document.createElement("canvas"); c.width = w; c.height = h;
+        const ctx = c.getContext("2d"); if (!ctx) throw new Error("no ctx");
+        const scale = cover ? Math.max(w / img.width, h / img.height) : Math.min(w / img.width, h / img.height);
+        const dw = img.width * scale, dh = img.height * scale;
+        ctx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh);
+        resolve(png ? c.toDataURL("image/png") : c.toDataURL("image/webp", 0.8));
+      } catch (e) { reject(e); } finally { URL.revokeObjectURL(url); }
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("bad image")); };
+    img.src = url;
+  });
+}
 
 export default function ControlRoom() {
   const [, force] = useReducer((x) => x + 1, 0);
@@ -19,10 +41,50 @@ export default function ControlRoom() {
   const [title, setTitle] = useState("");
   const [subtitle, setSubtitle] = useState("");
   const [reveal, setReveal] = useState(false);
+  const [scene, setScene] = useState<SceneCfg>({ enabled: false, mode: "chroma", chroma: "#00b140", background: "", frame: "", logo: "" });
+  const [sceneMsg, setSceneMsg] = useState("");
 
   const stageRef = useRef<HTMLDivElement | null>(null);
   const overlayWs = useRef<WebSocket | null>(null);
   const chatWs = useRef<WebSocket | null>(null);
+  const sceneBgInput = useRef<HTMLInputElement | null>(null);
+  const sceneFrameInput = useRef<HTMLInputElement | null>(null);
+  const sceneLogoInput = useRef<HTMLInputElement | null>(null);
+
+  // Load the saved scene and apply it to the engine (live preview updates too).
+  useEffect(() => {
+    fetch("/api/site-config", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => { if (d?.scene) { setScene(d.scene); broadcast.setScene(d.scene); } })
+      .catch(() => {});
+  }, []);
+
+  function updateScene(patch: Partial<SceneCfg>) {
+    setScene((s) => { const next = { ...s, ...patch }; broadcast.setScene(next); return next; });
+  }
+  async function pickSceneImg(e: React.ChangeEvent<HTMLInputElement>, kind: "background" | "frame" | "logo") {
+    const file = e.target.files?.[0]; e.target.value = "";
+    if (!file) return;
+    try {
+      const url = kind === "background" ? await resizeScene(file, 1280, 720, true, false)
+        : kind === "frame" ? await resizeScene(file, 1280, 720, true, true)
+        : await resizeScene(file, 400, 160, false, true);
+      updateScene({ [kind]: url } as Partial<SceneCfg>);
+    } catch { setSceneMsg("Could not read that image."); }
+  }
+  async function saveScene() {
+    setSceneMsg("");
+    try {
+      const token = await getIdToken();
+      const res = await fetch("/api/site-config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ section: "scene", data: scene }),
+      });
+      const d = await res.json();
+      setSceneMsg(d.saved ? "Scene saved." : d.error || "Preview only - connect Firebase to save.");
+    } catch { setSceneMsg("Could not save."); }
+  }
 
   useEffect(() => broadcast.subscribe(force), []);
 
@@ -186,7 +248,7 @@ export default function ControlRoom() {
         {/* ---- Show controls ---- */}
         <div>
           <div className="filters" style={{ marginBottom: 16 }}>
-            {([["onair", "On air"], ["chat", "Chat"], ["guests", "Guests"], ["sources", "Sources"]] as [Tab, string][]).map(([k, label]) => (
+            {([["onair", "On air"], ["chat", "Chat"], ["guests", "Guests"], ["scene", "Scene"], ["sources", "Sources"]] as [Tab, string][]).map(([k, label]) => (
               <button key={k} className={`filter-btn${tab === k ? " active" : ""}`} type="button" onClick={() => setTab(k)}>{label}</button>
             ))}
           </div>
@@ -279,6 +341,61 @@ export default function ControlRoom() {
               {!broadcast.realtimeReady && (
                 <p className="notice" style={{ marginTop: 14 }}><strong>Connecting to Cloudflare Realtime...</strong> Guests can join now; once the studio connection is up you can admit them to the program.</p>
               )}
+            </div>
+          )}
+
+          {tab === "scene" && (
+            <div className="panel">
+              <h3>Branded scene</h3>
+              <div className="panel-sub">Put the host over a background (green-screen), with a frame + logo - a TV-broadcast look. The Program preview updates live.</div>
+              <input ref={sceneBgInput} type="file" accept="image/*" hidden onChange={(e) => pickSceneImg(e, "background")} />
+              <input ref={sceneFrameInput} type="file" accept="image/*" hidden onChange={(e) => pickSceneImg(e, "frame")} />
+              <input ref={sceneLogoInput} type="file" accept="image/*" hidden onChange={(e) => pickSceneImg(e, "logo")} />
+
+              <div className="dest-row">
+                <div><div className="dest-name">Enable scene</div><div className="dest-meta">Overrides the normal camera view</div></div>
+                <label className="toggle"><input type="checkbox" checked={scene.enabled} onChange={(e) => updateScene({ enabled: e.target.checked })} /><span className="track" /></label>
+              </div>
+
+              <div className="form-field" style={{ marginTop: 12 }}>
+                <label>Background removal</label>
+                <select value={scene.mode} onChange={(e) => updateScene({ mode: e.target.value as SceneCfg["mode"] })}>
+                  <option value="none">None (host fills the frame)</option>
+                  <option value="chroma">Green screen (chroma key)</option>
+                  <option value="ml" disabled>AI virtual background (coming soon)</option>
+                </select>
+              </div>
+
+              {scene.mode === "chroma" && (
+                <div className="form-field">
+                  <label>Green-screen color</label>
+                  <div className="color-row">
+                    <input type="color" value={scene.chroma} onChange={(e) => updateScene({ chroma: e.target.value })} />
+                    <input type="text" value={scene.chroma} onChange={(e) => updateScene({ chroma: e.target.value })} />
+                  </div>
+                </div>
+              )}
+
+              <div className="scene-uploads">
+                <div className="scene-up">
+                  <div className="scene-prev" style={scene.background ? { backgroundImage: `url(${scene.background})` } : undefined}>{!scene.background && "Background"}</div>
+                  <button className="btn btn-ghost btn-sm" type="button" onClick={() => sceneBgInput.current?.click()}>{scene.background ? "Change" : "Upload"}</button>
+                </div>
+                <div className="scene-up">
+                  <div className="scene-prev" style={scene.frame ? { backgroundImage: `url(${scene.frame})` } : undefined}>{!scene.frame && "Frame"}</div>
+                  <button className="btn btn-ghost btn-sm" type="button" onClick={() => sceneFrameInput.current?.click()}>{scene.frame ? "Change" : "Upload"}</button>
+                </div>
+                <div className="scene-up">
+                  <div className="scene-prev logo" style={scene.logo ? { backgroundImage: `url(${scene.logo})` } : undefined}>{!scene.logo && "Logo"}</div>
+                  <button className="btn btn-ghost btn-sm" type="button" onClick={() => sceneLogoInput.current?.click()}>{scene.logo ? "Change" : "Upload"}</button>
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 16 }}>
+                <button className="btn btn-primary btn-sm" type="button" onClick={saveScene}>Save scene</button>
+                {sceneMsg && <span className="form-ok" style={{ margin: 0 }}>{sceneMsg}</span>}
+              </div>
+              <p className="form-note" style={{ marginTop: 12 }}>Frame should be a transparent 16:9 PNG. For green-screen, light the screen evenly and pick the exact green.</p>
             </div>
           )}
 

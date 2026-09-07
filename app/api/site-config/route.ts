@@ -22,7 +22,7 @@ export async function POST(request: Request) {
 
   const section = body?.section;
   const data = body?.data;
-  if (section !== "content" && section !== "branding" && section !== "schedule") {
+  if (section !== "content" && section !== "branding" && section !== "schedule" && section !== "scene") {
     return NextResponse.json({ error: "Unknown section." }, { status: 400 });
   }
   if (!data || typeof data !== "object") {
@@ -63,6 +63,20 @@ export async function POST(request: Request) {
         })
         .filter((it: any) => it.title);
       await db.collection("site").doc("schedule").set({ items: clean });
+      return NextResponse.json({ saved: true });
+    }
+
+    if (section === "scene") {
+      const img = (v: any) => (typeof v === "string" && v.startsWith("data:image") && v.length < 700_000 ? v : "");
+      const clean = {
+        enabled: Boolean(data.enabled),
+        mode: ["none", "chroma", "ml"].includes(data.mode) ? data.mode : "none",
+        chroma: String(data.chroma ?? "#00b140").slice(0, 9),
+        background: img(data.background),
+        frame: img(data.frame),
+        logo: img(data.logo),
+      };
+      await db.collection("site").doc("scene").set(clean);
       return NextResponse.json({ saved: true });
     }
 

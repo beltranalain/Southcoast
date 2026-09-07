@@ -173,6 +173,26 @@ export const DEFAULT_BRANDING: SiteBranding = {
   channelBug: "The South Coast Cane Show",
 };
 
+// Branded "scene": background behind the host, optional green-screen removal,
+// plus a frame overlay + logo (like a TV broadcast look).
+export type SiteScene = {
+  enabled: boolean;
+  mode: "none" | "chroma" | "ml"; // background removal: off / green-screen / AI
+  chroma: string; // key color for green-screen
+  background: string; // data URL
+  frame: string; // transparent PNG overlay, data URL
+  logo: string; // data URL (top-center)
+};
+
+export const DEFAULT_SCENE: SiteScene = {
+  enabled: false,
+  mode: "chroma",
+  chroma: "#00b140",
+  background: "",
+  frame: "",
+  logo: "",
+};
+
 export const LIBRARY_FILTERS = [
   { key: "all", label: "All" },
   { key: "cane-show", label: "The South Coast Cane Show" },

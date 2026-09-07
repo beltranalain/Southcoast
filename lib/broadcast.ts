@@ -57,6 +57,22 @@ function drawContainRounded(ctx: CanvasRenderingContext2D, v: HTMLVideoElement, 
   ctx.save(); roundRectPath(ctx, x, y, w, h, r); ctx.clip(); drawContain(ctx, v, x, y, w, h); ctx.restore();
 }
 
+// Cover-draw any source (image or video) into a box, cropping to fill.
+function coverDraw(ctx: CanvasRenderingContext2D, src: CanvasImageSource, sw: number, sh: number, x: number, y: number, w: number, h: number) {
+  if (!sw || !sh) return;
+  const vr = sw / sh, dr = w / h;
+  let cw = sw, ch = sh, sx = 0, sy = 0;
+  if (vr > dr) { cw = sh * dr; sx = (sw - cw) / 2; } else { ch = sw / dr; sy = (sh - ch) / 2; }
+  ctx.drawImage(src, sx, sy, cw, ch, x, y, w, h);
+}
+
+function hexRgb(hex: string): [number, number, number] {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return [0, 177, 64];
+  const n = parseInt(m[1], 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
 const PIN_W = 560, PIN_H = 92;
 
 class StudioEngine {
@@ -65,6 +81,10 @@ class StudioEngine {
   screenSharing = false;
   screenLayout: "full" | "pip" | "split" = "pip";
   recording = false; // local (browser) recording of the program
+  // Branded scene (background behind host + optional green-screen + frame/logo)
+  sceneEnabled = false;
+  sceneMode: "none" | "chroma" | "ml" = "chroma";
+  chromaColor = "#00b140";
   banner: Banner = null; pinned: Pinned = null;
   tipAlert: { name: string; amount: number; message: string } | null = null;
   private tipTimer: ReturnType<typeof setTimeout> | null = null;
@@ -96,6 +116,10 @@ class StudioEngine {
 
   private recorder: MediaRecorder | null = null;
   private recChunks: Blob[] = [];
+  private sceneBg: HTMLImageElement | null = null;
+  private sceneFrame: HTMLImageElement | null = null;
+  private sceneLogo: HTMLImageElement | null = null;
+  private keyCanvas: HTMLCanvasElement | null = null;
   private audioCtx: AudioContext | null = null;
   private audioDest: MediaStreamAudioDestinationNode | null = null;
   private hostAudioSrc: MediaStreamAudioSourceNode | null = null;
@@ -165,6 +189,10 @@ class StudioEngine {
     const now = typeof performance !== "undefined" ? performance.now() : 0;
     if (now - this.lastDraw < 1000 / 30) return;
     this.lastDraw = now;
+
+    // Branded scene takes over the frame when enabled (host over a background).
+    if (this.sceneEnabled) { this.drawScene(ctx); this.drawGraphics(ctx); return; }
+
     ctx.fillStyle = "#0A0908"; ctx.fillRect(0, 0, W, H);
     const sources = [this.hostVideo, ...Array.from(this.guestVideos.values())].filter(Boolean) as HTMLVideoElement[];
     if (this.screenSharing && this.screenVideo && this.screenVideo.videoWidth) {
@@ -257,6 +285,62 @@ class StudioEngine {
   }
   clearGraphics() { this.banner = null; this.pinned = null; this.emit(); }
   setLayout(l: Layout) { this.layout = l; this.emit(); }
+
+  // ---- Branded scene ----
+  private loadImg(dataUrl: string): HTMLImageElement | null {
+    if (!dataUrl) return null;
+    const img = new Image();
+    img.src = dataUrl;
+    return img;
+  }
+  setScene(cfg: Partial<{ enabled: boolean; mode: "none" | "chroma" | "ml"; chroma: string; background: string; frame: string; logo: string }>) {
+    if (typeof cfg.enabled === "boolean") this.sceneEnabled = cfg.enabled;
+    if (cfg.mode) this.sceneMode = cfg.mode;
+    if (cfg.chroma) this.chromaColor = cfg.chroma;
+    if (cfg.background !== undefined) this.sceneBg = this.loadImg(cfg.background);
+    if (cfg.frame !== undefined) this.sceneFrame = this.loadImg(cfg.frame);
+    if (cfg.logo !== undefined) this.sceneLogo = this.loadImg(cfg.logo);
+    this.emit();
+  }
+  setSceneEnabled(v: boolean) { this.sceneEnabled = v; this.emit(); }
+  setSceneMode(m: "none" | "chroma" | "ml") { this.sceneMode = m; this.emit(); }
+  setChromaColor(c: string) { this.chromaColor = c; this.emit(); }
+
+  private drawScene(ctx: CanvasRenderingContext2D) {
+    if (this.sceneBg?.complete && this.sceneBg.naturalWidth) coverDraw(ctx, this.sceneBg, this.sceneBg.naturalWidth, this.sceneBg.naturalHeight, 0, 0, W, H);
+    else { ctx.fillStyle = "#0A0908"; ctx.fillRect(0, 0, W, H); }
+
+    const host = this.hostVideo;
+    if (host && host.videoWidth) {
+      if (this.sceneMode === "chroma") this.drawChromaHost(ctx, host);
+      else drawCover(ctx, host, 0, 0, W, H); // "none"/"ml" fallback: host fills over bg
+    }
+
+    if (this.sceneFrame?.complete && this.sceneFrame.naturalWidth) ctx.drawImage(this.sceneFrame, 0, 0, W, H);
+    if (this.sceneLogo?.complete && this.sceneLogo.naturalWidth) {
+      const lw = 170, lh = lw * (this.sceneLogo.naturalHeight / this.sceneLogo.naturalWidth || 0.4);
+      ctx.drawImage(this.sceneLogo, (W - lw) / 2, 22, lw, lh);
+    }
+  }
+
+  // Green-screen key: knock out the chroma color so the background shows through.
+  private drawChromaHost(ctx: CanvasRenderingContext2D, v: HTMLVideoElement) {
+    const pw = 640, ph = 360;
+    if (!this.keyCanvas) { this.keyCanvas = document.createElement("canvas"); this.keyCanvas.width = pw; this.keyCanvas.height = ph; }
+    const k = this.keyCanvas.getContext("2d", { willReadFrequently: true });
+    if (!k) { drawCover(ctx, v, 0, 0, W, H); return; }
+    coverDraw(k, v, v.videoWidth, v.videoHeight, 0, 0, pw, ph);
+    const img = k.getImageData(0, 0, pw, ph);
+    const d = img.data;
+    const [r0, g0, b0] = hexRgb(this.chromaColor);
+    for (let i = 0; i < d.length; i += 4) {
+      const r = d[i], g = d[i + 1], b = d[i + 2];
+      const dist = Math.abs(r - r0) + Math.abs(g - g0) + Math.abs(b - b0);
+      if (dist < 180 && g > r + 18 && g > b + 18) d[i + 3] = 0;
+    }
+    k.putImageData(img, 0, 0);
+    ctx.drawImage(this.keyCanvas, 0, 0, pw, ph, 0, 0, W, H);
+  }
 
   // ---- Screen / tab / window share (host) ----
   async startScreenShare() {
