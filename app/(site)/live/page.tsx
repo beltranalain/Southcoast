@@ -13,7 +13,11 @@ export const metadata: Metadata = { title: "Live" };
 export default async function LivePage() {
   const { schedule, branding } = await getSiteConfig();
   const live = await getLiveInfo(PRIMARY_CHANNEL.channelId);
-  const next = schedule[0];
+  // Only broadcasts whose start time is still in the future, soonest first.
+  const upcoming = [...schedule]
+    .sort((a, b) => (a.startsAt ?? 0) - (b.startsAt ?? 0))
+    .filter((x) => (x.startsAt ?? 0) > Date.now());
+  const next = upcoming[0];
   const channelBug = branding.showChannelBug ? (branding.channelBug || branding.siteName) : "";
 
   // Prefer our own Cloudflare Stream player when configured; else YouTube embed.
@@ -94,16 +98,16 @@ export default async function LivePage() {
           <LiveChat />
         </div>
 
-        {schedule.length > 0 && (
+        {upcoming.length > 0 && (
           <div className="sec" style={{ paddingTop: 72 }}>
             <span className="eyebrow">What&apos;s coming up</span>
             <h2 className="anton big">Broadcast<br /><span className="or">schedule</span></h2>
             <ul className="schedule" style={{ marginTop: 32 }}>
-              {schedule.map((s, i) => (
+              {upcoming.map((s, i) => (
                 <li key={i}>
                   {s.cover && <img src={s.cover} alt="" className="cover-thumb sm" />}
                   <span className="when">{s.when}</span>
-                  <span className="what"><strong>{s.title}</strong><span>{s.note}</span></span>
+                  <span className="what"><strong>{s.title}</strong><span>{s.note}{s.startsAt ? <>{s.note ? " · " : ""}<Countdown startsAt={s.startsAt} className="or" /></> : null}</span></span>
                 </li>
               ))}
             </ul>

@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { SERIES } from "@/lib/siteData";
 import HomeBackdrop from "@/components/HomeBackdrop";
 import Countdown from "@/components/Countdown";
+
+type Show = { when: string; title: string; startsAt: number; cover?: string };
 
 const Play = () => (
   <svg width="13" height="15" viewBox="0 0 13 15" fill="currentColor"><path d="M0 0l13 7.5L0 15z" /></svg>
@@ -13,15 +15,26 @@ const pad = (n: number) => String(n).padStart(2, "0");
 
 export default function HomeMarquee({
   live,
-  nextShow,
+  schedule = [],
 }: {
   live: { live: boolean; viewers: number | null } | null;
-  nextShow?: { when: string; title: string; startsAt?: number; cover?: string } | null;
+  schedule?: Show[];
 }) {
   const shows = SERIES;
   const n = shows.length;
   const [i, setI] = useState(0);
   const s = shows[i];
+
+  // Pick the soonest UPCOMING show and count down to it; auto-advance to the
+  // next as each start time passes. now stays null until mounted (SSR-safe).
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => {
+    setNow(Date.now());
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const nextShow: Show | null =
+    now == null ? (schedule[0] ?? null) : (schedule.find((x) => (x.startsAt || 0) > now) ?? null);
 
   // Only the flagship show goes live; reflect real status.
   const isLive = Boolean(live?.live) && s.key === "cane-show";
