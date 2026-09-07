@@ -81,9 +81,20 @@ export default function TipModal({
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 3l10 10M13 3L3 13" /></svg>
           </button>
         </div>
-        <Elements stripe={getStripePromise()} options={{ clientSecret, appearance }}>
-          <PayForm amount={amount} onSuccess={onSuccess} onClose={onClose} />
-        </Elements>
+        {process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ? (
+          <Elements stripe={getStripePromise()} options={{ clientSecret, appearance }}>
+            <PayForm amount={amount} onSuccess={onSuccess} onClose={onClose} />
+          </Elements>
+        ) : (
+          <div className="tipm-form">
+            <p className="form-error" style={{ fontSize: 13 }}>
+              Card payments aren&apos;t fully configured yet. (Missing Stripe publishable key.)
+            </p>
+            <div className="tipm-actions">
+              <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>Close</button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
