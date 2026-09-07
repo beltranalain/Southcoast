@@ -56,6 +56,14 @@ export class ChatRoom {
     } catch {
       return;
     }
+
+    // On-air overlay commands (banners, pinned comments) are relayed live to
+    // everyone in the room (e.g. the OBS overlay page) and not stored.
+    if (data?.type === "overlay") {
+      this.broadcast(JSON.stringify(data));
+      return;
+    }
+
     if (data?.type !== "chat") return;
 
     const text = String(data.text ?? "").slice(0, MAX_TEXT).trim();

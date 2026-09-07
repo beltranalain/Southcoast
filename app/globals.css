@@ -396,6 +396,16 @@ table.data tr:hover td{background:var(--bg3)}
 .live-pill.is-live{color:#fff;border-color:var(--live);background:rgba(232,64,42,.14)}
 .live-pill.is-live .dot{background:var(--live);animation:pulse 1.7s infinite}
 
+/* ---------------- OBS on-air overlay ---------------- */
+.onair-stage{position:fixed;inset:0;background:transparent;overflow:hidden;font-family:var(--font-inter),"Inter",sans-serif}
+.onair-l3{position:absolute;left:60px;bottom:70px;display:flex;max-width:80%;animation:onair-in .35s ease}
+.onair-l3a{background:var(--amber);color:#151107;padding:14px 22px;font-family:var(--font-anton),"Anton",sans-serif;font-size:34px;text-transform:uppercase;line-height:1;white-space:nowrap}
+.onair-l3b{background:rgba(10,9,8,.9);color:#F3EFE7;padding:14px 22px;font-size:18px;display:flex;align-items:center}
+.onair-comment{position:absolute;left:60px;bottom:190px;max-width:640px;background:rgba(10,9,8,.9);border-left:5px solid var(--amber);border-radius:0 10px 10px 0;padding:16px 22px;animation:onair-in .35s ease}
+.onair-comment-name{display:block;color:var(--amber);font-family:var(--font-anton),"Anton",sans-serif;font-size:20px;text-transform:uppercase;letter-spacing:.02em;margin-bottom:4px}
+.onair-comment-text{display:block;color:#F3EFE7;font-size:22px;line-height:1.35}
+@keyframes onair-in{from{opacity:0;transform:translateX(-24px)}to{opacity:1;transform:translateX(0)}}
+
 /* ---------------- responsive ---------------- */
 @media (max-width:1080px){
   :root{--pad:34px}
