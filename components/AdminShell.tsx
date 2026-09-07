@@ -2,14 +2,24 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { ADMIN_NAV } from "@/lib/adminNav";
 import { BRAND } from "@/lib/siteData";
+import { loadConfig } from "@/lib/saveSection";
 import { firebaseConfigured, getFirebaseAuth } from "@/lib/firebase";
 import { signOut } from "firebase/auth";
 
 export default function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [brand, setBrand] = useState<{ name: string; logo: string }>({ name: BRAND.name, logo: "" });
+
+  // Reflect the saved branding (uploaded logo + site name) in the sidebar.
+  useEffect(() => {
+    loadConfig()
+      .then((cfg) => { if (cfg?.branding) setBrand({ name: cfg.branding.siteName || BRAND.name, logo: cfg.branding.logo || "" }); })
+      .catch(() => {});
+  }, []);
 
   async function handleSignOut() {
     const auth = getFirebaseAuth();
@@ -21,8 +31,12 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
     <div className="admin">
       <aside className="admin-side">
         <div className="admin-brand">
-          <span className="brand-mark">SC</span>
-          <span className="brand-name">{BRAND.name}<span>Studio</span></span>
+          {brand.logo ? (
+            <img src={brand.logo} alt={brand.name} className="brand-mark-img" />
+          ) : (
+            <span className="brand-mark">SC</span>
+          )}
+          <span className="brand-name">{brand.name}<span>Studio</span></span>
         </div>
         <ul className="admin-nav">
           {ADMIN_NAV.map((item) => {

@@ -90,6 +90,7 @@ class StudioEngine {
   tickerLabel = "";
   private tickerText = "";
   private tickerX = 0;
+  private tickerLast = 0;
   banner: Banner = null; pinned: Pinned = null;
   tipAlert: { name: string; amount: number; message: string } | null = null;
   private tipTimer: ReturnType<typeof setTimeout> | null = null;
@@ -266,7 +267,12 @@ class StudioEngine {
     ctx.font = "500 22px Inter, sans-serif"; ctx.fillStyle = "#F3EFE7";
     const tw = ctx.measureText(this.tickerText).width;
     const gap = 90;
-    this.tickerX -= 2; // ~60px/s at 30fps
+    // Time-based motion: advance by px/sec * elapsed, so speed is constant even
+    // though renderFrame is driven by two clocks (rAF + audio) at uneven timing.
+    const now = typeof performance !== "undefined" ? performance.now() : 0;
+    const dt = this.tickerLast ? Math.min(now - this.tickerLast, 100) : 16;
+    this.tickerLast = now;
+    this.tickerX -= 70 * (dt / 1000); // 70px/s
     if (this.tickerX < -(tw + gap)) this.tickerX += tw + gap;
     const x0 = textStart + 24 + this.tickerX;
     ctx.fillText(this.tickerText, x0, y + h / 2 + 1);

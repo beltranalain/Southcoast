@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { ScheduleItem } from "@/lib/siteData";
 import { saveSection, loadConfig } from "@/lib/saveSection";
 
@@ -52,6 +53,7 @@ function resizeCover(file: File, w = 480, h = 270): Promise<string> {
 }
 
 export default function AdminSchedule() {
+  const router = useRouter();
   const [items, setItems] = useState<ScheduleItem[]>([]);
   const [dt, setDt] = useState("");
   const [tz, setTz] = useState("America/New_York");
@@ -101,6 +103,13 @@ export default function AdminSchedule() {
     await persist(list);
   }
 
+  // Start this broadcast now: drop it from the schedule (it's no longer
+  // "upcoming") and jump to the Go Live studio to hit air.
+  async function goLive(idx: number) {
+    await removeAt(idx);
+    router.push("/admin/go-live");
+  }
+
   return (
     <>
       <div className="admin-topbar">
@@ -122,7 +131,10 @@ export default function AdminSchedule() {
                   {s.cover && <img src={s.cover} alt="" className="cover-thumb sm" />}
                   <span className="when">{s.when}</span>
                   <span className="what"><strong>{s.title}</strong><span>{s.note}</span></span>
-                  <button className="btn btn-ghost btn-sm" type="button" onClick={() => removeAt(i)} style={{ marginLeft: "auto" }}>Remove</button>
+                  <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexShrink: 0 }}>
+                    <button className="btn btn-primary btn-sm" type="button" onClick={() => goLive(i)}>Go live</button>
+                    <button className="btn btn-ghost btn-sm" type="button" onClick={() => removeAt(i)}>Remove</button>
+                  </div>
                 </li>
               ))}
             </ul>

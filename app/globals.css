@@ -527,6 +527,7 @@ table.data tr:hover td{background:var(--bg3)}
 
 /* shared brand + pill (admin) */
 .brand-mark{width:34px;height:34px;border-radius:9px;background:var(--amber);color:#151107;display:grid;place-items:center;font-weight:800;font-size:13px;flex-shrink:0;font-family:var(--font-anton),"Anton",sans-serif}
+.brand-mark-img{width:34px;height:34px;border-radius:9px;object-fit:cover;flex-shrink:0;display:block}
 .brand-name{font-size:14px;line-height:1.15;font-weight:600}
 .brand-name span{display:block;font-size:10px;color:var(--mute);font-weight:500;letter-spacing:.14em;text-transform:uppercase}
 .admin-brand .brand-name,.signin-card .brand-name{font-family:var(--font)}
