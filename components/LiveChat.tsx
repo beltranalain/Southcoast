@@ -5,6 +5,8 @@ import { firebaseConfigured, getFirebaseAuth } from "@/lib/firebase";
 import {
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   updateProfile,
@@ -25,6 +27,19 @@ const DEMO: ChatMessage[] = [
   { id: "d3", name: "CoralWayKev", text: "run it back next week same time?", ts: 0 },
   { id: "d4", name: HOST, text: "same time, and I'm bringing the tape", ts: 0 },
 ];
+
+function googleErr(code?: string): string {
+  switch (code) {
+    case "auth/operation-not-allowed":
+      return "Google sign-in isn't turned on yet in Firebase (Authentication - Sign-in method - enable Google).";
+    case "auth/unauthorized-domain":
+      return "This site isn't authorized for Google sign-in (Firebase - Authentication - Settings - Authorized domains).";
+    case "auth/popup-blocked":
+      return "Your browser blocked the sign-in popup. Allow popups and try again.";
+    default:
+      return `Google sign-in failed${code ? ` (${code})` : ""}. Try email instead.`;
+  }
+}
 
 function guestName(): string {
   if (typeof window === "undefined") return "Guest";
@@ -67,6 +82,8 @@ export default function LiveChat() {
     if (!requireAuth) return;
     const auth = getFirebaseAuth();
     if (!auth) { setAuthReady(true); return; }
+    // Complete a redirect-based Google sign-in if we came back from one.
+    getRedirectResult(auth).catch((e: any) => { if (e?.code) setAuthErr(googleErr(e.code)); });
     const unsub = onAuthStateChanged(auth, (u) => { setViewer(u); setAuthReady(true); });
     return () => unsub();
   }, [requireAuth]);
@@ -131,10 +148,16 @@ export default function LiveChat() {
     const auth = getFirebaseAuth();
     if (!auth) return;
     setAuthErr("");
+    const provider = new GoogleAuthProvider();
     try {
-      await signInWithPopup(auth, new GoogleAuthProvider());
-    } catch {
-      setAuthErr("Google sign-in was cancelled or blocked.");
+      await signInWithPopup(auth, provider);
+    } catch (e: any) {
+      const code = e?.code || "";
+      // Popup blocked / closed / unsupported -> fall back to full-page redirect.
+      if (["auth/popup-blocked", "auth/popup-closed-by-user", "auth/cancelled-popup-request", "auth/operation-not-supported-in-this-environment"].includes(code)) {
+        try { await signInWithRedirect(auth, provider); return; } catch (e2: any) { setAuthErr(googleErr(e2?.code)); return; }
+      }
+      setAuthErr(googleErr(code));
     }
   }
 
