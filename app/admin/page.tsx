@@ -2,11 +2,23 @@ import Link from "next/link";
 import { getAllStats, getStatsByChannel, getLiveInfo, youtubeConfigured } from "@/lib/youtube";
 import { CHANNELS, PRIMARY_CHANNEL } from "@/lib/channels";
 import { formatCount } from "@/lib/format";
-import { getAdminDb, adminConfigured } from "@/lib/firebaseAdmin";
+import { getAdminDb, getAdminAuth, adminConfigured } from "@/lib/firebaseAdmin";
 import BarChart from "@/components/BarChart";
 
 const money = (n: number) => "$" + n.toLocaleString(undefined, { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 });
 const SHORT: Record<string, string> = { "cane-show": "Cane Show", "south-coast-cane": "Retro", "one-thing": "Let Me Tell U" };
+const DAYS = 14;
+const dayMs = 86400000;
+
+// Sum values into the last N days; index 0 = oldest, last = today.
+function dailyBuckets(items: { ts: number; v: number }[], now: number) {
+  const b = Array.from({ length: DAYS }, () => 0);
+  for (const it of items) {
+    const ago = Math.floor((now - it.ts) / dayMs);
+    if (ago >= 0 && ago < DAYS) b[DAYS - 1 - ago] += it.v;
+  }
+  return b;
+}
 
 export default async function AdminOverview() {
   const [stats, byChannel, live] = await Promise.all([
@@ -14,29 +26,34 @@ export default async function AdminOverview() {
     getStatsByChannel(CHANNELS.map((c) => c.channelId)),
     getLiveInfo(PRIMARY_CHANNEL.channelId),
   ]);
+  const now = Date.now();
+  const dayLabels = Array.from({ length: DAYS }, (_, i) => new Date(now - (DAYS - 1 - i) * dayMs).getDate().toString());
 
-  // Real revenue from the tips collection (server-side read).
+  // Real revenue from the tips collection + real site users from Firebase Auth.
   let tips: { amount: number; ts: number }[] = [];
+  let userTimes: number[] = [];
+  let totalUsers = 0;
   if (adminConfigured) {
     try {
       const db = getAdminDb();
       const snap = await db?.collection("tips").orderBy("ts", "desc").limit(1000).get();
       tips = snap?.docs.map((d) => ({ amount: Number(d.data().amount) || 0, ts: Number(d.data().ts) || 0 })) ?? [];
     } catch { /* no tips yet */ }
+    try {
+      const auth = getAdminAuth();
+      const res = await auth?.listUsers(1000);
+      const users = res?.users ?? [];
+      totalUsers = users.length;
+      userTimes = users.map((u) => new Date(u.metadata.creationTime || 0).getTime()).filter(Boolean);
+    } catch { /* auth not available */ }
   }
-  const now = Date.now();
-  const dayMs = 86400000;
+
   const revenueTotal = tips.reduce((s, t) => s + t.amount, 0);
   const weekRevenue = tips.filter((t) => t.ts >= now - 7 * dayMs).reduce((s, t) => s + t.amount, 0);
+  const newUsersWeek = userTimes.filter((t) => t >= now - 7 * dayMs).length;
 
-  // Daily revenue for the last 14 days (bucket 0 = 13 days ago, last = today).
-  const DAYS = 14;
-  const daily = Array.from({ length: DAYS }, () => 0);
-  for (const t of tips) {
-    const ago = Math.floor((now - t.ts) / dayMs);
-    if (ago >= 0 && ago < DAYS) daily[DAYS - 1 - ago] += t.amount;
-  }
-  const dayLabels = Array.from({ length: DAYS }, (_, i) => new Date(now - (DAYS - 1 - i) * dayMs).getDate().toString());
+  const dailyRevenue = dailyBuckets(tips.map((t) => ({ ts: t.ts, v: t.amount })), now);
+  const dailyUsers = dailyBuckets(userTimes.map((ts) => ({ ts, v: 1 })), now);
 
   // Per-channel figures aligned to our channel order (real YouTube stats).
   const rows = CHANNELS.map((c) => {
@@ -49,7 +66,7 @@ export default async function AdminOverview() {
       <div className="admin-topbar">
         <div>
           <h1>Overview</h1>
-          <div className="sub">Real numbers from your connected channels.</div>
+          <div className="sub">Real numbers from your site and connected channels.</div>
         </div>
         <div className="admin-actions">
           <span className={`live-pill${live.live ? " is-live" : ""}`}>
@@ -66,18 +83,26 @@ export default async function AdminOverview() {
         </div>
       )}
 
-      <div className="stat-grid g5">
-        <div className="stat-card"><div className="k">Subscribers</div><div className="v">{formatCount(stats?.subscribers)}</div><div className="d flat">All channels</div></div>
+      <div className="stat-grid g6">
+        <div className="stat-card"><div className="k">Users</div><div className="v">{formatCount(totalUsers)}</div><div className="d flat">{newUsersWeek > 0 ? `+${newUsersWeek} this week` : "Signed up on the site"}</div></div>
+        <div className="stat-card"><div className="k">Subscribers</div><div className="v">{formatCount(stats?.subscribers)}</div><div className="d flat">YouTube, all channels</div></div>
         <div className="stat-card"><div className="k">Total views</div><div className="v">{formatCount(stats?.views)}</div><div className="d flat">All-time</div></div>
         <div className="stat-card"><div className="k">Videos</div><div className="v">{formatCount(stats?.videos)}</div><div className="d flat">Published on YouTube</div></div>
         <div className="stat-card"><div className="k">Revenue</div><div className="v">{money(revenueTotal)}</div><div className="d flat">{weekRevenue > 0 ? `${money(weekRevenue)} this week` : "Tips, all-time"}</div></div>
         <div className="stat-card"><div className="k">Live status</div><div className="v">{live.live ? "On air" : "Off air"}</div><div className="d flat">{live.viewers != null ? `${live.viewers.toLocaleString()} watching` : "The South Coast Cane Show"}</div></div>
       </div>
 
-      <div className="panel">
-        <h3>Revenue</h3>
-        <div className="panel-sub">Tips over the last {DAYS} days{revenueTotal > 0 ? ` - ${money(revenueTotal)} total` : ""}.</div>
-        <BarChart data={daily} labels={dayLabels} format={money} />
+      <div className="two-col">
+        <div className="panel">
+          <h3>Revenue</h3>
+          <div className="panel-sub">Tips over the last {DAYS} days{revenueTotal > 0 ? ` - ${money(revenueTotal)} total` : ""}.</div>
+          <BarChart data={dailyRevenue} labels={dayLabels} format={money} />
+        </div>
+        <div className="panel">
+          <h3>New users</h3>
+          <div className="panel-sub">People who signed up on the site, last {DAYS} days{totalUsers > 0 ? ` - ${totalUsers} total` : ""}.</div>
+          <BarChart data={dailyUsers} labels={dayLabels} format={(n) => String(n)} />
+        </div>
       </div>
 
       <div className="two-col">
