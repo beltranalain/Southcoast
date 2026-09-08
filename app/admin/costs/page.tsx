@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { getIdToken } from "@/lib/firebase";
 
 type Row = { key: string; name: string; detail: string; cost: number | null; free: boolean };
-type Usage = { configured: boolean; total: number; budget: number; breakdown: Row[]; prices: { storagePer1k: number; deliveryPer1k: number } };
+type Estimate = { showsPerMonth: number; avgShowMinutes: number; typicalViewers: number; derivedViewers: number | null; savedViewers: number | null; scheduleCount: number; avgFromRecordings: boolean };
+type Usage = { configured: boolean; total: number; budget: number; breakdown: Row[]; estimate?: Estimate; prices: { storagePer1k: number; deliveryPer1k: number } };
 
 function money(n: number | null) {
   if (n == null) return "-";
@@ -27,7 +28,14 @@ export default function AdminCosts() {
       const res = await fetch("/api/admin/usage", { headers: token ? { Authorization: `Bearer ${token}` } : {}, cache: "no-store" });
       const d = await res.json();
       if (!res.ok) { setState("error"); return; }
-      setData(d); setBudget(d.budget ? String(d.budget) : ""); setState("ready");
+      setData(d); setBudget(d.budget ? String(d.budget) : "");
+      // Auto-fill the estimator from real data (schedule / recordings / saved).
+      if (d.estimate) {
+        setViewers(String(d.estimate.typicalViewers));
+        setMinutes(String(d.estimate.avgShowMinutes));
+        setShows(String(d.estimate.showsPerMonth));
+      }
+      setState("ready");
     } catch { setState("error"); }
   }
   useEffect(() => { load(); }, []);
@@ -41,6 +49,18 @@ export default function AdminCosts() {
     });
     const d = await res.json();
     if (d.saved) { setMsg("Budget saved."); setData((x) => (x ? { ...x, budget: d.budget } : x)); }
+    else setMsg("Could not save.");
+  }
+
+  async function saveTypicalViewers() {
+    setMsg("");
+    const token = await getIdToken();
+    const res = await fetch("/api/admin/usage", {
+      method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify({ typicalViewers: Number(viewers) || 0 }),
+    });
+    const d = await res.json();
+    if (d.saved) { setMsg("Saved as your typical viewers."); setData((x) => (x && x.estimate ? { ...x, estimate: { ...x.estimate, savedViewers: d.typicalViewers } } : x)); }
     else setMsg("Could not save.");
   }
 
@@ -115,26 +135,32 @@ export default function AdminCosts() {
 
               <div className="panel">
                 <h3>Per-show cost estimator</h3>
-                <div className="panel-sub">Streaming cost is viewer-minutes &times; {money(perMin)} per minute (WebRTC and HLS bill the same). Storage and everything else are separate.</div>
+                <div className="panel-sub">Auto-filled from your own data. Streaming cost is viewer-minutes &times; {money(perMin)} per minute (WebRTC and HLS bill the same). Storage and everything else are separate.</div>
                 <div className="est-grid" style={{ marginTop: 12 }}>
                   <div className="form-field">
                     <label>Avg. viewers</label>
                     <input type="number" min={0} step={10} value={viewers} onChange={(e) => setViewers(e.target.value)} />
+                    <small className="est-src">{data.estimate?.savedViewers ? "your saved default" : data.estimate?.derivedViewers != null ? "derived from analytics" : "estimate - save your own"}</small>
                   </div>
                   <div className="form-field">
                     <label>Show length (min)</label>
                     <input type="number" min={0} step={15} value={minutes} onChange={(e) => setMinutes(e.target.value)} />
+                    <small className="est-src">{data.estimate?.avgFromRecordings ? "avg of your recordings" : "typical default"}</small>
                   </div>
                   <div className="form-field">
                     <label>Shows / month</label>
                     <input type="number" min={0} step={1} value={shows} onChange={(e) => setShows(e.target.value)} />
+                    <small className="est-src">{data.estimate && data.estimate.scheduleCount > 0 ? "from your schedule" : "default"}</small>
                   </div>
                 </div>
                 <div className="est-out">
                   <div><span>Per show</span><b>{money(perShow)}</b></div>
                   <div><span>Per month</span><b className="or">{money(perMonth)}</b></div>
                 </div>
-                <div className="panel-sub" style={{ marginTop: 8 }}>{v.toLocaleString()} viewers &times; {m.toLocaleString()} min = {(v * m).toLocaleString()} viewer-minutes per show.</div>
+                <div className="est-foot">
+                  <span className="panel-sub">{v.toLocaleString()} viewers &times; {m.toLocaleString()} min = {(v * m).toLocaleString()} viewer-minutes per show.</span>
+                  <button className="btn btn-ghost btn-sm" type="button" onClick={saveTypicalViewers}>Save as default</button>
+                </div>
               </div>
 
               <div className="panel">

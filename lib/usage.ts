@@ -15,16 +15,18 @@ export type StreamUsage = {
   storedMinutes: number;
   deliveredMinutes: number | null; // null when analytics aren't available
   videoCount: number;
+  avgVideoMinutes: number; // mean recording length - used to auto-fill the estimator
 };
 
 // Stored minutes = sum of VOD durations. Delivered minutes = this month's
 // adaptive viewing minutes via Cloudflare's GraphQL analytics (best-effort;
 // needs Account Analytics Read on the token).
 export async function getStreamUsage(): Promise<StreamUsage> {
-  if (!streamConfigured) return { configured: false, storedMinutes: 0, deliveredMinutes: null, videoCount: 0 };
+  if (!streamConfigured) return { configured: false, storedMinutes: 0, deliveredMinutes: null, videoCount: 0, avgVideoMinutes: 0 };
 
   const vids = await listStreamVideos();
   const storedMinutes = vids.reduce((s: number, v: any) => s + (Number(v.duration) || 0), 0) / 60;
+  const avgVideoMinutes = vids.length ? storedMinutes / vids.length : 0;
 
   let deliveredMinutes: number | null = null;
   try {
@@ -49,5 +51,5 @@ export async function getStreamUsage(): Promise<StreamUsage> {
     /* analytics unavailable - leave null */
   }
 
-  return { configured: true, storedMinutes, deliveredMinutes, videoCount: vids.length };
+  return { configured: true, storedMinutes, deliveredMinutes, videoCount: vids.length, avgVideoMinutes };
 }
