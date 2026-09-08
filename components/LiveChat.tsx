@@ -275,7 +275,7 @@ export default function LiveChat() {
               <span className="tipamt">${m.tip.toFixed(2)}</span><b>{m.name}</b>{m.text ? <span> {m.text}</span> : null}
             </div>
           ) : (
-            <div className={`msg${m.name === HOST ? " host" : ""}`} key={m.id}>
+            <div className={`msg${m.name === HOST ? " is-host" : ""}`} key={m.id}>
               <span className="src">Site</span><b>{m.name}</b>{m.text}
             </div>
           )

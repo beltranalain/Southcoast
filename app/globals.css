@@ -349,7 +349,7 @@ h2.big{font-size:clamp(30px,4.4vw,56px);line-height:.92}
 .chat-b{flex:1;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:13px}
 .msg{font-size:13.2px;line-height:1.45}
 .msg b{font-weight:700;margin-right:6px}
-.msg.host b{color:var(--amber)}
+.msg.is-host b{color:var(--amber)}
 .msg .src{font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--mute);border:1px solid var(--line);border-radius:4px;padding:1px 5px;margin-right:7px}
 .chat-f{border-top:1px solid var(--line);padding:13px 16px;display:flex;gap:9px}
 .chat-f input{flex:1;min-width:0;background:var(--bg);border:1px solid var(--line);color:var(--cream);border-radius:999px;padding:11px 16px;font:inherit;font-size:13px}
