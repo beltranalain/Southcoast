@@ -267,16 +267,18 @@ class StudioEngine {
     ctx.font = "500 22px Inter, sans-serif"; ctx.fillStyle = "#F3EFE7";
     const tw = ctx.measureText(this.tickerText).width;
     const gap = 90;
-    // Time-based motion: advance by px/sec * elapsed, so speed is constant even
-    // though renderFrame is driven by two clocks (rAF + audio) at uneven timing.
+    // Continuous marquee: the scroll position is a pure function of the clock,
+    // so it never drifts, hitches, or resets - regardless of how evenly frames
+    // are delivered (rAF + audio clock). The text is tiled across the whole
+    // visible width so the loop is seamless and never-ending.
+    const period = tw + gap;
     const now = typeof performance !== "undefined" ? performance.now() : 0;
-    const dt = this.tickerLast ? Math.min(now - this.tickerLast, 100) : 16;
-    this.tickerLast = now;
-    this.tickerX -= 70 * (dt / 1000); // 70px/s
-    if (this.tickerX < -(tw + gap)) this.tickerX += tw + gap;
-    const x0 = textStart + 24 + this.tickerX;
-    ctx.fillText(this.tickerText, x0, y + h / 2 + 1);
-    ctx.fillText(this.tickerText, x0 + tw + gap, y + h / 2 + 1); // second copy = seamless loop
+    const offset = period > 0 ? ((now * 70) / 1000) % period : 0; // 70px/s
+    const startX = textStart + 24 - offset;
+    const copies = Math.ceil((W - textStart) / period) + 2;
+    for (let i = -1; i < copies; i++) {
+      ctx.fillText(this.tickerText, startX + i * period, y + h / 2 + 1);
+    }
     ctx.restore();
   }
 
