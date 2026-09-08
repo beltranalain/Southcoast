@@ -3,6 +3,7 @@ import { getAllStats, getStatsByChannel, getLiveInfo, youtubeConfigured } from "
 import { CHANNELS, PRIMARY_CHANNEL } from "@/lib/channels";
 import { formatCount } from "@/lib/format";
 import { getAdminDb, getAdminAuth, adminConfigured } from "@/lib/firebaseAdmin";
+import { getCostEstimate } from "@/lib/costEstimate";
 import BarChart from "@/components/BarChart";
 
 const money = (n: number) => "$" + n.toLocaleString(undefined, { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 });
@@ -21,10 +22,11 @@ function dailyBuckets(items: { ts: number; v: number }[], now: number) {
 }
 
 export default async function AdminOverview() {
-  const [stats, byChannel, live] = await Promise.all([
+  const [stats, byChannel, live, cost] = await Promise.all([
     getAllStats(CHANNELS.map((c) => c.channelId)),
     getStatsByChannel(CHANNELS.map((c) => c.channelId)),
     getLiveInfo(PRIMARY_CHANNEL.channelId),
+    getCostEstimate(),
   ]);
   const now = Date.now();
   const dayLabels = Array.from({ length: DAYS }, (_, i) => new Date(now - (DAYS - 1 - i) * dayMs).getDate().toString());
@@ -83,12 +85,13 @@ export default async function AdminOverview() {
         </div>
       )}
 
-      <div className="stat-grid g6">
+      <div className="stat-grid g7">
         <div className="stat-card"><div className="k">Users</div><div className="v">{formatCount(totalUsers)}</div><div className="d flat">{newUsersWeek > 0 ? `+${newUsersWeek} this week` : "Signed up on the site"}</div></div>
         <div className="stat-card"><div className="k">Subscribers</div><div className="v">{formatCount(stats?.subscribers)}</div><div className="d flat">YouTube, all channels</div></div>
         <div className="stat-card"><div className="k">Total views</div><div className="v">{formatCount(stats?.views)}</div><div className="d flat">All-time</div></div>
         <div className="stat-card"><div className="k">Videos</div><div className="v">{formatCount(stats?.videos)}</div><div className="d flat">Published on YouTube</div></div>
         <div className="stat-card"><div className="k">Revenue</div><div className="v">{money(revenueTotal)}</div><div className="d flat">{weekRevenue > 0 ? `${money(weekRevenue)} this week` : "Tips, all-time"}</div></div>
+        <div className="stat-card"><div className="k">Est. cost / show</div><div className="v">{money(Math.round(cost.estimate.perShow))}</div><div className="d flat">~{cost.estimate.typicalViewers.toLocaleString()} viewers x {cost.estimate.avgShowMinutes} min</div></div>
         <div className="stat-card"><div className="k">Live status</div><div className="v">{live.live ? "On air" : "Off air"}</div><div className="d flat">{live.viewers != null ? `${live.viewers.toLocaleString()} watching` : "The South Coast Cane Show"}</div></div>
       </div>
 

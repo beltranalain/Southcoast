@@ -34,6 +34,13 @@ export default function AdminCosts() {
         setViewers(String(d.estimate.typicalViewers));
         setMinutes(String(d.estimate.avgShowMinutes));
         setShows(String(d.estimate.showsPerMonth));
+        // Pre-fill a suggested budget when none is set (~1.5x projected spend).
+        if (!d.budget) {
+          const storage = d.breakdown?.find((r: Row) => r.key === "cf-storage")?.cost || 0;
+          const pm = (d.prices?.deliveryPer1k ?? 1) / 1000;
+          const projected = storage + d.estimate.typicalViewers * d.estimate.avgShowMinutes * pm * d.estimate.showsPerMonth;
+          setBudget(String(Math.max(5, Math.ceil((projected * 1.5) / 5) * 5)));
+        }
       }
       setState("ready");
     } catch { setState("error"); }
@@ -73,6 +80,9 @@ export default function AdminCosts() {
   const s = Math.max(0, Number(shows) || 0);
   const perShow = v * m * perMin;
   const perMonth = perShow * s;
+  // Suggested budget = ~1.5x projected monthly spend (storage + estimated delivery).
+  const storageCost = data?.breakdown.find((r) => r.key === "cf-storage")?.cost ?? 0;
+  const suggested = Math.max(5, Math.ceil(((storageCost + perMonth) * 1.5) / 5) * 5);
   const pct = cap > 0 ? Math.min(999, (total / cap) * 100) : 0;
   const level = cap === 0 ? "none" : pct >= 100 ? "over" : pct >= 80 ? "warn" : "ok";
 
@@ -128,6 +138,10 @@ export default function AdminCosts() {
                 <div className="form-field" style={{ marginTop: 12 }}>
                   <label>Budget (USD / month)</label>
                   <input type="number" min={0} step={5} value={budget} placeholder="e.g. 50" onChange={(e) => setBudget(e.target.value)} />
+                </div>
+                <div className="est-foot" style={{ marginTop: 0, marginBottom: 10 }}>
+                  <span className="panel-sub" style={{ margin: 0 }}>Suggested {money(suggested)} - about 1.5&times; your estimated spend.</span>
+                  {String(suggested) !== budget && <button className="btn btn-ghost btn-sm" type="button" onClick={() => setBudget(String(suggested))}>Use suggested</button>}
                 </div>
                 <button className="btn btn-primary btn-sm" type="button" onClick={saveBudget}>Save budget</button>
                 {msg && <p className="form-ok" style={{ marginTop: 10 }}>{msg}</p>}

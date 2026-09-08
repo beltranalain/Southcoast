@@ -4,6 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ScheduleItem } from "@/lib/siteData";
 import { saveSection, loadConfig } from "@/lib/saveSection";
+import { getIdToken } from "@/lib/firebase";
+
+const money = (n: number) => "$" + n.toLocaleString(undefined, { maximumFractionDigits: 0 });
 
 const TZ_OPTIONS = [
   { id: "America/New_York", label: "Eastern (ET)" },
@@ -62,12 +65,25 @@ export default function AdminSchedule() {
   const [cover, setCover] = useState("");
   const [message, setMessage] = useState("");
   const [now, setNow] = useState(0);
+  const [perShow, setPerShow] = useState<number | null>(null);
   const coverInput = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     loadConfig()
       .then((cfg) => Array.isArray(cfg?.schedule) && setItems(cfg.schedule))
       .catch(() => {});
+  }, []);
+
+  // Pull the auto-estimated streaming cost per show (same figure as Costs).
+  useEffect(() => {
+    (async () => {
+      try {
+        const token = await getIdToken();
+        const res = await fetch("/api/admin/usage", { headers: token ? { Authorization: `Bearer ${token}` } : {}, cache: "no-store" });
+        const d = await res.json();
+        if (res.ok && d?.estimate) setPerShow(d.estimate.perShow);
+      } catch { /* estimate unavailable */ }
+    })();
   }, []);
 
   // Track time so past broadcasts can be flagged "Expired" (refreshes each min).
@@ -159,7 +175,10 @@ export default function AdminSchedule() {
                       <strong>{s.title}{expired && <span className="pill draft" style={{ marginLeft: 8 }}>Expired</span>}</strong>
                       <span>{s.note}</span>
                     </span>
-                    <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexShrink: 0 }}>
+                    <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexShrink: 0, alignItems: "center" }}>
+                      {!expired && perShow != null && perShow > 0 && (
+                        <span className="est-chip" title="Estimated streaming cost for this broadcast (viewers x length)">~{money(perShow)}</span>
+                      )}
                       {!expired && <button className="btn btn-primary btn-sm" type="button" onClick={() => goLive(idx)}>Go live</button>}
                       <button className="btn btn-ghost btn-sm" type="button" onClick={() => removeAt(idx)}>Remove</button>
                     </div>
