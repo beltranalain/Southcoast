@@ -62,6 +62,16 @@ export default function SimulcastManager() {
     load();
   }
 
+  async function toggle(id: string, enabled: boolean) {
+    const token = await getIdToken();
+    await fetch("/api/stream/outputs", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify({ id, enabled }),
+    });
+    load();
+  }
+
   return (
     <div className="panel">
       <h3>Simulcast destinations</h3>
@@ -73,8 +83,11 @@ export default function SimulcastManager() {
       </div>
       {outputs.map((o) => (
         <div className="dest-row" key={o.uid}>
-          <div><div className="dest-name">{label(o.url)}</div><div className="dest-meta">{o.enabled === false ? "disabled" : "live simulcast"}</div></div>
-          <button className="btn btn-ghost btn-sm" type="button" onClick={() => remove(o.uid)}>Remove</button>
+          <div><div className="dest-name">{label(o.url)}</div><div className="dest-meta">{o.enabled !== false ? "live simulcast" : "paused"}</div></div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <label className="toggle"><input type="checkbox" checked={o.enabled !== false} onChange={(e) => toggle(o.uid, e.target.checked)} /><span className="track" /></label>
+            <button className="btn btn-ghost btn-sm" type="button" onClick={() => remove(o.uid)}>Remove</button>
+          </div>
         </div>
       ))}
 

@@ -199,6 +199,11 @@ export const DEFAULT_SCENE: SiteScene = {
   ticker: "",
 };
 
+// Soundboard: short sound-effect pads the host taps during a broadcast.
+export type SoundPad = { id: string; label: string; url: string };
+
+export const DEFAULT_SOUNDS: SoundPad[] = [];
+
 export const LIBRARY_FILTERS = [
   { key: "all", label: "All" },
   { key: "cane-show", label: "The South Coast Cane Show" },

@@ -1,0 +1,1406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cane with a Camera — iOS concept</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0A0908;
+    --surface:#141110;
+    --surface-2:#1C1714;
+    --cream:#F3EFE7;
+    --muted:#9A9287;
+    --dim:#6B6055;
+    --amber:#F5A524;
+    --highlight:#FFBE4A;
+    --live:#E8402A;
+    --line:rgba(243,239,231,.14);
+    --line-soft:rgba(243,239,231,.08);
+    --radius:16px;
+    --shadow:0 18px 44px rgba(0,0,0,.55);
+    --sheet-shadow:0 -14px 50px rgba(0,0,0,.6);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    font-family:'Inter',system-ui,sans-serif;
+    background:
+      radial-gradient(1200px 700px at 50% -10%, rgba(245,165,36,.10), transparent 60%),
+      radial-gradient(900px 900px at 85% 110%, rgba(45,80,120,.14), transparent 55%),
+      #050403;
+    color:var(--cream);
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:flex-start;
+    padding:16px 16px 20px;
+    gap:14px;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* ---------- Page-level Portrait / Landscape tabs ---------- */
+  .page-tabs{
+    flex:0 0 auto;display:inline-flex;gap:6px;padding:5px;
+    background:var(--surface);border:1px solid var(--line-soft);border-radius:999px;
+    box-shadow:0 8px 24px rgba(0,0,0,.4);
+  }
+  .page-tab{
+    border:none;cursor:pointer;font-family:inherit;font-weight:700;
+    font-size:12.5px;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--muted);background:transparent;border-radius:999px;padding:9px 22px;
+    transition:color .16s,background .16s,transform .12s;
+  }
+  .page-tab:active{transform:scale(.96);}
+  .page-tab.on{color:#1a1205;background:linear-gradient(180deg,var(--highlight),var(--amber));box-shadow:0 6px 16px rgba(245,165,36,.28);}
+
+  /* ---------- Device area (holds one panel at a time, fit-scaled) ---------- */
+  .device-area{
+    flex:1 1 auto;width:100%;
+    display:flex;align-items:flex-start;justify-content:center;overflow:hidden;
+  }
+  .device-panel{display:none;}
+  .device-panel.on{display:block;transform-origin:top center;}
+  .anton{font-family:'Anton',sans-serif;font-weight:400;text-transform:uppercase;letter-spacing:.01em;line-height:.9;}
+
+  /* ---------- Device frame ---------- */
+  .device{
+    position:relative;
+    width:433px;
+    height:892px;
+    border-radius:66px;
+    padding:20px;
+    background:
+      linear-gradient(145deg,#3a3833 0%,#1a1917 22%,#0c0b0a 50%,#26241f 78%,#3f3d37 100%);
+    box-shadow:
+      0 0 0 2px rgba(0,0,0,.6),
+      0 40px 90px rgba(0,0,0,.7),
+      inset 0 1px 2px rgba(255,255,255,.18),
+      inset 0 -2px 4px rgba(0,0,0,.6);
+    flex:0 0 auto;
+  }
+  .device::before{ /* titanium side rails */
+    content:"";position:absolute;inset:8px;border-radius:60px;
+    background:linear-gradient(90deg,rgba(255,255,255,.06),transparent 8%,transparent 92%,rgba(255,255,255,.06));
+    pointer-events:none;
+  }
+  /* side buttons */
+  .btn-vol,.btn-pow{position:absolute;background:linear-gradient(180deg,#2b2925,#151412);border-radius:3px;}
+  .btn-vol{left:-3px;width:4px;}
+  .btn-pow{right:-3px;width:4px;height:96px;top:210px;}
+  .v1{top:176px;height:34px;}
+  .v2{top:224px;height:60px;}
+  .v3{top:296px;height:60px;}
+
+  .screen{
+    position:relative;
+    width:393px;
+    height:852px;
+    border-radius:48px;
+    overflow:hidden;
+    background:var(--bg);
+    display:flex;
+    flex-direction:column;
+  }
+
+  /* ---------- Status bar ---------- */
+  .statusbar{
+    position:relative;z-index:40;
+    height:54px;flex:0 0 54px;
+    display:flex;align-items:flex-start;justify-content:space-between;
+    padding:16px 32px 0;
+    color:var(--cream);
+  }
+  .sb-time{font-size:15px;font-weight:600;letter-spacing:.02em;}
+  .sb-right{display:flex;align-items:center;gap:6px;height:14px;}
+  .sb-right svg{display:block;}
+
+  /* ---------- Dynamic Island ---------- */
+  .island{
+    position:absolute;top:13px;left:50%;transform:translateX(-50%);
+    width:126px;height:36px;border-radius:20px;background:#000;z-index:50;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.03);
+    display:flex;align-items:center;justify-content:flex-end;padding-right:12px;
+  }
+  .island .cam{width:9px;height:9px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#243b52,#050607 70%);box-shadow:inset 0 0 2px rgba(80,140,200,.6);}
+
+  /* ---------- App header ---------- */
+  .appbar{
+    position:relative;z-index:30;flex:0 0 auto;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:6px 18px 12px;border-bottom:1px solid var(--line-soft);
+    background:linear-gradient(180deg,rgba(10,9,8,.9),rgba(10,9,8,.6));
+  }
+  .appbar .ib{
+    width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;
+    border:1px solid var(--line-soft);background:var(--surface);color:var(--muted);
+  }
+  .appbar .ib:active{transform:scale(.92);color:var(--cream);}
+  .brand{display:flex;align-items:center;gap:9px;}
+  .logo-tile{
+    width:34px;height:34px;border-radius:10px;flex:0 0 auto;
+    background:linear-gradient(150deg,#2a1f0e,#120d06);
+    border:1px solid rgba(245,165,36,.35);
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 4px 14px rgba(245,165,36,.14);
+  }
+  .wordmark{font-size:12.5px;font-weight:600;letter-spacing:.02em;color:var(--cream);line-height:1;}
+  .wordmark b{color:var(--amber);font-weight:700;}
+  .wordmark small{display:block;font-size:8.5px;letter-spacing:.24em;color:var(--dim);margin-top:3px;text-transform:uppercase;font-weight:600;}
+
+  /* ---------- Scroll viewport ---------- */
+  .viewport{
+    position:relative;flex:1 1 auto;overflow:hidden;
+  }
+  .scroll{
+    position:absolute;inset:0;overflow-y:scroll;overflow-x:hidden;
+    padding:16px 16px 34px;
+    scrollbar-width:thin;scrollbar-color:rgba(243,239,231,.18) transparent;
+  }
+  .scroll::-webkit-scrollbar{width:4px;}
+  .scroll::-webkit-scrollbar-thumb{background:rgba(243,239,231,.16);border-radius:99px;}
+  .scroll::-webkit-scrollbar-track{background:transparent;}
+
+  .screenpage{display:none;animation:fadeUp .34s ease both;}
+  .screenpage.active{display:block;}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+
+  /* ---------- Typographic bits ---------- */
+  .eyebrow{font-size:10.5px;letter-spacing:.22em;font-weight:700;color:var(--amber);text-transform:uppercase;}
+  .eyebrow.dim{color:var(--dim);}
+  .muted{color:var(--muted);}
+  .dim{color:var(--dim);}
+  .h-xl{font-size:38px;color:var(--cream);}
+  .h-lg{font-size:30px;color:var(--cream);}
+  .sub{font-size:13px;color:var(--muted);line-height:1.5;}
+
+  /* ---------- Art wells ---------- */
+  .well{position:relative;overflow:hidden;background:#0b0a09;isolation:isolate;}
+  .well::before{
+    content:"";position:absolute;inset:-30%;z-index:0;filter:blur(50px);opacity:.95;
+  }
+  .well::after{
+    content:"";position:absolute;inset:0;z-index:1;
+    background:linear-gradient(180deg,rgba(10,9,8,.15) 0%,rgba(10,9,8,.35) 45%,rgba(10,9,8,.85) 100%);
+  }
+  .well > *{position:relative;z-index:2;}
+  .w-amber::before{background:radial-gradient(circle at 25% 25%,#F5A524,transparent 55%),radial-gradient(circle at 78% 70%,#8a3b12,transparent 60%);}
+  .w-blue::before{background:radial-gradient(circle at 30% 20%,#4d86c4,transparent 55%),radial-gradient(circle at 80% 78%,#1b2a44,transparent 60%);}
+  .w-green::before{background:radial-gradient(circle at 28% 26%,#3f8f6b,transparent 55%),radial-gradient(circle at 80% 74%,#173b2c,transparent 60%);}
+  .w-purple::before{background:radial-gradient(circle at 30% 22%,#7b5bb0,transparent 55%),radial-gradient(circle at 78% 76%,#2c1f45,transparent 60%);}
+  .w-clay::before{background:radial-gradient(circle at 26% 24%,#c65a3a,transparent 55%),radial-gradient(circle at 80% 74%,#4a1f14,transparent 60%);}
+
+  /* ---------- Pills / chips / buttons ---------- */
+  .pill{
+    display:inline-flex;align-items:center;gap:7px;
+    border-radius:999px;border:1px solid var(--line);
+    background:var(--surface);color:var(--cream);
+    font-size:12px;font-weight:600;padding:9px 14px;cursor:pointer;
+    transition:transform .12s,border-color .18s,background .18s;
+  }
+  .pill svg{flex:0 0 auto;}
+  .pill:active{transform:scale(.95);}
+  .pill:hover{border-color:rgba(245,165,36,.4);}
+  .pill.ghost{background:transparent;}
+  .btn-amber{
+    display:flex;align-items:center;justify-content:center;gap:8px;width:100%;
+    border-radius:14px;border:none;background:linear-gradient(180deg,var(--highlight),var(--amber));
+    color:#1a1205;font-weight:700;font-size:15px;padding:15px;cursor:pointer;
+    box-shadow:0 10px 26px rgba(245,165,36,.28);transition:transform .12s,filter .18s;
+  }
+  .btn-amber:active{transform:scale(.98);filter:brightness(1.05);}
+  .btn-outline-amber{
+    display:flex;align-items:center;justify-content:center;gap:9px;width:100%;
+    border-radius:14px;background:rgba(245,165,36,.06);
+    border:1.5px solid rgba(245,165,36,.55);color:var(--amber);
+    font-weight:700;font-size:14px;padding:14px;cursor:pointer;
+    transition:transform .12s,background .18s;
+  }
+  .btn-outline-amber:active{transform:scale(.98);background:rgba(245,165,36,.14);}
+
+  /* status dots */
+  .dot{width:7px;height:7px;border-radius:50%;flex:0 0 auto;}
+  .dot.red{background:var(--live);box-shadow:0 0 8px rgba(232,64,42,.8);}
+  .dot.amber{background:var(--amber);}
+  .dot.dim{background:var(--dim);}
+
+  /* card base */
+  .card{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);}
+
+  /* ---------- LIVE screen ---------- */
+  .live-head{display:flex;align-items:flex-start;gap:10px;margin:2px 0 0;}
+  .live-head .anton{flex:1 1 auto;}
+  .status-marker{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:4px 10px;}
+
+  /* minimize / expand title toggle */
+  .title-toggle{
+    flex:0 0 auto;width:30px;height:30px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    border:1px solid var(--line);background:var(--surface);color:var(--muted);
+    cursor:pointer;margin-top:2px;transition:transform .12s,border-color .18s,color .18s;
+  }
+  .title-toggle:active{transform:scale(.9);}
+  .title-toggle:hover{border-color:rgba(245,165,36,.4);color:var(--cream);}
+  .title-toggle svg{transition:transform .34s cubic-bezier(.22,1,.36,1);}
+
+  /* collapsible title region */
+  .title-eyebrow{
+    overflow:hidden;max-height:20px;opacity:1;
+    transition:max-height .34s cubic-bezier(.22,1,.36,1),opacity .28s ease,margin .34s ease;
+  }
+  .title-main{
+    font-size:30px;overflow:hidden;max-height:80px;opacity:1;white-space:normal;
+    transition:font-size .34s cubic-bezier(.22,1,.36,1),max-height .34s cubic-bezier(.22,1,.36,1),opacity .28s ease;
+  }
+  .live-body.title-collapsed .title-eyebrow{max-height:0;opacity:0;margin:0;}
+  .live-body.title-collapsed .title-main{
+    font-size:16px;max-height:22px;line-height:1.1;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .live-body.title-collapsed .title-toggle svg{transform:rotate(180deg);}
+
+  /* collapsible action pills + destination chips — hidden when title minimized */
+  .rowscroll,.destrow{
+    overflow:hidden;max-height:120px;opacity:1;
+    transition:max-height .34s cubic-bezier(.22,1,.36,1),opacity .26s ease,margin .34s ease;
+  }
+  .live-body.title-collapsed .rowscroll,
+  .live-body.title-collapsed .destrow{
+    max-height:0;opacity:0;margin-top:0;pointer-events:none;
+  }
+
+  .player{
+    position:relative;border-radius:var(--radius);overflow:hidden;aspect-ratio:16/10;
+    background:radial-gradient(120% 120% at 50% 30%, #1b1713 0%, #0b0a09 70%);
+    border:1px solid var(--line-soft);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+    box-shadow:var(--shadow);
+  }
+  .player::before{
+    content:"";position:absolute;inset:0;z-index:0;
+    background:radial-gradient(60% 50% at 50% 40%,rgba(245,165,36,.16),transparent 70%);
+  }
+  .player .offair{position:relative;font-size:46px;color:var(--cream);text-shadow:0 0 34px rgba(245,165,36,.35);}
+  .player .p-sub{position:relative;font-size:11.5px;color:var(--muted);text-align:center;}
+
+  /* player state blocks: scheduled (default) vs off-air */
+  .p-state{
+    position:relative;z-index:2;width:100%;height:100%;
+    display:flex;flex-direction:column;align-items:center;justify-content:flex-end;
+    gap:8px;padding:16px 18px 20px;text-align:center;
+  }
+  .p-scheduled{display:flex;}
+  .p-offair{display:none;}
+  .player.state-off .p-scheduled{display:none;}
+  .player.state-off .p-offair{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;}
+  /* cover art background fills the whole player in scheduled state */
+  .p-cover{
+    position:absolute;inset:0;z-index:0;border-radius:0;
+    opacity:.55;filter:saturate(1.05);
+  }
+  .player.state-off .p-cover{display:none;}
+  .p-cover::after{background:linear-gradient(180deg,rgba(10,9,8,.35) 0%,rgba(10,9,8,.55) 45%,rgba(10,9,8,.92) 100%);}
+  /* visible cover thumbnail (poster) in scheduled state */
+  .p-thumb{
+    position:relative;z-index:2;width:120px;height:78px;border-radius:12px;
+    border:1px solid rgba(245,165,36,.5);
+    box-shadow:0 10px 26px rgba(0,0,0,.55),0 0 0 3px rgba(245,165,36,.10);
+    margin-bottom:8px;flex:0 0 auto;
+    display:flex;align-items:center;justify-content:center;
+  }
+  /* richer, cover-like art well: warm amber + a second (clay/red) hue */
+  .p-thumb.well::before{
+    background:
+      radial-gradient(circle at 22% 22%,#FFBE4A,transparent 52%),
+      radial-gradient(circle at 76% 34%,#F5A524,transparent 55%),
+      radial-gradient(circle at 68% 82%,#c65a3a,transparent 58%),
+      radial-gradient(circle at 30% 90%,#8a3b12,transparent 60%);
+    opacity:1;
+  }
+  /* stronger bottom vignette so it reads like a poster */
+  .p-thumb::after{
+    background:linear-gradient(180deg,rgba(10,9,8,.10) 0%,rgba(10,9,8,.20) 55%,rgba(10,9,8,.72) 100%);
+  }
+  /* centered play triangle overlay */
+  .p-play{
+    position:relative;z-index:3;width:34px;height:34px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;flex:0 0 auto;
+    background:rgba(10,9,8,.32);border:1px solid rgba(243,239,231,.45);
+    -webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);
+  }
+  .p-play svg{margin-left:2px;filter:drop-shadow(0 1px 3px rgba(0,0,0,.5));}
+  /* small "LIVE SOON" chip, top-left corner */
+  .p-chip{
+    position:absolute;top:6px;left:6px;z-index:3;
+    font-size:8px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;
+    color:#1a1205;background:var(--amber);border-radius:5px;padding:2px 6px;line-height:1;
+    box-shadow:0 2px 8px rgba(0,0,0,.4);
+  }
+  .land-player .p-thumb{width:150px;height:96px;border-radius:14px;margin-bottom:10px;}
+  .land-player .p-play{width:44px;height:44px;}
+  .p-eye{font-size:9.5px;letter-spacing:.2em;font-weight:700;text-transform:uppercase;color:var(--amber);}
+  .p-show{font-family:'Anton';text-transform:uppercase;font-size:26px;color:var(--cream);line-height:.95;text-shadow:0 2px 16px rgba(0,0,0,.6);}
+  .p-count{
+    font-family:'Anton';font-size:20px;letter-spacing:.02em;color:var(--amber);
+    text-shadow:0 0 22px rgba(245,165,36,.35);line-height:1.05;margin-top:1px;
+  }
+  /* subtle state toggle, top-right of player */
+  .p-toggle{
+    position:absolute;top:9px;right:9px;z-index:5;display:inline-flex;
+    border:1px solid var(--line-soft);border-radius:999px;overflow:hidden;
+    background:rgba(10,9,8,.55);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+  }
+  .p-toggle button{
+    background:none;border:none;cursor:pointer;color:var(--muted);
+    font-family:inherit;font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+    padding:5px 9px;transition:color .16s,background .16s;
+  }
+  .p-toggle button.on{color:#1a1205;background:var(--amber);}
+  .p-toggle button:active{transform:scale(.95);}
+  .ring{
+    position:relative;width:34px;height:34px;border-radius:50%;
+    border:3px solid rgba(245,165,36,.18);border-top-color:var(--amber);
+    animation:spin 1.1s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .countchip{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;color:var(--amber);background:rgba(245,165,36,.10);border:1px solid rgba(245,165,36,.28);border-radius:999px;padding:4px 9px;}
+  .countchip.sm{font-size:10px;padding:4px 8px;}
+
+  /* ---------- Live: pinned player + scrolling chat (YouTube-style) ---------- */
+  #scroll-live{overflow:hidden;padding:0;display:flex;flex-direction:column;}
+  #screen-live.screenpage{height:100%;}
+  #screen-live.screenpage.active{display:flex;flex-direction:column;}
+  .live-pin{flex:0 0 auto;padding:8px 10px 8px;background:var(--bg);border-bottom:1px solid var(--line-soft);}
+  .live-body{
+    flex:1 1 auto;overflow-y:scroll;overflow-x:hidden;padding:14px 16px 30px;
+    scrollbar-width:thin;scrollbar-color:rgba(243,239,231,.18) transparent;
+  }
+  .live-body::-webkit-scrollbar{width:4px;}
+  .live-body::-webkit-scrollbar-thumb{background:rgba(243,239,231,.16);border-radius:99px;}
+  .live-body::-webkit-scrollbar-track{background:transparent;}
+  /* next-live info tucked into the bottom of the OFF AIR box */
+  .player-next{
+    position:absolute;left:0;right:0;bottom:0;z-index:3;
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:10px 13px;border-top:1px solid var(--line-soft);
+    background:linear-gradient(0deg,rgba(6,5,5,.92),rgba(6,5,5,.4) 70%,transparent);
+  }
+  .player-next .pn-group{display:flex;align-items:center;gap:10px;min-width:0;}
+  .player-next .pn-cover{width:40px;height:40px;border-radius:9px;flex:0 0 auto;border:1px solid var(--line-soft);}
+  .player-next .pn-l{display:flex;flex-direction:column;gap:3px;min-width:0;}
+  .player-next .pn-eye{font-size:8px;letter-spacing:.16em;font-weight:700;text-transform:uppercase;color:var(--amber);}
+  .player-next .pn-title{font-size:14px;font-weight:700;color:var(--cream);line-height:1;}
+
+  .rowscroll{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;}
+  .destrow{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;}
+  .destchip{display:inline-flex;align-items:center;gap:7px;font-size:11px;font-weight:600;color:var(--muted);border:1px solid var(--line-soft);background:var(--surface);border-radius:999px;padding:7px 11px;}
+
+  .chatblock{margin-top:18px;}
+  .chat-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+  .chat-list{display:flex;flex-direction:column;gap:9px;}
+  .msg{display:flex;gap:8px;font-size:12.5px;line-height:1.45;align-items:baseline;}
+  .tag{font-size:8.5px;font-weight:700;letter-spacing:.1em;color:var(--dim);border:1px solid var(--line-soft);border-radius:5px;padding:2px 5px;flex:0 0 auto;position:relative;top:1px;}
+  .msg .name{font-weight:700;color:var(--cream);}
+  .msg .txt{color:var(--muted);}
+  .tipmsg{
+    display:flex;align-items:center;gap:9px;font-size:12.5px;
+    border:1px solid rgba(245,165,36,.5);background:rgba(245,165,36,.08);
+    border-radius:12px;padding:9px 12px;
+  }
+  .tipmsg .amt{font-family:'Anton';font-size:16px;color:var(--amber);letter-spacing:.02em;}
+  .tipmsg .who{font-weight:700;color:var(--cream);}
+  .tipmsg .tt{color:var(--muted);}
+  .chatinput{display:flex;gap:8px;margin-top:12px;align-items:center;}
+  .chatinput .field{flex:1;display:flex;align-items:center;background:var(--surface-2);border:1px solid var(--line-soft);border-radius:999px;padding:10px 14px;font-size:12.5px;color:var(--muted);}
+  .send-btn{background:var(--surface);border:1px solid var(--line);color:var(--cream);font-weight:700;font-size:12px;border-radius:999px;padding:10px 16px;cursor:pointer;}
+  .send-btn:active{transform:scale(.95);}
+
+  /* ---------- SHOWS ---------- */
+  .upcard{display:flex;gap:12px;padding:12px;align-items:center;margin-bottom:12px;}
+  .upcard .cover{width:96px;height:64px;border-radius:11px;flex:0 0 auto;}
+  .livelabel{position:absolute;top:8px;left:8px;display:inline-flex;align-items:center;gap:5px;font-size:9px;font-weight:800;letter-spacing:.14em;color:#fff;background:rgba(232,64,42,.92);border-radius:6px;padding:3px 7px;z-index:3;}
+  .catchip{position:absolute;top:8px;left:8px;font-size:8.5px;font-weight:700;letter-spacing:.12em;color:var(--cream);background:rgba(10,9,8,.6);border:1px solid var(--line-soft);border-radius:6px;padding:3px 7px;z-index:3;text-transform:uppercase;}
+  .showcard{margin-bottom:14px;cursor:pointer;transition:transform .14s,border-color .2s;}
+  .showcard:active{transform:scale(.985);}
+  .showcard .art{position:relative;aspect-ratio:16/9;display:flex;align-items:flex-end;padding:12px;}
+  .showcard .art .st{font-family:'Anton';font-size:22px;color:var(--cream);text-shadow:0 2px 14px rgba(0,0,0,.7);}
+  .showcard .body{padding:11px 13px 14px;}
+  .showcard .blurb{font-size:12px;color:var(--muted);line-height:1.45;margin-top:4px;}
+
+  /* ---------- SCHEDULE ---------- */
+  .schrow{display:flex;gap:12px;padding:12px;align-items:center;margin-bottom:11px;cursor:pointer;}
+  .schrow:active{transform:scale(.99);}
+  .schrow .thumb{width:66px;height:66px;border-radius:11px;flex:0 0 auto;}
+  .schrow .date{font-size:11.5px;font-weight:700;color:var(--amber);}
+  .schrow .title{font-size:14px;font-weight:700;color:var(--cream);margin-top:3px;}
+  .schrow .note{font-size:11.5px;color:var(--muted);margin-top:2px;}
+  .schrow .cd{margin-left:auto;text-align:right;font-size:11px;font-weight:700;color:var(--cream);white-space:nowrap;align-self:flex-start;}
+
+  /* ---------- ARCHIVE ---------- */
+  .filterrow{display:flex;gap:8px;margin:12px 0 16px;flex-wrap:wrap;}
+  .fpill{font-size:11.5px;font-weight:600;color:var(--muted);border:1px solid var(--line-soft);background:var(--surface);border-radius:999px;padding:7px 13px;cursor:pointer;transition:all .16s;}
+  .fpill.on{color:#1a1205;background:var(--amber);border-color:var(--amber);}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .arch{cursor:pointer;transition:transform .14s;}
+  .arch:active{transform:scale(.97);}
+  .arch .art{position:relative;aspect-ratio:16/10;border-radius:12px;overflow:hidden;}
+  .arch .dur{position:absolute;bottom:7px;right:7px;font-size:9.5px;font-weight:700;color:var(--cream);background:rgba(10,9,8,.72);border-radius:6px;padding:2px 6px;z-index:3;}
+  .arch .at{font-size:12.5px;font-weight:700;color:var(--cream);margin-top:8px;line-height:1.3;}
+  .arch .meta{font-size:10.5px;color:var(--dim);margin-top:3px;}
+
+  .section-gap{margin-top:24px;}
+
+  /* ---------- Floating menu (top-left) ---------- */
+  .menu-scrim{
+    position:absolute;inset:0;z-index:44;background:rgba(6,5,5,.28);
+    opacity:0;pointer-events:none;transition:opacity .2s ease;
+    -webkit-backdrop-filter:blur(1px);backdrop-filter:blur(1px);
+  }
+  .menu-scrim.open{opacity:1;pointer-events:auto;}
+  .menu-panel{
+    position:absolute;top:98px;left:14px;z-index:46;
+    min-width:194px;display:flex;flex-direction:column;gap:2px;padding:8px;
+    background:rgba(20,17,16,.94);
+    -webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);
+    border:1px solid var(--line);border-radius:16px;
+    box-shadow:0 22px 48px rgba(0,0,0,.6);
+    opacity:0;transform:translateY(-8px) scale(.97);transform-origin:top left;
+    pointer-events:none;transition:opacity .2s ease,transform .2s ease;
+  }
+  .menu-panel.open{opacity:1;transform:translateY(0) scale(1);pointer-events:auto;}
+  .menu-item{
+    display:flex;align-items:center;gap:12px;width:100%;
+    padding:11px 16px 11px 12px;border-radius:11px;
+    background:none;border:none;cursor:pointer;color:var(--muted);
+    font-family:inherit;font-size:14px;font-weight:600;text-align:left;
+    transition:background .15s,color .15s;
+  }
+  .menu-item svg{width:20px;height:20px;flex-shrink:0;display:block;}
+  .menu-item:hover{background:rgba(243,239,231,.06);color:var(--cream);}
+  .menu-item:active{transform:scale(.98);}
+  .menu-item.active{color:var(--amber);background:rgba(245,165,36,.12);}
+  .menu-btn.on{color:var(--amber);}
+
+  /* home indicator */
+  .home-ind{position:absolute;bottom:9px;left:50%;transform:translateX(-50%);width:134px;height:5px;border-radius:99px;background:rgba(243,239,231,.55);z-index:60;}
+
+  /* ---------- Tip sheet ---------- */
+  .sheet-backdrop{
+    position:absolute;inset:0;z-index:70;
+    background:rgba(4,3,3,.55);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);
+    opacity:0;pointer-events:none;transition:opacity .3s ease;
+  }
+  .sheet-backdrop.open{opacity:1;pointer-events:auto;}
+  .sheet{
+    position:absolute;left:0;right:0;bottom:0;z-index:80;
+    background:var(--surface);border-top-left-radius:26px;border-top-right-radius:26px;
+    border-top:1px solid var(--line);box-shadow:var(--sheet-shadow);
+    padding:10px 20px 40px;
+    transform:translateY(110%);transition:transform .34s cubic-bezier(.22,1,.36,1);
+  }
+  .sheet.open{transform:translateY(0);}
+  .grabber{width:40px;height:5px;border-radius:99px;background:var(--dim);margin:4px auto 16px;}
+  .sheet-h{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;}
+  .sheet-h .st{font-size:19px;font-weight:700;color:var(--cream);}
+  .sheet-h .ss{font-size:12px;color:var(--muted);margin-top:3px;}
+  .sheet-x{width:32px;height:32px;border-radius:50%;border:1px solid var(--line-soft);background:var(--surface-2);color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer;flex:0 0 auto;}
+  .sheet-x:active{transform:scale(.92);}
+  .amountgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;}
+  .amt-chip{
+    border:1.5px solid var(--line);background:var(--surface-2);color:var(--cream);
+    border-radius:14px;padding:15px 6px;font-size:17px;font-weight:700;cursor:pointer;
+    transition:all .16s;text-align:center;
+  }
+  .amt-chip.sel{background:linear-gradient(180deg,var(--highlight),var(--amber));border-color:var(--amber);color:#1a1205;box-shadow:0 8px 20px rgba(245,165,36,.25);}
+  .amt-chip:active{transform:scale(.96);}
+  .msg-field{
+    width:100%;background:var(--surface-2);border:1px solid var(--line-soft);border-radius:14px;
+    padding:13px 15px;font-size:13px;color:var(--cream);font-family:inherit;margin-bottom:18px;resize:none;
+  }
+  .msg-field::placeholder{color:var(--dim);}
+  .msg-field:focus{outline:none;border-color:rgba(245,165,36,.4);}
+  .stripe-line{text-align:center;font-size:10.5px;color:var(--dim);margin-top:12px;display:flex;align-items:center;justify-content:center;gap:6px;}
+  .cancel-btn{width:100%;background:none;border:none;color:var(--muted);font-size:13px;font-weight:600;padding:14px;cursor:pointer;margin-top:2px;}
+  .cancel-btn:active{color:var(--cream);}
+
+  /* ---------- Landscape device frame ---------- */
+  .land-cap{font-family:'Anton';font-size:14px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin-bottom:-8px;}
+  .device.landscape{
+    width:892px;height:433px;border-radius:66px;padding:20px;
+  }
+  .device.landscape::before{border-radius:60px;}
+  /* landscape side buttons: volume on top edge, power on right-ish */
+  .device.landscape .btn-vol{top:-3px;left:auto;height:4px;width:auto;}
+  .device.landscape .btn-pow{right:auto;top:-3px;width:96px;height:4px;left:210px;}
+  .device.landscape .v1{left:176px;width:34px;top:-3px;height:4px;}
+  .device.landscape .v2{left:224px;width:60px;top:-3px;height:4px;}
+  .device.landscape .v3{left:296px;width:60px;top:-3px;height:4px;}
+  .screen.landscape{
+    width:852px;height:393px;border-radius:48px;overflow:hidden;background:var(--bg);
+    flex-direction:row;position:relative;
+  }
+  /* dynamic island on the short (left) edge, as a vertical pill */
+  .island.land{
+    top:50%;left:13px;transform:translateY(-50%);
+    width:36px;height:126px;border-radius:20px;
+    flex-direction:column;align-items:center;justify-content:flex-end;
+    padding:0 0 12px;
+  }
+  .home-ind.land{bottom:50%;left:auto;right:9px;transform:translateY(50%);width:5px;height:134px;}
+
+  /* landscape live layout */
+  .land-live{display:flex;width:100%;height:100%;}
+  .land-player{
+    position:relative;flex:0 0 65%;height:100%;overflow:hidden;
+    background:radial-gradient(120% 120% at 50% 30%, #1b1713 0%, #0b0a09 70%);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;
+    border-right:1px solid var(--line-soft);
+  }
+  .land-player::before{
+    content:"";position:absolute;inset:0;
+    background:radial-gradient(55% 55% at 50% 42%,rgba(245,165,36,.16),transparent 70%);
+  }
+  .land-player .offair{position:relative;font-size:52px;color:var(--cream);text-shadow:0 0 34px rgba(245,165,36,.35);}
+  .land-player .p-sub{position:relative;font-size:12px;color:var(--muted);text-align:center;}
+  .land-player .p-cover{position:absolute;inset:0;z-index:0;opacity:.55;}
+  .land-player .p-cover::after{background:linear-gradient(180deg,rgba(10,9,8,.30) 0%,rgba(10,9,8,.5) 45%,rgba(10,9,8,.88) 100%);}
+  .land-player .p-state{justify-content:center;gap:10px;padding:24px;}
+  .land-player .p-show{font-size:38px;}
+  .land-player .p-count{font-size:26px;}
+  .land-player .p-eye{font-size:11px;}
+  /* floating back/menu glyph top-left */
+  .land-glyph{
+    position:absolute;top:16px;left:16px;z-index:4;width:36px;height:36px;border-radius:11px;
+    display:flex;align-items:center;justify-content:center;color:var(--cream);
+    background:rgba(10,9,8,.55);border:1px solid var(--line-soft);
+    -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+  }
+  /* off-air / viewer marker top-right */
+  .land-marker{
+    position:absolute;top:16px;right:16px;z-index:4;
+    display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:var(--cream);
+    background:rgba(10,9,8,.55);border:1px solid var(--line-soft);border-radius:999px;padding:6px 11px;
+    -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+  }
+  /* next-live strip pinned to bottom of the landscape player */
+  .land-player .player-next{padding:12px 16px;}
+  /* chat sidebar */
+  .land-chat{
+    flex:0 0 35%;height:100%;display:flex;flex-direction:column;
+    background:var(--bg);
+  }
+  .land-chat-h{
+    flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;
+    padding:16px 16px 12px;border-bottom:1px solid var(--line-soft);
+  }
+  .land-chat-list{
+    flex:1 1 auto;overflow-y:auto;overflow-x:hidden;
+    display:flex;flex-direction:column;gap:10px;padding:14px 16px;
+    scrollbar-width:thin;scrollbar-color:rgba(243,239,231,.18) transparent;
+  }
+  .land-chat-list::-webkit-scrollbar{width:4px;}
+  .land-chat-list::-webkit-scrollbar-thumb{background:rgba(243,239,231,.16);border-radius:99px;}
+  .land-chat-input{
+    flex:0 0 auto;display:flex;gap:8px;align-items:center;
+    padding:12px 16px 16px;border-top:1px solid var(--line-soft);
+  }
+  .land-chat-input .field{flex:1;display:flex;align-items:center;background:var(--surface-2);border:1px solid var(--line-soft);border-radius:999px;padding:10px 14px;font-size:12.5px;color:var(--muted);}
+
+  /* ---------- Landscape: hide/show chat ---------- */
+  .land-live .land-player{transition:flex-basis .34s cubic-bezier(.22,1,.36,1);}
+  .land-live .land-chat{
+    transition:flex-basis .34s cubic-bezier(.22,1,.36,1),opacity .24s ease;
+    overflow:hidden;
+  }
+  .land-live.chat-hidden .land-player{flex-basis:100%;border-right:none;}
+  .land-live.chat-hidden .land-chat{flex-basis:0;opacity:0;pointer-events:none;}
+  /* hide-chat button: lives in the chat header */
+  .land-chat-toggle{
+    flex:0 0 auto;width:30px;height:30px;border-radius:9px;
+    display:flex;align-items:center;justify-content:center;color:var(--muted);cursor:pointer;
+    background:transparent;border:1px solid var(--line-soft);
+    transition:transform .12s,border-color .18s,color .18s;
+  }
+  .land-chat-toggle:active{transform:scale(.92);}
+  .land-chat-toggle:hover{border-color:rgba(245,165,36,.5);color:var(--amber);}
+  /* "show chat" tab on the player's right edge, only when chat is hidden */
+  .land-chat-show{
+    position:absolute;top:50%;right:0;transform:translateY(-50%);z-index:6;
+    display:none;align-items:center;justify-content:center;
+    width:30px;height:58px;border-radius:12px 0 0 12px;cursor:pointer;
+    background:rgba(10,9,8,.6);border:1px solid var(--line-soft);border-right:none;color:var(--amber);
+    -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+  }
+  .land-chat-show:active{transform:translateY(-50%) scale(.94);}
+  .land-live.chat-hidden .land-chat-show{display:flex;}
+
+  /* ---------- Landscape: tip button (next to Send) ---------- */
+  .land-tip-btn{
+    flex:0 0 auto;width:40px;height:40px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;
+    border:none;background:linear-gradient(180deg,var(--highlight),var(--amber));color:#1a1205;
+    box-shadow:0 6px 16px rgba(245,165,36,.32);
+    transition:transform .12s,filter .18s;
+  }
+  .land-tip-btn:active{transform:scale(.94);}
+  .land-tip-btn:hover{filter:brightness(1.05);}
+
+  /* ---------- Landscape tip popover (compact, over landscape frame) ---------- */
+  .land-tip-backdrop{
+    position:absolute;inset:0;z-index:70;
+    background:rgba(4,3,3,.55);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);
+    opacity:0;pointer-events:none;transition:opacity .3s ease;
+  }
+  .land-tip-backdrop.open{opacity:1;pointer-events:auto;}
+  .land-tip-pop{
+    position:absolute;z-index:80;top:50%;left:50%;transform:translate(-50%,-46%) scale(.96);
+    width:360px;max-width:calc(100% - 48px);
+    background:var(--surface);border:1px solid var(--line);border-radius:22px;
+    box-shadow:var(--shadow);padding:18px 20px 20px;
+    opacity:0;pointer-events:none;transition:opacity .28s ease,transform .28s cubic-bezier(.22,1,.36,1);
+  }
+  .land-tip-pop.open{opacity:1;pointer-events:auto;transform:translate(-50%,-50%) scale(1);}
+  .land-tip-pop .amountgrid{margin-bottom:14px;}
+  .land-tip-pop .amt-chip{padding:12px 6px;font-size:15px;}
+  .land-tip-pop .msg-field{margin-bottom:14px;}
+
+  /* ---------- Page caption ---------- */
+  .caption{text-align:center;max-width:433px;}
+  .caption .cap-t{font-family:'Anton';font-size:19px;letter-spacing:.03em;text-transform:uppercase;color:var(--cream);}
+  .caption .cap-note{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.7;}
+  .caption .cap-note span{display:block;}
+
+  @media (max-width:520px){
+    body{padding:12px 8px 20px;}
+  }
+</style>
+</head>
+<body>
+
+  <!-- Page-level Portrait / Landscape tabs -->
+  <div class="page-tabs" role="tablist" aria-label="Orientation">
+    <button class="page-tab on" id="tab-portrait" role="tab" aria-selected="true">Portrait</button>
+    <button class="page-tab" id="tab-landscape" role="tab" aria-selected="false">Landscape</button>
+  </div>
+
+  <div class="device-area" id="device-area">
+
+  <!-- ============ PORTRAIT PANEL ============ -->
+  <div class="device-panel on" id="view-portrait">
+  <div class="device">
+    <span class="btn-vol v1"></span>
+    <span class="btn-vol v2"></span>
+    <span class="btn-vol v3"></span>
+    <span class="btn-pow"></span>
+
+    <div class="screen">
+      <!-- Dynamic Island -->
+      <div class="island"><span class="cam"></span></div>
+
+      <!-- Status bar -->
+      <div class="statusbar">
+        <div class="sb-time">9:41</div>
+        <div class="sb-right">
+          <!-- signal -->
+          <svg width="18" height="12" viewBox="0 0 18 12" fill="none">
+            <rect x="0" y="8" width="3" height="4" rx="1" fill="#F3EFE7"/>
+            <rect x="5" y="5.5" width="3" height="6.5" rx="1" fill="#F3EFE7"/>
+            <rect x="10" y="3" width="3" height="9" rx="1" fill="#F3EFE7"/>
+            <rect x="15" y="0.5" width="3" height="11.5" rx="1" fill="#F3EFE7"/>
+          </svg>
+          <!-- wifi -->
+          <svg width="17" height="12" viewBox="0 0 17 12" fill="none">
+            <path d="M8.5 2C11.6 2 14.4 3.2 16.4 5.2L15 6.6C13.3 5 11 4 8.5 4S3.7 5 2 6.6L0.6 5.2C2.6 3.2 5.4 2 8.5 2Z" fill="#F3EFE7"/>
+            <path d="M8.5 5.6C10.2 5.6 11.8 6.3 13 7.4L11.6 8.8C10.8 8 9.7 7.6 8.5 7.6S6.2 8 5.4 8.8L4 7.4C5.2 6.3 6.8 5.6 8.5 5.6Z" fill="#F3EFE7"/>
+            <path d="M8.5 9.1C9.2 9.1 9.9 9.4 10.4 9.9L8.5 11.8L6.6 9.9C7.1 9.4 7.8 9.1 8.5 9.1Z" fill="#F3EFE7"/>
+          </svg>
+          <!-- battery -->
+          <svg width="26" height="13" viewBox="0 0 26 13" fill="none">
+            <rect x="0.5" y="0.5" width="22" height="12" rx="3.5" stroke="#F3EFE7" stroke-opacity="0.5"/>
+            <rect x="2" y="2" width="17" height="9" rx="2" fill="#F3EFE7"/>
+            <path d="M24 4.2V8.8C24.9 8.4 25.5 7.5 25.5 6.5S24.9 4.6 24 4.2Z" fill="#F3EFE7" fill-opacity="0.6"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- App header -->
+      <div class="appbar">
+        <button class="ib menu-btn" id="menu-btn" aria-label="Menu" aria-expanded="false">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
+        <div class="brand">
+          <div class="logo-tile">
+            <!-- amber bird silhouette -->
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="#F5A524">
+              <path d="M3 14c3-1 5-1 7-3 1.5-1.5 2-3.5 4.5-4C17 6.5 19 5 21 3c-.5 2.5-1.2 4-3 5 1 .2 2 .2 3 0-1 1.6-2.4 2.6-4.5 3-.3 2.2-1.6 3.8-3.5 5-2.3 1.4-5.3 1.6-8 1l1-1.2c-1.2-.2-2.3-.6-3-1.6 1 .1 1.8 0 2.5-.2C4.6 17.4 3.6 16.4 3 14Z"/>
+            </svg>
+          </div>
+          <div class="wordmark">Cane with a <b>Camera</b><small>South Coast Cane</small></div>
+        </div>
+        <button class="ib" aria-label="Notifications">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+        </button>
+      </div>
+
+      <!-- Viewport -->
+      <div class="viewport">
+
+        <!-- ============ LIVE ============ -->
+        <div class="scroll" id="scroll-live">
+          <section class="screenpage active" id="screen-live">
+
+            <!-- Pinned player (stays while chat scrolls) -->
+            <div class="live-pin">
+              <div class="player" id="player">
+                <!-- Scheduled / upcoming (default). Off-air state below is shown
+                     automatically when nothing is scheduled. -->
+                <div class="well w-amber p-cover"></div>
+                <div class="p-state p-scheduled">
+                  <div class="well w-amber p-thumb" aria-hidden="true">
+                    <span class="p-chip">Live Soon</span>
+                    <span class="p-play">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="rgba(243,239,231,.92)"><path d="M8 5.5v13l11-6.5-11-6.5Z"/></svg>
+                    </span>
+                  </div>
+                  <span class="p-eye">Next live show</span>
+                  <span class="anton p-show">Show 3</span>
+                  <span class="p-count" id="next-count">Mon, Sep 7, 5:37 PM · in 12m 30s</span>
+                  <span class="p-sub">Starts automatically when the show goes live.</span>
+                </div>
+
+                <!-- Off air (fallback) -->
+                <div class="p-state p-offair">
+                  <div class="ring"></div>
+                  <div class="anton offair">Off Air</div>
+                  <div class="p-sub">Starts automatically when the show goes live.</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Scrolling content -->
+            <div class="live-body" id="live-body">
+            <div class="eyebrow title-eyebrow">The South Coast Cane Show</div>
+            <div class="live-head">
+              <h1 class="anton h-lg title-main">Live from the South Coast</h1>
+              <button class="title-toggle" id="title-toggle" aria-label="Minimize title" aria-expanded="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+            </div>
+
+            <div class="rowscroll" style="margin-top:16px">
+              <button class="pill">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4l8 4-8 4-8-4 8-4Z" opacity="0"/><path d="M10 8.6l5 3.4-5 3.4V8.6Z" fill="#E8402A"/><rect x="3" y="4" width="18" height="16" rx="4" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+                Watch on YouTube</button>
+              <button class="pill">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+                Notify me</button>
+            </div>
+
+            <div class="destrow">
+              <span class="destchip"><span class="dot red"></span>Here · own site</span>
+              <span class="destchip"><span class="dot red"></span>YouTube · simulcast</span>
+              <span class="destchip"><span class="dot dim"></span>Facebook · off</span>
+            </div>
+
+            <!-- Chat -->
+            <div class="chatblock">
+              <div class="chat-h">
+                <div class="eyebrow">Live Chat · <span class="muted" style="font-weight:600;letter-spacing:0">2 here</span></div>
+                <span class="dim" style="font-size:11px">Site chat</span>
+              </div>
+              <div class="chat-list">
+                <div class="tipmsg">
+                  <span class="amt">$5</span>
+                  <span><span class="who">Kuban Cane</span> <span class="tt">· great show tonight</span></span>
+                </div>
+                <div class="msg"><span class="tag">SITE</span><span><span class="name">Marisol</span> <span class="txt">is the drone footage from today?</span></span></div>
+                <div class="msg"><span class="tag">SITE</span><span><span class="name">D. Prieto</span> <span class="txt">tuning in from the pier</span></span></div>
+                <div class="tipmsg">
+                  <span class="amt">$20</span>
+                  <span><span class="who">A viewer</span></span>
+                </div>
+                <div class="msg"><span class="tag">SITE</span><span><span class="name">Tomas</span> <span class="txt">what time does Show 3 start?</span></span></div>
+                <div class="msg"><span class="tag">YT</span><span><span class="name">coastrider88</span> <span class="txt">first! been waiting all week</span></span></div>
+                <div class="tipmsg">
+                  <span class="amt">$10</span>
+                  <span><span class="who">Dana R.</span> <span class="tt">· keep the road series going</span></span>
+                </div>
+                <div class="msg"><span class="tag">SITE</span><span><span class="name">Marisol</span> <span class="txt">the pier shot yesterday was unreal</span></span></div>
+                <div class="msg"><span class="tag">YT</span><span><span class="name">j_delacruz</span> <span class="txt">audio sounding crisp tonight</span></span></div>
+                <div class="msg"><span class="tag">SITE</span><span><span class="name">Wes</span> <span class="txt">any guests lined up for next week?</span></span></div>
+                <div class="tipmsg">
+                  <span class="amt">$5</span>
+                  <span><span class="who">A viewer</span> <span class="tt">· from the south side</span></span>
+                </div>
+                <div class="msg"><span class="tag">SITE</span><span><span class="name">B. Okafor</span> <span class="txt">the new intro is clean</span></span></div>
+                <div class="msg"><span class="tag">YT</span><span><span class="name">salt_and_static</span> <span class="txt">tuning in from the boat</span></span></div>
+                <div class="msg"><span class="tag">SITE</span><span><span class="name">Priya</span> <span class="txt">love this show</span></span></div>
+              </div>
+              <div class="chatinput">
+                <div class="field">Say something…</div>
+                <button class="send-btn">Send</button>
+              </div>
+              <div style="margin-top:14px">
+                <button class="btn-outline-amber" id="open-tip">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                  Send a tip
+                </button>
+              </div>
+            </div>
+            </div><!-- /live-body -->
+          </section>
+        </div>
+
+        <!-- ============ SHOWS ============ -->
+        <div class="scroll" id="scroll-shows" style="display:none">
+          <section class="screenpage" id="screen-shows">
+            <div class="eyebrow dim">The Slate</div>
+            <h1 class="anton h-xl" style="margin:8px 0 8px">Five Shows.<br>One Camera.</h1>
+            <p class="sub" style="margin-bottom:18px">One creator, one rig, five distinct programs — streamed live and archived for the South Coast.</p>
+
+            <div class="eyebrow" style="margin-bottom:10px">Upcoming Live</div>
+            <div class="card upcard">
+              <div class="well w-clay cover" style="position:relative"><span class="livelabel"><span class="dot" style="background:#fff;width:5px;height:5px"></span>Live Soon</span></div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:15px;font-weight:700">Show 3</div>
+                <div class="countchip" style="margin-top:8px"><span class="dot red"></span><span id="shows-count">in 12m 30s</span></div>
+              </div>
+            </div>
+            <div class="card upcard">
+              <div class="well w-blue cover" style="position:relative"><span class="livelabel"><span class="dot" style="background:#fff;width:5px;height:5px"></span>Live Soon</span></div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:15px;font-weight:700">Patio Perspectives</div>
+                <div class="countchip" style="margin-top:8px"><span class="dot amber"></span><span>Tonight · 8:30 PM</span></div>
+              </div>
+            </div>
+
+            <div class="eyebrow" style="margin:22px 0 12px">The Slate</div>
+
+            <div class="card showcard">
+              <div class="well w-amber art"><span class="catchip">Live Talk</span><div class="anton st">The South Coast<br>Cane Show</div></div>
+              <div class="body"><p class="blurb">The flagship live broadcast — news, guests, and the pulse of the coast, every week.</p></div>
+            </div>
+            <div class="card showcard">
+              <div class="well w-blue art"><span class="catchip">Long-form</span><div class="anton st">Patio<br>Perspectives</div></div>
+              <div class="body"><p class="blurb">Long-form sit-downs on the patio. Slow conversations, deep topics, good light.</p></div>
+            </div>
+            <div class="card showcard">
+              <div class="well w-clay art"><span class="catchip">Short-form</span><div class="anton st">Let Me Tell<br>U 1 Thing</div></div>
+              <div class="body"><p class="blurb">Sharp, single-idea shorts. One point, made well, in under five minutes.</p></div>
+            </div>
+            <div class="card showcard">
+              <div class="well w-green art"><span class="catchip">On the Road</span><div class="anton st">Riding with<br>South Coast Cane</div></div>
+              <div class="body"><p class="blurb">On the road across the region — markets, makers, and the stories in between.</p></div>
+            </div>
+            <div class="card showcard">
+              <div class="well w-purple art"><span class="catchip">Docu-series</span><div class="anton st">Rise of<br>the Fall</div></div>
+              <div class="body"><p class="blurb">A serialized documentary tracking one long season of change on the coast.</p></div>
+            </div>
+          </section>
+        </div>
+
+        <!-- ============ SCHEDULE ============ -->
+        <div class="scroll" id="scroll-schedule" style="display:none">
+          <section class="screenpage" id="screen-schedule">
+            <div class="eyebrow dim">Broadcast Calendar</div>
+            <h1 class="anton h-xl" style="margin:8px 0 18px">On the<br>Schedule</h1>
+
+            <div class="card schrow">
+              <div class="well w-clay thumb"></div>
+              <div style="flex:1;min-width:0">
+                <div class="date">Mon, Sep 7 · 5:37 PM</div>
+                <div class="title">Show 2</div>
+                <div class="note">Pre-show warmup on the pier</div>
+              </div>
+              <div class="cd" data-cd="750">in 12m</div>
+            </div>
+            <div class="card schrow">
+              <div class="well w-amber thumb"></div>
+              <div style="flex:1;min-width:0">
+                <div class="date">Mon, Sep 7 · 6:37 PM</div>
+                <div class="title">Show 3</div>
+                <div class="note">The South Coast Cane Show — live</div>
+              </div>
+              <div class="cd" data-cd="4350">in 1h 12m</div>
+            </div>
+            <div class="card schrow">
+              <div class="well w-blue thumb"></div>
+              <div style="flex:1;min-width:0">
+                <div class="date">Mon, Sep 7 · 7:37 PM</div>
+                <div class="title">Show 4</div>
+                <div class="note">Patio Perspectives — guest night</div>
+              </div>
+              <div class="cd" data-cd="7950">in 2h 12m</div>
+            </div>
+            <div class="card schrow">
+              <div class="well w-green thumb"></div>
+              <div style="flex:1;min-width:0">
+                <div class="date">Mon, Sep 7 · 8:37 PM</div>
+                <div class="title">Show 5</div>
+                <div class="note">Riding with South Coast Cane</div>
+              </div>
+              <div class="cd" data-cd="11550">in 3h 12m</div>
+            </div>
+            <div class="card schrow">
+              <div class="well w-purple thumb"></div>
+              <div style="flex:1;min-width:0">
+                <div class="date">Mon, Sep 7 · 9:37 PM</div>
+                <div class="title">Late Signal</div>
+                <div class="note">Rise of the Fall — episode drop</div>
+              </div>
+              <div class="cd" data-cd="15150">in 4h 12m</div>
+            </div>
+          </section>
+        </div>
+
+        <!-- ============ ARCHIVE ============ -->
+        <div class="scroll" id="scroll-archive" style="display:none">
+          <section class="screenpage" id="screen-archive">
+            <div class="eyebrow dim">Past Broadcasts</div>
+            <h1 class="anton h-xl" style="margin:8px 0 4px">The<br>Archive</h1>
+
+            <div class="filterrow">
+              <button class="fpill on">All</button>
+              <button class="fpill">Talk</button>
+              <button class="fpill">Road</button>
+              <button class="fpill">Docs</button>
+            </div>
+
+            <div class="grid2">
+              <div class="arch">
+                <div class="well w-amber art"><span class="catchip">Live Talk</span><span class="dur">24:50</span></div>
+                <div class="at">Coast Report — Ep. 41</div>
+                <div class="meta">Sep 1 · 2.1k views</div>
+              </div>
+              <div class="arch">
+                <div class="well w-green art"><span class="catchip">On the Road</span><span class="dur">18:12</span></div>
+                <div class="at">Market Run: North Pier</div>
+                <div class="meta">Aug 29 · 1.6k views</div>
+              </div>
+              <div class="arch">
+                <div class="well w-blue art"><span class="catchip">Long-form</span><span class="dur">52:03</span></div>
+                <div class="at">Patio: The Tide Keepers</div>
+                <div class="meta">Aug 26 · 3.4k views</div>
+              </div>
+              <div class="arch">
+                <div class="well w-purple art"><span class="catchip">Docu-series</span><span class="dur">41:37</span></div>
+                <div class="at">Rise of the Fall · 03</div>
+                <div class="meta">Aug 22 · 4.8k views</div>
+              </div>
+              <div class="arch">
+                <div class="well w-clay art"><span class="catchip">Short-form</span><span class="dur">04:22</span></div>
+                <div class="at">1 Thing: Salt Air</div>
+                <div class="meta">Aug 20 · 5.2k views</div>
+              </div>
+              <div class="arch">
+                <div class="well w-amber art"><span class="catchip">Live Talk</span><span class="dur">27:09</span></div>
+                <div class="at">Coast Report — Ep. 40</div>
+                <div class="meta">Aug 18 · 2.3k views</div>
+              </div>
+              <div class="arch">
+                <div class="well w-green art"><span class="catchip">On the Road</span><span class="dur">21:44</span></div>
+                <div class="at">Riding: The Long Bend</div>
+                <div class="meta">Aug 15 · 1.9k views</div>
+              </div>
+              <div class="arch">
+                <div class="well w-blue art"><span class="catchip">Long-form</span><span class="dur">48:56</span></div>
+                <div class="at">Patio: After the Storm</div>
+                <div class="meta">Aug 12 · 2.7k views</div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <!-- Tip sheet -->
+        <div class="sheet-backdrop" id="tip-backdrop"></div>
+        <div class="sheet" id="tip-sheet" role="dialog" aria-modal="true" aria-label="Send a tip">
+          <div class="grabber"></div>
+          <div class="sheet-h">
+            <div>
+              <div class="st">Send a tip</div>
+              <div class="ss">Support the show — tips appear live in chat.</div>
+            </div>
+            <button class="sheet-x" id="close-tip-x" aria-label="Close">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
+          </div>
+          <div class="amountgrid" id="amount-grid">
+            <button class="amt-chip sel" data-amt="5">$5</button>
+            <button class="amt-chip" data-amt="10">$10</button>
+            <button class="amt-chip" data-amt="20">$20</button>
+            <button class="amt-chip" data-amt="50">$50</button>
+            <button class="amt-chip" data-amt="custom" style="grid-column:span 2">Custom</button>
+          </div>
+          <textarea class="msg-field" rows="2" placeholder="Add a message (optional)"></textarea>
+          <button class="btn-amber" id="tip-submit">Tip $5</button>
+          <div class="stripe-line">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18"/></svg>
+            Powered by Stripe
+          </div>
+          <button class="cancel-btn" id="tip-cancel">Cancel</button>
+        </div>
+
+      </div><!-- /viewport -->
+
+      <!-- Floating menu (top-left) -->
+      <div class="menu-scrim" id="menu-scrim"></div>
+      <nav class="menu-panel" id="menu-panel" aria-label="Sections">
+        <button class="menu-item active" data-screen="live">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 8a10 10 0 0 1 15 0M7.5 11a6 6 0 0 1 9 0"/><circle cx="12" cy="15.5" r="2.5" fill="currentColor" stroke="none"/></svg>
+          <span>Live</span>
+        </button>
+        <button class="menu-item" data-screen="shows">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+          <span>Shows</span>
+        </button>
+        <button class="menu-item" data-screen="schedule">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9h18M8 2.5v4M16 2.5v4"/></svg>
+          <span>Schedule</span>
+        </button>
+        <button class="menu-item" data-screen="archive">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5l9-4 9 4-9 4-9-4Z"/><path d="M3 12l9 4 9-4M3 16.5l9 4 9-4"/></svg>
+          <span>Archive</span>
+        </button>
+      </nav>
+
+      <div class="home-ind"></div>
+    </div><!-- /screen -->
+  </div><!-- /device -->
+  </div><!-- /view-portrait -->
+
+  <!-- ============ LANDSCAPE PANEL ============ -->
+  <div class="device-panel" id="view-landscape">
+  <div class="device landscape">
+    <span class="btn-vol v1"></span>
+    <span class="btn-vol v2"></span>
+    <span class="btn-vol v3"></span>
+    <span class="btn-pow"></span>
+
+    <div class="screen landscape">
+      <!-- Dynamic Island on short edge -->
+      <div class="island land"><span class="cam"></span></div>
+
+      <div class="land-live">
+        <!-- Player fills left ~65% -->
+        <div class="land-player">
+          <div class="land-glyph" aria-label="Menu">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+          </div>
+          <div class="land-marker"><span class="dot amber"></span> Scheduled</div>
+          <button class="land-chat-show" id="land-chat-show" aria-label="Show chat" title="Show chat">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.3 7.3L4 21l1.7-5.7A8 8 0 1 1 21 12Z"/><circle cx="9" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="12.5" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="16" cy="12" r="1" fill="currentColor" stroke="none"/></svg>
+          </button>
+
+          <div class="well w-amber p-cover"></div>
+          <div class="p-state p-scheduled">
+            <div class="well w-amber p-thumb" aria-hidden="true">
+              <span class="p-chip">Live Soon</span>
+              <span class="p-play">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="rgba(243,239,231,.92)"><path d="M8 5.5v13l11-6.5-11-6.5Z"/></svg>
+              </span>
+            </div>
+            <span class="p-eye">Next live show</span>
+            <span class="anton p-show">Show 3</span>
+            <span class="p-count" id="next-count-land">Mon, Sep 7, 5:37 PM · in 12m 30s</span>
+            <span class="p-sub">Starts automatically when the show goes live.</span>
+          </div>
+        </div>
+
+        <!-- Chat sidebar right ~35% -->
+        <div class="land-chat">
+          <div class="land-chat-h">
+            <div class="eyebrow">Live Chat · <span class="muted" style="font-weight:600;letter-spacing:0">2 here</span></div>
+            <button class="land-chat-toggle" id="land-chat-toggle" aria-label="Hide chat" aria-pressed="false" title="Hide chat">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.3 7.3L4 21l1.7-5.7A8 8 0 1 1 21 12Z"/><path d="M9 15l6-6M15 15L9 9"/></svg>
+            </button>
+          </div>
+          <div class="land-chat-list">
+            <div class="tipmsg">
+              <span class="amt">$5</span>
+              <span><span class="who">Kuban Cane</span> <span class="tt">· great show tonight</span></span>
+            </div>
+            <div class="msg"><span class="tag">SITE</span><span><span class="name">Marisol</span> <span class="txt">is the drone footage from today?</span></span></div>
+            <div class="msg"><span class="tag">SITE</span><span><span class="name">D. Prieto</span> <span class="txt">tuning in from the pier</span></span></div>
+            <div class="tipmsg">
+              <span class="amt">$20</span>
+              <span><span class="who">A viewer</span></span>
+            </div>
+            <div class="msg"><span class="tag">SITE</span><span><span class="name">Tomas</span> <span class="txt">what time does Show 3 start?</span></span></div>
+            <div class="msg"><span class="tag">YT</span><span><span class="name">coastrider88</span> <span class="txt">first! been waiting all week</span></span></div>
+            <div class="tipmsg">
+              <span class="amt">$10</span>
+              <span><span class="who">Dana R.</span> <span class="tt">· keep the road series going</span></span>
+            </div>
+            <div class="msg"><span class="tag">YT</span><span><span class="name">j_delacruz</span> <span class="txt">audio sounding crisp tonight</span></span></div>
+            <div class="msg"><span class="tag">SITE</span><span><span class="name">Priya</span> <span class="txt">love this show</span></span></div>
+          </div>
+          <div class="land-chat-input">
+            <div class="field">Say something…</div>
+            <button class="land-tip-btn" id="land-tip-fab" type="button" aria-label="Send a tip" title="Send a tip">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            </button>
+            <button class="send-btn" type="button">Send</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Landscape tip popover -->
+      <div class="land-tip-backdrop" id="land-tip-backdrop"></div>
+      <div class="land-tip-pop" id="land-tip-pop" role="dialog" aria-modal="true" aria-label="Send a tip">
+        <div class="sheet-h">
+          <div>
+            <div class="st">Send a tip</div>
+            <div class="ss">Support the show — tips appear live in chat.</div>
+          </div>
+          <button class="sheet-x" id="land-tip-x" aria-label="Close">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+        </div>
+        <div class="amountgrid" id="land-amount-grid">
+          <button type="button" class="amt-chip sel" data-amt="5">$5</button>
+          <button type="button" class="amt-chip" data-amt="10">$10</button>
+          <button type="button" class="amt-chip" data-amt="20">$20</button>
+          <button type="button" class="amt-chip" data-amt="50">$50</button>
+          <button type="button" class="amt-chip" data-amt="custom" style="grid-column:span 2">Custom</button>
+        </div>
+        <textarea class="msg-field" rows="2" placeholder="Add a message (optional)"></textarea>
+        <button type="button" class="btn-amber" id="land-tip-submit">Tip $5</button>
+        <div class="stripe-line">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18"/></svg>
+          Powered by Stripe
+        </div>
+      </div>
+
+      <div class="home-ind land"></div>
+    </div><!-- /screen landscape -->
+  </div><!-- /device landscape -->
+  </div><!-- /view-landscape -->
+
+  </div><!-- /device-area -->
+
+  <!-- Page caption -->
+  <div class="caption">
+    <div class="cap-t">Cane with a Camera — iOS concept</div>
+    <div class="cap-note">
+      <span>Switch Portrait / Landscape with the tabs at the top.</span>
+      <span>Clickable prototype — tap the menu (top-left) to switch screens.</span>
+      <span>Try "Send a tip" on the Live tab.</span>
+      <span>Design only; not connected to live data.</span>
+    </div>
+  </div>
+
+<script>
+(function(){
+  // ---------- Floating menu + screen switching ----------
+  var items = document.querySelectorAll('.menu-item');
+  var menuBtn = document.getElementById('menu-btn');
+  var menuPanel = document.getElementById('menu-panel');
+  var menuScrim = document.getElementById('menu-scrim');
+  var scrolls = {
+    live: document.getElementById('scroll-live'),
+    shows: document.getElementById('scroll-shows'),
+    schedule: document.getElementById('scroll-schedule'),
+    archive: document.getElementById('scroll-archive')
+  };
+  var pages = {
+    live: document.getElementById('screen-live'),
+    shows: document.getElementById('screen-shows'),
+    schedule: document.getElementById('screen-schedule'),
+    archive: document.getElementById('screen-archive')
+  };
+  function openMenu(){
+    menuPanel.classList.add('open'); menuScrim.classList.add('open');
+    menuBtn.classList.add('on'); menuBtn.setAttribute('aria-expanded','true');
+  }
+  function closeMenu(){
+    menuPanel.classList.remove('open'); menuScrim.classList.remove('open');
+    menuBtn.classList.remove('on'); menuBtn.setAttribute('aria-expanded','false');
+  }
+  menuBtn.addEventListener('click', function(){
+    (menuPanel.classList.contains('open') ? closeMenu : openMenu)();
+  });
+  menuScrim.addEventListener('click', closeMenu);
+  items.forEach(function(t){
+    t.addEventListener('click', function(){
+      var key = t.getAttribute('data-screen');
+      items.forEach(function(x){ x.classList.remove('active'); });
+      t.classList.add('active');
+      Object.keys(scrolls).forEach(function(k){
+        var on = (k === key);
+        scrolls[k].style.display = on ? '' : 'none';
+        pages[k].classList.toggle('active', on);
+        if(on){ scrolls[k].scrollTop = 0; }
+      });
+      closeMenu();
+    });
+  });
+
+  // ---------- Minimize / expand Live title ----------
+  var titleToggle = document.getElementById('title-toggle');
+  var liveBody = document.getElementById('live-body');
+  if(titleToggle && liveBody){
+    titleToggle.addEventListener('click', function(){
+      var collapsed = liveBody.classList.toggle('title-collapsed');
+      titleToggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+      titleToggle.setAttribute('aria-label', collapsed ? 'Expand title' : 'Minimize title');
+    });
+  }
+
+  // Player state (scheduled vs off-air) is driven automatically by the schedule
+  // in the real app; the mock defaults to the scheduled state.
+
+  // ---------- Archive filter pills (visual) ----------
+  document.querySelectorAll('.fpill').forEach(function(p){
+    p.addEventListener('click', function(){
+      document.querySelectorAll('.fpill').forEach(function(x){ x.classList.remove('on'); });
+      p.classList.add('on');
+    });
+  });
+
+  // ---------- Tip sheet ----------
+  var backdrop = document.getElementById('tip-backdrop');
+  var sheet = document.getElementById('tip-sheet');
+  var submit = document.getElementById('tip-submit');
+  function openSheet(){ backdrop.classList.add('open'); sheet.classList.add('open'); }
+  function closeSheet(){ backdrop.classList.remove('open'); sheet.classList.remove('open'); }
+  document.getElementById('open-tip').addEventListener('click', openSheet);
+  document.getElementById('close-tip-x').addEventListener('click', closeSheet);
+  document.getElementById('tip-cancel').addEventListener('click', closeSheet);
+  backdrop.addEventListener('click', closeSheet);
+
+  document.querySelectorAll('.amt-chip').forEach(function(chip){
+    chip.addEventListener('click', function(){
+      document.querySelectorAll('.amt-chip').forEach(function(c){ c.classList.remove('sel'); });
+      chip.classList.add('sel');
+      var amt = chip.getAttribute('data-amt');
+      submit.textContent = amt === 'custom' ? 'Tip a custom amount' : 'Tip $' + amt;
+    });
+  });
+
+  // ---------- Landscape: hide/show chat ----------
+  var landLive = document.querySelector('.land-live');
+  var landChatToggle = document.getElementById('land-chat-toggle');
+  var landChatShow = document.getElementById('land-chat-show');
+  function setChatHidden(hidden){
+    if(!landLive) return;
+    landLive.classList.toggle('chat-hidden', hidden);
+    if(landChatToggle) landChatToggle.setAttribute('aria-pressed', String(hidden));
+    if(typeof fit === 'function'){ fit(); setTimeout(fit, 360); }
+  }
+  if(landChatToggle){ landChatToggle.addEventListener('click', function(){ setChatHidden(true); }); }
+  if(landChatShow){ landChatShow.addEventListener('click', function(){ setChatHidden(false); }); }
+
+  // ---------- Landscape tip popover ----------
+  var landTipFab = document.getElementById('land-tip-fab');
+  var landTipBackdrop = document.getElementById('land-tip-backdrop');
+  var landTipPop = document.getElementById('land-tip-pop');
+  var landTipSubmit = document.getElementById('land-tip-submit');
+  function openLandTip(){ landTipBackdrop.classList.add('open'); landTipPop.classList.add('open'); }
+  function closeLandTip(){ landTipBackdrop.classList.remove('open'); landTipPop.classList.remove('open'); }
+  if(landTipFab){
+    landTipFab.addEventListener('click', openLandTip);
+    document.getElementById('land-tip-x').addEventListener('click', closeLandTip);
+    landTipBackdrop.addEventListener('click', closeLandTip);
+    document.querySelectorAll('#land-amount-grid .amt-chip').forEach(function(chip){
+      chip.addEventListener('click', function(){
+        document.querySelectorAll('#land-amount-grid .amt-chip').forEach(function(c){ c.classList.remove('sel'); });
+        chip.classList.add('sel');
+        var amt = chip.getAttribute('data-amt');
+        landTipSubmit.textContent = amt === 'custom' ? 'Tip a custom amount' : 'Tip $' + amt;
+      });
+    });
+  }
+
+  // ---------- Countdowns (tick down) ----------
+  function fmt(total){
+    if(total < 0) total = 0;
+    var h = Math.floor(total/3600);
+    var m = Math.floor((total%3600)/60);
+    var s = total%60;
+    if(h > 0) return 'in ' + h + 'h ' + m + 'm';
+    return 'in ' + m + 'm ' + (s<10?'0':'') + s + 's';
+  }
+  var nextEl = document.getElementById('next-count');
+  var nextLandEl = document.getElementById('next-count-land');
+  var showsEl = document.getElementById('shows-count');
+  var nextSecs = 12*60 + 30; // 12m 30s
+  var schEls = [].slice.call(document.querySelectorAll('.cd[data-cd]')).map(function(el){
+    return { el: el, secs: parseInt(el.getAttribute('data-cd'), 10) };
+  });
+  function tick(){
+    nextSecs = Math.max(0, nextSecs - 1);
+    var base = 'Mon, Sep 7, 5:37 PM · ';
+    var line = nextSecs > 0 ? base + fmt(nextSecs) : base + 'starting now';
+    if(nextEl) nextEl.textContent = line;
+    if(nextLandEl) nextLandEl.textContent = line;
+    showsEl.textContent = nextSecs > 0 ? fmt(nextSecs) : 'starting now';
+    schEls.forEach(function(o){
+      o.secs = Math.max(0, o.secs - 1);
+      o.el.textContent = o.secs > 0 ? fmt(o.secs) : 'live now';
+    });
+  }
+  tick();
+  setInterval(tick, 1000);
+
+  // ---------- Page tabs (Portrait / Landscape) + fit-to-screen ----------
+  var tabPortrait = document.getElementById('tab-portrait');
+  var tabLandscape = document.getElementById('tab-landscape');
+  var viewPortrait = document.getElementById('view-portrait');
+  var viewLandscape = document.getElementById('view-landscape');
+  var pageTabs = document.querySelector('.page-tabs');
+  var caption = document.querySelector('.caption');
+
+  function activePanel(){
+    return viewLandscape.classList.contains('on') ? viewLandscape : viewPortrait;
+  }
+
+  function fit(){
+    var panel = activePanel();
+    var device = panel.firstElementChild; // the .device element
+    if(!device) return;
+    // reset before measuring
+    panel.style.transform = 'none';
+    var pad = 24;
+    var tabsH = pageTabs ? pageTabs.offsetHeight : 0;
+    var capH = caption ? caption.offsetHeight : 0;
+    var availH = window.innerHeight - tabsH - capH - pad * 2;
+    var availW = window.innerWidth - pad;
+    var dW = device.offsetWidth;
+    var dH = device.offsetHeight;
+    if(dW === 0 || dH === 0) return;
+    var scale = Math.min(availH / dH, availW / dW, 1);
+    if(!isFinite(scale) || scale <= 0) scale = 1;
+    panel.style.transform = 'scale(' + scale + ')';
+  }
+
+  function selectTab(which){
+    var landscape = which === 'landscape';
+    viewPortrait.classList.toggle('on', !landscape);
+    viewLandscape.classList.toggle('on', landscape);
+    tabPortrait.classList.toggle('on', !landscape);
+    tabLandscape.classList.toggle('on', landscape);
+    tabPortrait.setAttribute('aria-selected', String(!landscape));
+    tabLandscape.setAttribute('aria-selected', String(landscape));
+    // clear transform on hidden panel
+    (landscape ? viewPortrait : viewLandscape).style.transform = 'none';
+    fit();
+  }
+
+  tabPortrait.addEventListener('click', function(){ selectTab('portrait'); });
+  tabLandscape.addEventListener('click', function(){ selectTab('landscape'); });
+
+  window.addEventListener('resize', fit);
+  window.addEventListener('load', fit);
+  // fit once fonts/layout settle
+  fit();
+  setTimeout(fit, 60);
+  setTimeout(fit, 300);
+})();
+</script>
+</body>
+</html>

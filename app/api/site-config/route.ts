@@ -22,7 +22,7 @@ export async function POST(request: Request) {
 
   const section = body?.section;
   const data = body?.data;
-  if (section !== "content" && section !== "branding" && section !== "schedule" && section !== "scene") {
+  if (section !== "content" && section !== "branding" && section !== "schedule" && section !== "scene" && section !== "sounds") {
     return NextResponse.json({ error: "Unknown section." }, { status: 400 });
   }
   if (!data || typeof data !== "object") {
@@ -80,6 +80,25 @@ export async function POST(request: Request) {
         ticker: String(data.ticker ?? "").slice(0, 2000),
       };
       await db.collection("site").doc("scene").set(clean);
+      return NextResponse.json({ saved: true });
+    }
+
+    if (section === "sounds") {
+      // data.items = array of { id, label, url }. Keep the doc under Firestore's
+      // 1MB limit: cap the pad count and only keep small inline audio data URLs.
+      const items = Array.isArray(data.items) ? data.items : [];
+      const clean = items
+        .slice(0, 12)
+        .map((it: any) => {
+          const url = typeof it.url === "string" ? it.url : "";
+          return {
+            id: String(it.id ?? "").slice(0, 60),
+            label: String(it.label ?? "").slice(0, 30),
+            url: url.startsWith("data:audio") && url.length < 250_000 ? url : "",
+          };
+        })
+        .filter((it: any) => it.id && it.url);
+      await db.collection("site").doc("sounds").set({ items: clean });
       return NextResponse.json({ saved: true });
     }
 

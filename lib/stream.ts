@@ -143,6 +143,23 @@ export async function deleteOutput(outputId: string): Promise<boolean> {
   }
 }
 
+// Pause/resume a destination by flipping its enabled flag (Cloudflare supports PUT on an output).
+export async function updateOutput(outputId: string, enabled: boolean): Promise<boolean> {
+  if (!streamConfigured) return false;
+  const uid = await resolveInputUid();
+  if (!uid) return false;
+  try {
+    const res = await fetch(`${BASE}/live_inputs/${uid}/outputs/${outputId}`, {
+      method: "PUT",
+      headers: headers(),
+      body: JSON.stringify({ enabled }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 // ---- Auto-recording: keep every broadcast as a VOD in the Library ----
 export async function getRecordingMode(): Promise<"automatic" | "off" | null> {
   if (!streamConfigured) return null;

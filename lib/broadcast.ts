@@ -143,6 +143,9 @@ class StudioEngine {
   private audioCtx: AudioContext | null = null;
   private audioDest: MediaStreamAudioDestinationNode | null = null;
   private hostAudioSrc: MediaStreamAudioSourceNode | null = null;
+  // Soundboard: decoded effect buffers (by pad id) + currently-playing sources.
+  private soundBuffers = new Map<string, AudioBuffer>();
+  private soundSources = new Set<AudioBufferSourceNode>();
   private raf = 0;
   private started = false;
   private subs = new Set<() => void>();
@@ -853,6 +856,40 @@ class StudioEngine {
     this.recorder = null;
     this.recording = false; this.emit();
   }
+
+  // ---- Soundboard: short effects that go OUT in the broadcast + recording ----
+  // Decode a data-URL audio clip once and cache it under its pad id.
+  async loadSound(id: string, url: string) {
+    if (!this.audioCtx || this.soundBuffers.has(id) || !url) return;
+    try {
+      const res = await fetch(url);
+      const arr = await res.arrayBuffer();
+      const buf = await this.audioCtx.decodeAudioData(arr);
+      this.soundBuffers.set(id, buf);
+    } catch { /* unsupported/corrupt clip - just skip it */ }
+  }
+
+  // Play a cached effect: routed to audioDest (broadcast + recording) AND to the
+  // audioCtx destination (so the host hears it in their own monitor).
+  playSound(id: string) {
+    const buf = this.soundBuffers.get(id);
+    if (!buf || !this.audioCtx || !this.audioDest) return;
+    this.audioCtx.resume().catch(() => {});
+    const src = this.audioCtx.createBufferSource();
+    src.buffer = buf;
+    src.connect(this.audioDest);
+    src.connect(this.audioCtx.destination);
+    this.soundSources.add(src);
+    src.onended = () => { try { src.disconnect(); } catch {} this.soundSources.delete(src); };
+    try { src.start(); } catch {}
+  }
+
+  stopSounds() {
+    this.soundSources.forEach((src) => { try { src.stop(); } catch {} try { src.disconnect(); } catch {} });
+    this.soundSources.clear();
+  }
+
+  unloadSound(id: string) { this.soundBuffers.delete(id); }
 
   stop() { this.pc?.close(); this.pc = null; this.live = false; this.emit(); }
 }

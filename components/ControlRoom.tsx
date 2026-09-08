@@ -7,9 +7,10 @@ import { getIdToken } from "@/lib/firebase";
 import SimulcastManager from "@/components/SimulcastManager";
 
 const WS_BASE = process.env.NEXT_PUBLIC_CHAT_WS_URL || "";
-type Tab = "onair" | "chat" | "guests" | "sources" | "scene";
+type Tab = "onair" | "chat" | "guests" | "sources" | "scene" | "sounds";
 type ChatMessage = { id: string; name: string; text: string; uid?: string; tip?: number };
 type SceneCfg = { enabled: boolean; mode: "none" | "chroma" | "ml"; chroma: string; background: string; frame: string; logo: string; tickerOn: boolean; tickerLabel: string; ticker: string };
+type SoundPad = { id: string; label: string; url: string };
 
 // Resize a picked image for a scene layer (cover fill or contain). Frame/logo
 // keep transparency (PNG); background uses WebP.
@@ -43,6 +44,10 @@ export default function ControlRoom() {
   const [reveal, setReveal] = useState(false);
   const [scene, setScene] = useState<SceneCfg>({ enabled: false, mode: "chroma", chroma: "#00b140", background: "", frame: "", logo: "", tickerOn: false, tickerLabel: "", ticker: "" });
   const [sceneMsg, setSceneMsg] = useState("");
+  const [sounds, setSounds] = useState<SoundPad[]>([]);
+  const [soundLabel, setSoundLabel] = useState("");
+  const [soundMsg, setSoundMsg] = useState("");
+  const [pressed, setPressed] = useState<string | null>(null);
 
   const stageRef = useRef<HTMLDivElement | null>(null);
   const overlayWs = useRef<WebSocket | null>(null);
@@ -50,14 +55,69 @@ export default function ControlRoom() {
   const sceneBgInput = useRef<HTMLInputElement | null>(null);
   const sceneFrameInput = useRef<HTMLInputElement | null>(null);
   const sceneLogoInput = useRef<HTMLInputElement | null>(null);
+  const soundInput = useRef<HTMLInputElement | null>(null);
 
-  // Load the saved scene and apply it to the engine (live preview updates too).
+  // Load the saved scene + sounds and apply them to the engine.
   useEffect(() => {
     fetch("/api/site-config", { cache: "no-store" })
       .then((r) => r.json())
-      .then((d) => { if (d?.scene) { const sc = { tickerOn: false, tickerLabel: "", ticker: "", ...d.scene }; setScene(sc); broadcast.setScene(sc); } })
+      .then((d) => {
+        if (d?.scene) { const sc = { tickerOn: false, tickerLabel: "", ticker: "", ...d.scene }; setScene(sc); broadcast.setScene(sc); }
+        if (Array.isArray(d?.sounds)) {
+          setSounds(d.sounds);
+          d.sounds.forEach((p: SoundPad) => { if (p?.id && p?.url) broadcast.loadSound(p.id, p.url); });
+        }
+      })
       .catch(() => {});
   }, []);
+
+  async function saveSounds(items: SoundPad[]) {
+    try {
+      const token = await getIdToken();
+      const res = await fetch("/api/site-config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ section: "sounds", data: { items } }),
+      });
+      const d = await res.json();
+      setSoundMsg(d.saved ? "Saved." : d.error || "Preview only - connect Firebase to save.");
+    } catch { setSoundMsg("Could not save."); }
+  }
+
+  function pickSound(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; e.target.value = "";
+    if (!file) return;
+    setSoundMsg("");
+    if (file.size > 240_000) { setSoundMsg("That clip is too large. Use a shorter or smaller sound (under ~240KB)."); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const url = String(reader.result || "");
+      if (!url.startsWith("data:audio")) { setSoundMsg("That doesn't look like an audio file."); return; }
+      const label = soundLabel.trim() || file.name.replace(/\.[^.]+$/, "").slice(0, 30) || "Sound";
+      const id = (crypto as any)?.randomUUID?.() || Date.now() + "";
+      const pad: SoundPad = { id, label, url };
+      broadcast.loadSound(id, url);
+      const next = [...sounds, pad];
+      setSounds(next);
+      setSoundLabel("");
+      saveSounds(next);
+    };
+    reader.onerror = () => setSoundMsg("Could not read that file.");
+    reader.readAsDataURL(file);
+  }
+
+  function removeSound(id: string) {
+    broadcast.unloadSound(id);
+    const next = sounds.filter((p) => p.id !== id);
+    setSounds(next);
+    saveSounds(next);
+  }
+
+  function tapPad(id: string) {
+    broadcast.playSound(id);
+    setPressed(id);
+    setTimeout(() => setPressed((p) => (p === id ? null : p)), 180);
+  }
 
   function updateScene(patch: Partial<SceneCfg>) {
     setScene((s) => { const next = { ...s, ...patch }; broadcast.setScene(next); return next; });
@@ -248,7 +308,7 @@ export default function ControlRoom() {
         {/* ---- Show controls ---- */}
         <div>
           <div className="filters" style={{ marginBottom: 16 }}>
-            {([["onair", "On air"], ["chat", "Chat"], ["guests", "Guests"], ["scene", "Scene"], ["sources", "Sources"]] as [Tab, string][]).map(([k, label]) => (
+            {([["onair", "On air"], ["chat", "Chat"], ["guests", "Guests"], ["scene", "Scene"], ["sounds", "Sounds"], ["sources", "Sources"]] as [Tab, string][]).map(([k, label]) => (
               <button key={k} className={`filter-btn${tab === k ? " active" : ""}`} type="button" onClick={() => setTab(k)}>{label}</button>
             ))}
           </div>
@@ -416,6 +476,41 @@ export default function ControlRoom() {
                 {sceneMsg && <span className="form-ok" style={{ margin: 0 }}>{sceneMsg}</span>}
               </div>
               <p className="form-note" style={{ marginTop: 12 }}>Frame should be a transparent 16:9 PNG. For green-screen, light the screen evenly and pick the exact green.</p>
+            </div>
+          )}
+
+          {tab === "sounds" && (
+            <div className="panel">
+              <h3>Soundboard</h3>
+              <div className="panel-sub">Tap a pad to fire a sound effect. It goes out on the broadcast (viewers hear it) and in your monitor.</div>
+              <input ref={soundInput} type="file" accept="audio/*" hidden onChange={pickSound} />
+
+              {sounds.length === 0 ? (
+                <p className="muted" style={{ fontSize: "13px" }}>No pads yet. Add a sound below.</p>
+              ) : (
+                <div className="sound-grid">
+                  {sounds.map((p) => (
+                    <div className={`sound-pad${pressed === p.id ? " pressed" : ""}`} key={p.id} role="button" tabIndex={0}
+                      onClick={() => tapPad(p.id)}
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); tapPad(p.id); } }}>
+                      <button className="sound-x" type="button" title="Remove pad" onClick={(e) => { e.stopPropagation(); removeSound(p.id); }}>×</button>
+                      <span className="sound-label">{p.label}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
+                <button className="btn btn-ghost btn-sm" type="button" onClick={() => broadcast.stopSounds()}>Stop all</button>
+              </div>
+
+              <div className="panel-sub" style={{ marginTop: 22 }}>Add a sound</div>
+              <div className="form-field"><label>Label</label><input type="text" value={soundLabel} maxLength={30} placeholder="Airhorn" onChange={(e) => setSoundLabel(e.target.value)} /></div>
+              <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                <button className="btn btn-primary btn-sm" type="button" onClick={() => soundInput.current?.click()}>Choose audio file</button>
+                {soundMsg && <span className="form-ok" style={{ margin: 0 }}>{soundMsg}</span>}
+              </div>
+              <p className="form-note" style={{ marginTop: 12 }}>Short clips only (under ~240KB) so they load instantly and stay under the storage limit. Up to 12 pads.</p>
             </div>
           )}
 
