@@ -91,6 +91,8 @@ class StudioEngine {
   private tickerText = "";
   private tickerX = 0;
   private tickerLast = 0;
+  // Neutral display name for the host tile (kept generic, not client-specific).
+  hostName = "Host";
   banner: Banner = null; pinned: Pinned = null;
   tipAlert: { name: string; amount: number; message: string } | null = null;
   private tipTimer: ReturnType<typeof setTimeout> | null = null;
@@ -110,6 +112,13 @@ class StudioEngine {
   private hostStream: MediaStream | null = null;
   private guestVideos = new Map<string, HTMLVideoElement>();
   private guestAudio = new Map<string, MediaStreamAudioSourceNode>();
+  // Active-speaker detection: one AnalyserNode per source (key "host" or sessionId),
+  // tapped off the existing audio graph without disturbing the mix routing.
+  private analysers = new Map<string, AnalyserNode>();
+  private audioBuf: Uint8Array | null = null;   // reused time-domain scratch buffer
+  private levels = new Map<string, number>();    // smoothed short-term level per key
+  private activeKey: string | null = null;       // current active-speaker tile key
+  private lastLevelAt = 0;                        // throttle for level sampling
   private screenStream: MediaStream | null = null;
   private screenVideo: HTMLVideoElement | null = null;
   private screenAudioSrc: MediaStreamAudioSourceNode | null = null;
@@ -176,7 +185,13 @@ class StudioEngine {
       // (re)wire host audio into the mix
       if (this.audioCtx && this.audioDest) {
         try { this.hostAudioSrc?.disconnect(); } catch {}
-        if (next.getAudioTracks().length) { this.hostAudioSrc = this.audioCtx.createMediaStreamSource(next); this.hostAudioSrc.connect(this.audioDest); }
+        try { this.analysers.get("host")?.disconnect(); } catch {}
+        this.analysers.delete("host");
+        if (next.getAudioTracks().length) {
+          this.hostAudioSrc = this.audioCtx.createMediaStreamSource(next);
+          this.hostAudioSrc.connect(this.audioDest);
+          this.attachAnalyser("host", this.hostAudioSrc);
+        }
       }
       // republish host video to guests if in realtime
       this.error = "";
@@ -204,24 +219,46 @@ class StudioEngine {
     // Branded scene takes over the frame when enabled (host over a background).
     if (this.sceneEnabled) { this.drawScene(ctx); this.drawGraphics(ctx); return; }
 
+    // Refresh audio levels / active-speaker (throttled internally to ~7x/sec).
+    this.updateLevels();
+
     ctx.fillStyle = "#0A0908"; ctx.fillRect(0, 0, W, H);
-    const sources = [this.hostVideo, ...Array.from(this.guestVideos.values())].filter(Boolean) as HTMLVideoElement[];
+    // Each tile carries its video, display name, and a stable key ("host" or the
+    // guest sessionId) used for name labels and active-speaker highlighting.
+    const tiles: { video: HTMLVideoElement; name: string; key: string }[] = [];
+    if (this.hostVideo) tiles.push({ video: this.hostVideo, name: this.hostName, key: "host" });
+    this.guestVideos.forEach((v, sid) => tiles.push({ video: v, name: this.guestName(sid), key: sid }));
+
     if (this.screenSharing && this.screenVideo && this.screenVideo.videoWidth) {
-      this.drawScreenLayout(ctx, sources);
+      this.drawScreenLayout(ctx, tiles);
     } else {
-      const n = sources.length || 1;
+      const n = tiles.length || 1;
       const gap = 10;
-      if (this.layout === "spotlight" && n > 1) {
+      if (this.layout === "spotlight" && tiles.length > 1) {
         const strip = 300;
-        drawCoverRounded(ctx, sources[0], 0, 0, W - strip - gap, H);
+        const bigW = W - strip - gap;
+        drawCoverRounded(ctx, tiles[0].video, 0, 0, bigW, H);
+        this.drawTileLabel(ctx, tiles[0].name, tiles[0].key, 0, 0, bigW, H);
         const ch = (H - gap * (n - 2)) / (n - 1);
-        sources.slice(1).forEach((v, i) => drawCoverRounded(ctx, v, W - strip, i * (ch + gap), strip, ch));
+        tiles.slice(1).forEach((t, i) => {
+          const ty = i * (ch + gap);
+          drawCoverRounded(ctx, t.video, W - strip, ty, strip, ch);
+          this.drawTileLabel(ctx, t.name, t.key, W - strip, ty, strip, ch);
+        });
+      } else if (tiles.length === 1) {
+        drawCover(ctx, tiles[0].video, 0, 0, W, H); // single camera fills the frame
+        this.drawTileLabel(ctx, tiles[0].name, tiles[0].key, 0, 0, W, H, 0);
       } else if (n === 1) {
-        drawCover(ctx, sources[0], 0, 0, W, H); // single camera fills the frame
+        // No tiles yet (host video not ready) - keep the empty backdrop.
       } else {
         const cols = Math.ceil(Math.sqrt(n)), rows = Math.ceil(n / cols);
         const cw = (W - gap * (cols - 1)) / cols, chh = (H - gap * (rows - 1)) / rows;
-        sources.forEach((v, i) => { const c = i % cols, r = Math.floor(i / cols); drawCoverRounded(ctx, v, c * (cw + gap), r * (chh + gap), cw, chh); });
+        tiles.forEach((t, i) => {
+          const c = i % cols, r = Math.floor(i / cols);
+          const tx = c * (cw + gap), ty = r * (chh + gap);
+          drawCoverRounded(ctx, t.video, tx, ty, cw, chh);
+          this.drawTileLabel(ctx, t.name, t.key, tx, ty, cw, chh);
+        });
       }
     }
     this.drawGraphics(ctx);
@@ -239,6 +276,106 @@ class StudioEngine {
       sp.connect(mute); mute.connect(this.audioCtx.destination);
       this.clock = sp;
     } catch { /* ScriptProcessor unsupported - rAF still covers the visible case */ }
+  }
+
+  // ---- Active-speaker detection ----
+  // Tap a small AnalyserNode off an existing source node. The source stays
+  // connected to audioDest (the mix) untouched; the analyser is a passive
+  // fan-out branch, so it never affects what listeners hear or what's recorded.
+  private attachAnalyser(key: string, src: AudioNode) {
+    if (!this.audioCtx) return;
+    try {
+      const an = this.audioCtx.createAnalyser();
+      an.fftSize = 256;             // small FFT - we only need a coarse RMS
+      an.smoothingTimeConstant = 0.5;
+      src.connect(an);              // extra branch; does not replace src->dest
+      this.analysers.set(key, an);
+      if (!this.audioBuf || this.audioBuf.length < an.fftSize) this.audioBuf = new Uint8Array(an.fftSize);
+    } catch { /* analyser unsupported - active-speaker just stays disabled */ }
+  }
+
+  // Sample every analyser a few times/sec, compute a smoothed RMS level, and pick
+  // the loudest tile above a threshold as the active speaker (debounced via the
+  // smoothing + hysteresis so the amber ring doesn't flicker between talkers).
+  private updateLevels() {
+    if (!this.analysers.size) { this.activeKey = null; return; }
+    const now = typeof performance !== "undefined" ? performance.now() : 0;
+    if (now - this.lastLevelAt < 140) return; // ~7x/sec
+    this.lastLevelAt = now;
+
+    let buf = this.audioBuf;
+    if (!buf || buf.length < 256) { buf = this.audioBuf = new Uint8Array(256); }
+
+    let best: string | null = null, bestLvl = 0;
+    this.analysers.forEach((an, key) => {
+      const n = Math.min(an.fftSize, buf!.length);
+      an.getByteTimeDomainData(buf as any);
+      let sum = 0;
+      for (let i = 0; i < n; i++) { const s = (buf![i] - 128) / 128; sum += s * s; }
+      const rms = Math.sqrt(sum / n);
+      // Exponential smoothing so short spikes/gaps don't cause flicker.
+      const prev = this.levels.get(key) || 0;
+      const lvl = prev * 0.6 + rms * 0.4;
+      this.levels.set(key, lvl);
+      if (lvl > bestLvl) { bestLvl = lvl; best = key; }
+    });
+
+    const THRESHOLD = 0.045;
+    if (best !== null && bestLvl >= THRESHOLD) {
+      // Hysteresis: only switch away from the current speaker if a clearly
+      // louder tile takes over (>1.4x), otherwise hold the current one.
+      if (this.activeKey && this.activeKey !== best) {
+        const cur = this.levels.get(this.activeKey) || 0;
+        if (bestLvl > cur * 1.4) this.activeKey = best;
+      } else {
+        this.activeKey = best;
+      }
+    } else if (bestLvl < THRESHOLD * 0.7) {
+      this.activeKey = null;
+    }
+  }
+
+  // ---- Name label + active-speaker ring for a tile ----
+  // Draws a subtle lower-left name chip inside the tile, and (if this tile's key
+  // is the active speaker) an amber rounded border around the tile.
+  private drawTileLabel(ctx: CanvasRenderingContext2D, name: string, key: string, x: number, y: number, w: number, h: number, r = TILE_R) {
+    // Active-speaker ring (drawn on the tile edge, inside the clip bounds).
+    if (key && this.activeKey === key) {
+      ctx.save();
+      const inset = 1.5;
+      roundRectPath(ctx, x + inset, y + inset, w - inset * 2, h - inset * 2, Math.max(0, r - inset));
+      ctx.lineWidth = 3; ctx.strokeStyle = "#F5A524"; ctx.stroke();
+      ctx.restore();
+    }
+    if (!name) return;
+    // Scale the chip down when tiles get small (many guests on screen).
+    const small = Math.min(w, h) < 260;
+    const fs = small ? 11 : 13;
+    const padX = small ? 7 : 9, padY = small ? 4 : 5, m = small ? 8 : 10;
+    ctx.save();
+    ctx.font = `600 ${fs}px Inter, sans-serif`;
+    ctx.textBaseline = "middle";
+    // Truncate to fit within the tile width.
+    const maxTextW = w - m * 2 - padX * 2;
+    let label = name;
+    if (ctx.measureText(label).width > maxTextW) {
+      while (label.length > 1 && ctx.measureText(label + "…").width > maxTextW) label = label.slice(0, -1);
+      label = label + "…";
+    }
+    const tw = ctx.measureText(label).width;
+    const chipH = fs + padY * 2, chipW = tw + padX * 2;
+    const cx = x + m, cy = y + h - m - chipH;
+    roundRectPath(ctx, cx, cy, chipW, chipH, chipH / 2);
+    ctx.fillStyle = "rgba(10,9,8,.72)"; ctx.fill();
+    ctx.fillStyle = "#F3EFE7";
+    ctx.fillText(label, cx + padX, cy + chipH / 2 + 0.5);
+    ctx.restore();
+  }
+
+  // Resolve a guest's display name from the roster (fallback "Guest").
+  private guestName(sid: string): string {
+    const g = this.roster.find((p) => p.sessionId === sid);
+    return (g?.name || "").trim() || "Guest";
   }
 
   // News-style ticker: a colored label box + text scrolling right-to-left along
@@ -497,14 +634,18 @@ class StudioEngine {
 
   setScreenLayout(l: "full" | "pip" | "split") { this.screenLayout = l; this.emit(); }
 
-  private drawScreenLayout(ctx: CanvasRenderingContext2D, people: HTMLVideoElement[]) {
+  private drawScreenLayout(ctx: CanvasRenderingContext2D, people: { video: HTMLVideoElement; name: string; key: string }[]) {
     const screen = this.screenVideo!;
     if (this.screenLayout === "split") {
       const gap = 10, sw = Math.round(W * 0.64);
       drawContainRounded(ctx, screen, 0, 0, sw, H);
       const n = Math.max(people.length, 1);
       const cw = W - sw - gap, chh = (H - gap * (n - 1)) / n;
-      people.forEach((v, i) => drawCoverRounded(ctx, v, sw + gap, i * (chh + gap), cw, chh));
+      people.forEach((t, i) => {
+        const ty = i * (chh + gap);
+        drawCoverRounded(ctx, t.video, sw + gap, ty, cw, chh);
+        this.drawTileLabel(ctx, t.name, t.key, sw + gap, ty, cw, chh);
+      });
     } else {
       drawContain(ctx, screen, 0, 0, W, H); // full-bleed shared screen
       if (this.screenLayout === "pip" && people.length) {
@@ -516,11 +657,12 @@ class StudioEngine {
         const y = Math.max(0, Math.min(H - groupH, this.pipPos.y));
         this.pipPos = { x, y };
         this.pipRect = { x, y, w: pw, h: groupH };
-        list.forEach((v, i) => {
+        list.forEach((t, i) => {
           const by = y + i * (ph + gap);
-          drawCoverRounded(ctx, v, x, by, pw, ph, 16);
+          drawCoverRounded(ctx, t.video, x, by, pw, ph, 16);
           roundRectPath(ctx, x, by, pw, ph, 16);
           ctx.lineWidth = 3; ctx.strokeStyle = "rgba(255,255,255,.18)"; ctx.stroke();
+          this.drawTileLabel(ctx, t.name, t.key, x, by, pw, ph, 16);
         });
       }
     }
@@ -623,6 +765,7 @@ class StudioEngine {
         const src = this.audioCtx.createMediaStreamSource(new MediaStream([track]));
         src.connect(this.audioDest);
         this.guestAudio.set(sid, src);
+        this.attachAnalyser(sid, src);
       } catch {}
     }
   }
@@ -646,6 +789,10 @@ class StudioEngine {
     if (v) { try { (v.srcObject as MediaStream)?.getTracks().forEach((t) => t.stop()); } catch {} v.srcObject = null; this.guestVideos.delete(sessionId); }
     const a = this.guestAudio.get(sessionId);
     if (a) { try { a.disconnect(); } catch {} this.guestAudio.delete(sessionId); }
+    const an = this.analysers.get(sessionId);
+    if (an) { try { an.disconnect(); } catch {} this.analysers.delete(sessionId); }
+    this.levels.delete(sessionId);
+    if (this.activeKey === sessionId) this.activeKey = null;
     this.emit();
   }
 
