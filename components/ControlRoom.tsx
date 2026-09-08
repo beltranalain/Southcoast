@@ -7,10 +7,12 @@ import { getIdToken } from "@/lib/firebase";
 import SimulcastManager from "@/components/SimulcastManager";
 
 const WS_BASE = process.env.NEXT_PUBLIC_CHAT_WS_URL || "";
-type Tab = "onair" | "chat" | "guests" | "sources" | "scene" | "sounds";
+type Tab = "onair" | "chat" | "guests" | "sources" | "scene" | "intro" | "sounds";
 type ChatMessage = { id: string; name: string; text: string; uid?: string; tip?: number };
 type SceneCfg = { enabled: boolean; mode: "none" | "chroma" | "ml"; chroma: string; background: string; frame: string; logo: string; tickerOn: boolean; tickerLabel: string; ticker: string };
+type BumperCfg = { enabled: boolean; mode: "card" | "video"; headline: string; subtext: string; background: string; videoUrl: string; startsAt: number };
 type SoundPad = { id: string; label: string; url: string };
+type ScheduleItem = { when: string; title: string; note: string; startsAt?: number };
 
 // Resize a picked image for a scene layer (cover fill or contain). Frame/logo
 // keep transparency (PNG); background uses WebP.
@@ -44,6 +46,9 @@ export default function ControlRoom() {
   const [reveal, setReveal] = useState(false);
   const [scene, setScene] = useState<SceneCfg>({ enabled: false, mode: "chroma", chroma: "#00b140", background: "", frame: "", logo: "", tickerOn: false, tickerLabel: "", ticker: "" });
   const [sceneMsg, setSceneMsg] = useState("");
+  const [bumper, setBumper] = useState<BumperCfg>({ enabled: false, mode: "card", headline: "Starting soon", subtext: "", background: "", videoUrl: "", startsAt: 0 });
+  const [bumperMsg, setBumperMsg] = useState("");
+  const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
   const [sounds, setSounds] = useState<SoundPad[]>([]);
   const [soundLabel, setSoundLabel] = useState("");
   const [soundMsg, setSoundMsg] = useState("");
@@ -56,6 +61,7 @@ export default function ControlRoom() {
   const sceneFrameInput = useRef<HTMLInputElement | null>(null);
   const sceneLogoInput = useRef<HTMLInputElement | null>(null);
   const soundInput = useRef<HTMLInputElement | null>(null);
+  const bumperBgInput = useRef<HTMLInputElement | null>(null);
 
   // Load the saved scene + sounds and apply them to the engine.
   useEffect(() => {
@@ -63,6 +69,8 @@ export default function ControlRoom() {
       .then((r) => r.json())
       .then((d) => {
         if (d?.scene) { const sc = { tickerOn: false, tickerLabel: "", ticker: "", ...d.scene }; setScene(sc); broadcast.setScene(sc); }
+        if (d?.bumper) { const bm = { enabled: false, mode: "card", headline: "Starting soon", subtext: "", background: "", videoUrl: "", startsAt: 0, ...d.bumper } as BumperCfg; setBumper(bm); broadcast.setBumper(bm); }
+        if (Array.isArray(d?.schedule)) setSchedule(d.schedule);
         if (Array.isArray(d?.sounds)) {
           setSounds(d.sounds);
           d.sounds.forEach((p: SoundPad) => { if (p?.id && p?.url) broadcast.loadSound(p.id, p.url); });
@@ -144,6 +152,42 @@ export default function ControlRoom() {
       const d = await res.json();
       setSceneMsg(d.saved ? "Scene saved." : d.error || "Preview only - connect Firebase to save.");
     } catch { setSceneMsg("Could not save."); }
+  }
+
+  // ---- Intro / "starting soon" bumper ----
+  function updateBumper(patch: Partial<BumperCfg>) {
+    setBumper((b) => { const next = { ...b, ...patch }; broadcast.setBumper(next); return next; });
+  }
+  async function pickBumperBg(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; e.target.value = "";
+    if (!file) return;
+    try { updateBumper({ background: await resizeScene(file, 1280, 720, true, false) }); }
+    catch { setBumperMsg("Could not read that image."); }
+  }
+  // Tie the countdown to the soonest future scheduled show (or clear it).
+  function toggleCountdown(on: boolean) {
+    if (!on) { updateBumper({ startsAt: 0 }); return; }
+    const now = Date.now();
+    const next = schedule
+      .map((s) => Number(s.startsAt) || 0)
+      .filter((t) => t > now)
+      .sort((a, b) => a - b)[0] || 0;
+    if (!next) { setBumperMsg("No upcoming scheduled show found. Add one in Schedule first."); updateBumper({ startsAt: 0 }); return; }
+    setBumperMsg("");
+    updateBumper({ startsAt: next });
+  }
+  async function saveBumper() {
+    setBumperMsg("");
+    try {
+      const token = await getIdToken();
+      const res = await fetch("/api/site-config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ section: "bumper", data: bumper }),
+      });
+      const d = await res.json();
+      setBumperMsg(d.saved ? "Intro saved." : d.error || "Preview only - connect Firebase to save.");
+    } catch { setBumperMsg("Could not save."); }
   }
 
   useEffect(() => broadcast.subscribe(force), []);
@@ -308,7 +352,7 @@ export default function ControlRoom() {
         {/* ---- Show controls ---- */}
         <div>
           <div className="filters" style={{ marginBottom: 16 }}>
-            {([["onair", "On air"], ["chat", "Chat"], ["guests", "Guests"], ["scene", "Scene"], ["sounds", "Sounds"], ["sources", "Sources"]] as [Tab, string][]).map(([k, label]) => (
+            {([["onair", "On air"], ["chat", "Chat"], ["guests", "Guests"], ["scene", "Scene"], ["intro", "Intro"], ["sounds", "Sounds"], ["sources", "Sources"]] as [Tab, string][]).map(([k, label]) => (
               <button key={k} className={`filter-btn${tab === k ? " active" : ""}`} type="button" onClick={() => setTab(k)}>{label}</button>
             ))}
           </div>
@@ -476,6 +520,61 @@ export default function ControlRoom() {
                 {sceneMsg && <span className="form-ok" style={{ margin: 0 }}>{sceneMsg}</span>}
               </div>
               <p className="form-note" style={{ marginTop: 12 }}>Frame should be a transparent 16:9 PNG. For green-screen, light the screen evenly and pick the exact green.</p>
+            </div>
+          )}
+
+          {tab === "intro" && (
+            <div className="panel">
+              <h3>Intro / starting-soon screen</h3>
+              <div className="panel-sub">A branded holding screen that goes out on the broadcast before your show starts, so early viewers see something professional instead of a cold open. The Program preview updates live.</div>
+              <input ref={bumperBgInput} type="file" accept="image/*" hidden onChange={pickBumperBg} />
+
+              <div className="dest-row">
+                <div><div className="dest-name">Show the starting-soon screen on air</div><div className="dest-meta">The program feed shows the bumper instead of the camera</div></div>
+                <label className="toggle"><input type="checkbox" checked={bumper.enabled} onChange={(e) => updateBumper({ enabled: e.target.checked })} /><span className="track" /></label>
+              </div>
+
+              <div className="form-field" style={{ marginTop: 12 }}>
+                <label>Mode</label>
+                <select value={bumper.mode} onChange={(e) => updateBumper({ mode: e.target.value as BumperCfg["mode"] })}>
+                  <option value="card">Starting-soon card</option>
+                  <option value="video">Intro video</option>
+                </select>
+              </div>
+
+              <div className="form-field"><label>Headline</label><input type="text" value={bumper.headline} maxLength={80} placeholder="Starting soon" onChange={(e) => updateBumper({ headline: e.target.value })} /></div>
+              <div className="form-field"><label>Subtext (optional)</label><input type="text" value={bumper.subtext} maxLength={160} placeholder="The show begins shortly - stay tuned." onChange={(e) => updateBumper({ subtext: e.target.value })} /></div>
+
+              {bumper.mode === "card" && (
+                <div className="scene-uploads">
+                  <div className="scene-up">
+                    <div className="scene-prev" style={bumper.background ? { backgroundImage: `url(${bumper.background})` } : undefined}>{!bumper.background && "Background"}</div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button className="btn btn-ghost btn-sm" type="button" onClick={() => bumperBgInput.current?.click()}>{bumper.background ? "Change" : "Upload"}</button>
+                      {bumper.background && <button className="btn btn-ghost btn-sm" type="button" onClick={() => updateBumper({ background: "" })}>Clear</button>}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {bumper.mode === "video" && (
+                <div className="form-field">
+                  <label>Intro video URL</label>
+                  <input type="text" value={bumper.videoUrl} maxLength={500} placeholder="https://..." onChange={(e) => updateBumper({ videoUrl: e.target.value })} />
+                  <p className="form-note" style={{ marginTop: 6 }}>Paste a CORS-enabled MP4 URL (e.g. a Cloudflare Stream download link). Other URLs may not play in the broadcast. The card look shows while the video buffers.</p>
+                </div>
+              )}
+
+              <div className="dest-row" style={{ marginTop: 18 }}>
+                <div><div className="dest-name">Count down to the next scheduled show</div><div className="dest-meta">Shows a live "Starting in..." timer{bumper.startsAt > 0 ? " (set)" : ""}</div></div>
+                <label className="toggle"><input type="checkbox" checked={bumper.startsAt > 0} onChange={(e) => toggleCountdown(e.target.checked)} /><span className="track" /></label>
+              </div>
+
+              <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 16 }}>
+                <button className="btn btn-primary btn-sm" type="button" onClick={saveBumper}>Save intro</button>
+                {bumperMsg && <span className="form-ok" style={{ margin: 0 }}>{bumperMsg}</span>}
+              </div>
+              <p className="form-note" style={{ marginTop: 12 }}>Turn this on before you go live, then turn it off to reveal the show. The card mode is always safe; the video mode needs a CORS-enabled URL.</p>
             </div>
           )}
 

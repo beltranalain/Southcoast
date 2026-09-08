@@ -22,7 +22,7 @@ export async function POST(request: Request) {
 
   const section = body?.section;
   const data = body?.data;
-  if (section !== "content" && section !== "branding" && section !== "schedule" && section !== "scene" && section !== "sounds") {
+  if (section !== "content" && section !== "branding" && section !== "schedule" && section !== "scene" && section !== "bumper" && section !== "sounds") {
     return NextResponse.json({ error: "Unknown section." }, { status: 400 });
   }
   if (!data || typeof data !== "object") {
@@ -80,6 +80,22 @@ export async function POST(request: Request) {
         ticker: String(data.ticker ?? "").slice(0, 2000),
       };
       await db.collection("site").doc("scene").set(clean);
+      return NextResponse.json({ saved: true });
+    }
+
+    if (section === "bumper") {
+      const bg = typeof data.background === "string" ? data.background : "";
+      const url = typeof data.videoUrl === "string" ? data.videoUrl : "";
+      const clean = {
+        enabled: Boolean(data.enabled),
+        mode: ["card", "video"].includes(data.mode) ? data.mode : "card",
+        headline: String(data.headline ?? "").slice(0, 80),
+        subtext: String(data.subtext ?? "").slice(0, 160),
+        background: bg.startsWith("data:image") && bg.length < 700_000 ? bg : "",
+        videoUrl: url.startsWith("http") && url.length < 500 ? url : "",
+        startsAt: Number(data.startsAt) || 0,
+      };
+      await db.collection("site").doc("bumper").set(clean);
       return NextResponse.json({ saved: true });
     }
 

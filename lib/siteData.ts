@@ -199,6 +199,28 @@ export const DEFAULT_SCENE: SiteScene = {
   ticker: "",
 };
 
+// Intro / "starting soon" bumper: a branded holding screen (or looping intro
+// video) shown on the broadcast before the live content starts.
+export type SiteBumper = {
+  enabled: boolean;
+  mode: "card" | "video";
+  headline: string;
+  subtext: string;
+  background: string; // data URL (card background)
+  videoUrl: string;   // CORS-enabled MP4 URL (video mode)
+  startsAt: number;   // epoch ms; 0 = no countdown
+};
+
+export const DEFAULT_BUMPER: SiteBumper = {
+  enabled: false,
+  mode: "card",
+  headline: "Starting soon",
+  subtext: "",
+  background: "",
+  videoUrl: "",
+  startsAt: 0,
+};
+
 // Soundboard: short sound-effect pads the host taps during a broadcast.
 export type SoundPad = { id: string; label: string; url: string };
 

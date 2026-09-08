@@ -91,6 +91,17 @@ class StudioEngine {
   private tickerText = "";
   private tickerX = 0;
   private tickerLast = 0;
+  // Intro / "starting soon" bumper: a branded holding screen (or looping intro
+  // video) that goes OUT on the broadcast before the live content starts.
+  bumperEnabled = false;
+  bumperMode: "card" | "video" = "card";
+  private bumperHeadline = "Starting soon";
+  private bumperSubtext = "";
+  private bumperBg: HTMLImageElement | null = null;
+  private bumperVideoUrl = "";
+  private bumperStartsAt = 0; // epoch ms; 0 = no countdown
+  private bumperVideo: HTMLVideoElement | null = null;
+  private bumperAudioSrc: MediaElementAudioSourceNode | null = null;
   // Neutral display name for the host tile (kept generic, not client-specific).
   hostName = "Host";
   banner: Banner = null; pinned: Pinned = null;
@@ -218,6 +229,9 @@ class StudioEngine {
     const now = typeof performance !== "undefined" ? performance.now() : 0;
     if (now - this.lastDraw < 1000 / 30) return;
     this.lastDraw = now;
+
+    // Intro/"starting soon" bumper replaces the whole program visually when on.
+    if (this.bumperEnabled) { this.drawBumper(ctx); return; }
 
     // Branded scene takes over the frame when enabled (host over a background).
     if (this.sceneEnabled) { this.drawScene(ctx); this.drawGraphics(ctx); return; }
@@ -524,6 +538,168 @@ class StudioEngine {
       const lw = 170, lh = lw * (this.sceneLogo.naturalHeight / this.sceneLogo.naturalWidth || 0.4);
       ctx.drawImage(this.sceneLogo, (W - lw) / 2, 22, lw, lh);
     }
+  }
+
+  // ---- Intro / "starting soon" bumper ----
+  // A card (still image + headline/subtext + optional countdown) is the SAFE
+  // default: it never taints the canvas so captureStream()/WHIP keep working.
+  // An optional looping intro VIDEO is supported too, but the URL must be
+  // CORS-enabled (crossOrigin="anonymous") or drawing it would taint the canvas
+  // and break the broadcast - the UI documents this.
+  setBumper(cfg: Partial<{ enabled: boolean; mode: "card" | "video"; headline: string; subtext: string; background: string; videoUrl: string; startsAt: number }>) {
+    if (typeof cfg.enabled === "boolean") this.bumperEnabled = cfg.enabled;
+    if (cfg.mode) this.bumperMode = cfg.mode;
+    if (cfg.headline !== undefined) this.bumperHeadline = cfg.headline;
+    if (cfg.subtext !== undefined) this.bumperSubtext = cfg.subtext;
+    if (cfg.background !== undefined) this.bumperBg = this.loadImg(cfg.background);
+    if (cfg.videoUrl !== undefined) this.bumperVideoUrl = cfg.videoUrl;
+    if (cfg.startsAt !== undefined) this.bumperStartsAt = Number(cfg.startsAt) || 0;
+    this.syncBumperVideo();
+    this.emit();
+  }
+
+  // Create/tear down the looping intro video element and its audio branch as the
+  // url/enabled/mode change. Audio is routed into the program mix (audioDest)
+  // ONLY while the bumper is enabled + in video mode; otherwise it's detached so
+  // it never lingers in the mix once the bumper is off.
+  private syncBumperVideo() {
+    const wantVideo = this.bumperEnabled && this.bumperMode === "video" && !!this.bumperVideoUrl;
+
+    // URL changed - rebuild the element from scratch (a MediaElementSource can be
+    // created only once per element, so a new url means a new element).
+    if (this.bumperVideo && this.bumperVideo.src !== this.bumperVideoUrl) {
+      this.teardownBumperVideo();
+    }
+
+    if (wantVideo) {
+      if (!this.bumperVideo) {
+        const v = document.createElement("video");
+        v.crossOrigin = "anonymous"; // required so drawing it doesn't taint the canvas
+        v.loop = true; v.muted = false; v.autoplay = true;
+        (v as any).playsInline = true;
+        v.src = this.bumperVideoUrl;
+        this.bumperVideo = v;
+        // Route its audio into the program mix (created once per element).
+        if (this.audioCtx && this.audioDest) {
+          try {
+            this.bumperAudioSrc = this.audioCtx.createMediaElementSource(v);
+            this.bumperAudioSrc.connect(this.audioDest);
+          } catch { this.bumperAudioSrc = null; }
+        }
+      }
+      this.bumperVideo.play().catch(() => {});
+    } else if (this.bumperVideo) {
+      // Not wanted right now: pause + detach audio, but keep card fallback safe.
+      try { this.bumperVideo.pause(); } catch {}
+      if (!this.bumperEnabled || this.bumperMode !== "video") this.teardownBumperVideo();
+    }
+  }
+
+  private teardownBumperVideo() {
+    if (this.bumperAudioSrc) { try { this.bumperAudioSrc.disconnect(); } catch {} this.bumperAudioSrc = null; }
+    if (this.bumperVideo) { try { this.bumperVideo.pause(); } catch {} this.bumperVideo.src = ""; this.bumperVideo = null; }
+  }
+
+  // Wrap text to fit a max width, shrinking the font until it fits in maxLines.
+  private wrapLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, maxLines: number): string[] {
+    const words = text.split(/\s+/).filter(Boolean);
+    if (!words.length) return [];
+    const lines: string[] = [];
+    let cur = words[0];
+    for (let i = 1; i < words.length; i++) {
+      const test = cur + " " + words[i];
+      if (ctx.measureText(test).width <= maxWidth) cur = test;
+      else { lines.push(cur); cur = words[i]; }
+    }
+    lines.push(cur);
+    return lines.slice(0, maxLines);
+  }
+
+  private formatCountdown(ms: number): string {
+    const total = Math.max(0, Math.floor(ms / 1000));
+    const h = Math.floor(total / 3600), m = Math.floor((total % 3600) / 60), s = total % 60;
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return h > 0 ? `Starting in ${h}:${pad(m)}:${pad(s)}` : `Starting in ${pad(m)}:${pad(s)}`;
+  }
+
+  private drawBumper(ctx: CanvasRenderingContext2D) {
+    // Video mode: draw the looping intro full-frame if it's ready, else fall back
+    // to the card look so viewers never see a blank frame while it buffers.
+    if (this.bumperMode === "video" && this.bumperVideo && this.bumperVideo.videoWidth) {
+      drawCover(ctx, this.bumperVideo, 0, 0, W, H);
+      return;
+    }
+
+    // Card mode (and video fallback): background image cover-filled, else a dark
+    // radial gradient on-brand (#1A1614 -> #0B0A09).
+    if (this.bumperBg?.complete && this.bumperBg.naturalWidth) {
+      coverDraw(ctx, this.bumperBg, this.bumperBg.naturalWidth, this.bumperBg.naturalHeight, 0, 0, W, H);
+      // Slight scrim so text stays legible over any image.
+      ctx.fillStyle = "rgba(10,9,8,.45)"; ctx.fillRect(0, 0, W, H);
+    } else {
+      const g = ctx.createRadialGradient(W / 2, H / 2, 80, W / 2, H / 2, W * 0.72);
+      g.addColorStop(0, "#1A1614"); g.addColorStop(1, "#0B0A09");
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    }
+
+    // Logo (reuse the scene logo if one is set), centered near the top.
+    let topY = 150;
+    if (this.sceneLogo?.complete && this.sceneLogo.naturalWidth) {
+      const lw = 200, lh = lw * (this.sceneLogo.naturalHeight / this.sceneLogo.naturalWidth || 0.4);
+      ctx.drawImage(this.sceneLogo, (W - lw) / 2, 70, lw, lh);
+      topY = 70 + lh + 60;
+    }
+
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.textBaseline = "alphabetic";
+
+    // Headline: big Anton uppercase, scaled/wrapped to fit.
+    const headline = (this.bumperHeadline || "").trim().toUpperCase();
+    if (headline) {
+      const maxW = W - 200;
+      let fs = 92;
+      let lines: string[] = [];
+      // Shrink the font until the wrapped headline fits in at most 2 lines.
+      for (; fs >= 40; fs -= 6) {
+        ctx.font = `${fs}px Anton, sans-serif`;
+        lines = this.wrapLines(ctx, headline, maxW, 2);
+        const widest = Math.max(...lines.map((l) => ctx.measureText(l).width));
+        if (widest <= maxW && lines.length <= 2) break;
+      }
+      ctx.font = `${fs}px Anton, sans-serif`;
+      ctx.fillStyle = "#F3EFE7";
+      const lineH = fs * 1.06;
+      const blockH = lineH * lines.length;
+      let y = Math.max(topY + fs, H / 2 - blockH / 2 + fs);
+      lines.forEach((l) => { ctx.fillText(l, W / 2, y); y += lineH; });
+      topY = y + 6;
+    } else {
+      topY = Math.max(topY, H / 2);
+    }
+
+    // Subtext: Inter, muted cream.
+    const subtext = (this.bumperSubtext || "").trim();
+    if (subtext) {
+      ctx.font = "400 26px Inter, sans-serif";
+      ctx.fillStyle = "rgba(243,239,231,.66)";
+      const subLines = this.wrapLines(ctx, subtext, W - 260, 2);
+      subLines.forEach((l) => { ctx.fillText(l, W / 2, topY); topY += 34; });
+      topY += 8;
+    }
+
+    // Live countdown to the scheduled start, in amber.
+    if (this.bumperStartsAt > 0) {
+      const remaining = this.bumperStartsAt - Date.now();
+      if (remaining > 0) {
+        ctx.font = "600 30px Inter, sans-serif";
+        ctx.fillStyle = "#F5A524";
+        ctx.fillText(this.formatCountdown(remaining), W / 2, topY + 10);
+      }
+    }
+
+    ctx.textAlign = "left";
+    ctx.restore();
   }
 
   // Lazily load MediaPipe's selfie segmentation model (from CDN, on first use).
