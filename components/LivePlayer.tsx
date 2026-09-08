@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 // broadcast is actually flowing. Avoids the 404/spinner loop that happens when
 // the Stream iframe loads before the stream is live, and starts automatically
 // the moment the show goes on air.
-export default function LivePlayer({ src }: { src: string }) {
+export default function LivePlayer({ src, logo }: { src: string; logo?: string }) {
   const [live, setLive] = useState<boolean | null>(null);
   const [key, setKey] = useState(0);
   const was = useRef(false);
@@ -49,9 +49,17 @@ export default function LivePlayer({ src }: { src: string }) {
 
   return (
     <div className="player-offair">
-      <div className="offair-spin" />
-      <p>{live === null ? "Checking the stream" : "Off air"}</p>
-      <span>This player starts automatically the moment the show goes live.</span>
+      <div className="offair-mark">
+        {logo ? <img src={logo} alt="" /> : <span className="offair-dot" />}
+      </div>
+      {live === null ? (
+        <span className="offair-check">One moment - getting the stream ready</span>
+      ) : (
+        <>
+          <p>Off air</p>
+          <span>The show streams here automatically the moment it goes live.</span>
+        </>
+      )}
     </div>
   );
 }

@@ -52,7 +52,7 @@ export default async function LivePage() {
                     : "Live now"
                   : "Auto - shows when live"}
               </span>
-              <LivePlayer src={playerSrc} />
+              <LivePlayer src={playerSrc} logo={branding.logo} />
               {channelBug && (
                 <div className="lower3">
                   <span className="l3b" style={{ background: "rgba(10,9,8,.82)" }}>{channelBug}</span>
