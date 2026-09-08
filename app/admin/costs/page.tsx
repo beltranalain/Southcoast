@@ -16,6 +16,10 @@ export default function AdminCosts() {
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [budget, setBudget] = useState("");
   const [msg, setMsg] = useState("");
+  // Per-show delivery estimator (works even before Cloudflare analytics are on).
+  const [viewers, setViewers] = useState("50");
+  const [minutes, setMinutes] = useState("120");
+  const [shows, setShows] = useState("4");
 
   async function load() {
     try {
@@ -42,6 +46,13 @@ export default function AdminCosts() {
 
   const total = data?.total ?? 0;
   const cap = data?.budget ?? 0;
+  // Delivery = viewer-minutes * price-per-minute. WebRTC + HLS bill the same.
+  const perMin = (data?.prices.deliveryPer1k ?? 1) / 1000;
+  const v = Math.max(0, Number(viewers) || 0);
+  const m = Math.max(0, Number(minutes) || 0);
+  const s = Math.max(0, Number(shows) || 0);
+  const perShow = v * m * perMin;
+  const perMonth = perShow * s;
   const pct = cap > 0 ? Math.min(999, (total / cap) * 100) : 0;
   const level = cap === 0 ? "none" : pct >= 100 ? "over" : pct >= 80 ? "warn" : "ok";
 
@@ -101,6 +112,31 @@ export default function AdminCosts() {
                 <button className="btn btn-primary btn-sm" type="button" onClick={saveBudget}>Save budget</button>
                 {msg && <p className="form-ok" style={{ marginTop: 10 }}>{msg}</p>}
               </div>
+
+              <div className="panel">
+                <h3>Per-show cost estimator</h3>
+                <div className="panel-sub">Streaming cost is viewer-minutes &times; {money(perMin)} per minute (WebRTC and HLS bill the same). Storage and everything else are separate.</div>
+                <div className="est-grid" style={{ marginTop: 12 }}>
+                  <div className="form-field">
+                    <label>Avg. viewers</label>
+                    <input type="number" min={0} step={10} value={viewers} onChange={(e) => setViewers(e.target.value)} />
+                  </div>
+                  <div className="form-field">
+                    <label>Show length (min)</label>
+                    <input type="number" min={0} step={15} value={minutes} onChange={(e) => setMinutes(e.target.value)} />
+                  </div>
+                  <div className="form-field">
+                    <label>Shows / month</label>
+                    <input type="number" min={0} step={1} value={shows} onChange={(e) => setShows(e.target.value)} />
+                  </div>
+                </div>
+                <div className="est-out">
+                  <div><span>Per show</span><b>{money(perShow)}</b></div>
+                  <div><span>Per month</span><b className="or">{money(perMonth)}</b></div>
+                </div>
+                <div className="panel-sub" style={{ marginTop: 8 }}>{v.toLocaleString()} viewers &times; {m.toLocaleString()} min = {(v * m).toLocaleString()} viewer-minutes per show.</div>
+              </div>
+
               <div className="panel">
                 <h3>How pricing works</h3>
                 <div className="panel-sub">Cloudflare Stream is the only usage-based cost. Everything else is on a free tier at your scale.</div>

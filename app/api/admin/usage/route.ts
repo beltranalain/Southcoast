@@ -30,7 +30,7 @@ export async function GET(request: Request) {
 
   const breakdown = [
     { key: "cf-storage", name: "Cloudflare Stream - storage", detail: `${Math.round(usage.storedMinutes).toLocaleString()} min stored · ${usage.videoCount} recordings`, cost: storageCost, free: false },
-    { key: "cf-delivery", name: "Cloudflare Stream - delivery", detail: usage.deliveredMinutes != null ? `${Math.round(usage.deliveredMinutes).toLocaleString()} min watched this month` : "Analytics not available on this token", cost: deliveryCost, free: false },
+    { key: "cf-delivery", name: "Cloudflare Stream - delivery", detail: usage.deliveredMinutes != null ? `${Math.round(usage.deliveredMinutes).toLocaleString()} min watched this month` : "Add “Account Analytics Read” to your Cloudflare API token to see live numbers - use the estimator below meanwhile", cost: deliveryCost, free: false },
     { key: "firebase", name: "Firebase", detail: "Auth + Firestore (Spark free tier)", cost: 0, free: true },
     { key: "youtube", name: "YouTube Data API", detail: "Free (quota-based)", cost: 0, free: true },
     { key: "workers", name: "Cloudflare Workers + Realtime", detail: "Chat + guests (free tier)", cost: 0, free: true },
