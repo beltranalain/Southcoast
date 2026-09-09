@@ -10,13 +10,15 @@ type Member = { email: string; role: Role; protected?: boolean };
 const ROLE_LABEL: Record<Role, string> = {
   owner: "Owner",
   manager: "Manager",
+  host: "Host",
   moderator: "Moderator",
 };
 
 const ROLE_HELP: { role: Role; text: string }[] = [
   { role: "owner", text: "Full access, including Team management." },
   { role: "manager", text: "Full access except Team management." },
-  { role: "moderator", text: "Limited: Overview, Go Live, and Users (chat / user moderation) only." },
+  { role: "host", text: "Go Live, Schedule, and Videos." },
+  { role: "moderator", text: "Go Live plus chat / user moderation (Users) only." },
 ];
 
 export default function AdminTeam() {

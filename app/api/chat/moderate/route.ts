@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/requireAdmin";
+import { requireRole } from "@/lib/requireAdmin";
 
 const WS = process.env.NEXT_PUBLIC_CHAT_WS_URL || "";
 const HTTP = WS.replace(/^wss:/, "https:").replace(/^ws:/, "http:");
@@ -9,8 +9,10 @@ const SECRET = process.env.CHAT_ADMIN_SECRET || "";
 // Host-only. Verifies the admin token, then relays to the chat Worker with the
 // shared secret (so the secret never touches the browser).
 export async function POST(request: Request) {
-  if (!(await requireAdmin(request))) {
-    return NextResponse.json({ error: "Not authorized." }, { status: 401 });
+  // Chat/user moderation: owner|manager|moderator (matches Users page access).
+  const role = await requireRole(request);
+  if (role !== "owner" && role !== "manager" && role !== "moderator") {
+    return NextResponse.json({ error: "Not authorized." }, { status: 403 });
   }
   if (!HTTP || !SECRET) {
     return NextResponse.json({ error: "Chat moderation is not configured." }, { status: 400 });

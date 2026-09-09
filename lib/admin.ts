@@ -12,10 +12,11 @@ const fromEnv = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "")
 export const ADMIN_EMAILS = fromEnv.length ? fromEnv : DEFAULT_ADMINS;
 
 // Team roles. "owner" = full access incl. Team management; "manager" = full
-// access except Team; "moderator" = Overview, Go Live, Users only.
-export type Role = "owner" | "manager" | "moderator";
+// access except Team; "host" = go live, schedule, videos; "moderator" = go
+// live + chat/user moderation only.
+export type Role = "owner" | "manager" | "host" | "moderator";
 
-export const ROLES: Role[] = ["owner", "manager", "moderator"];
+export const ROLES: Role[] = ["owner", "manager", "host", "moderator"];
 
 export function isRole(v: unknown): v is Role {
   return typeof v === "string" && (ROLES as string[]).includes(v);

@@ -1,15 +1,20 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/requireAdmin";
+import { requireRole } from "@/lib/requireAdmin";
 import { getAdminDb, adminConfigured } from "@/lib/firebaseAdmin";
 import { STORAGE_PER_1K_MIN, DELIVERY_PER_1K_MIN } from "@/lib/usage";
 import { getCostEstimate } from "@/lib/costEstimate";
 
 export const dynamic = "force-dynamic";
 
+// Costs are owner|manager only (matches the Costs page access).
+function costsAllowed(role: string | null): boolean {
+  return role === "owner" || role === "manager";
+}
+
 // GET -> estimated monthly cost breakdown + total + budget.
 export async function GET(request: Request) {
-  if (!(await requireAdmin(request))) {
-    return NextResponse.json({ error: "Not authorized." }, { status: 401 });
+  if (!costsAllowed(await requireRole(request))) {
+    return NextResponse.json({ error: "Not authorized." }, { status: 403 });
   }
 
   const { usage, budget, estimate } = await getCostEstimate();
@@ -39,8 +44,8 @@ export async function GET(request: Request) {
 
 // POST { budget } -> set the monthly budget cap (soft - drives the alert).
 export async function POST(request: Request) {
-  if (!(await requireAdmin(request))) {
-    return NextResponse.json({ error: "Not authorized." }, { status: 401 });
+  if (!costsAllowed(await requireRole(request))) {
+    return NextResponse.json({ error: "Not authorized." }, { status: 403 });
   }
   if (!adminConfigured) return NextResponse.json({ saved: false });
   let body: any;

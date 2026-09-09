@@ -1,14 +1,16 @@
 import { NextResponse } from "next/server";
 import { getAdminDb, adminConfigured } from "@/lib/firebaseAdmin";
-import { requireAdmin } from "@/lib/requireAdmin";
+import { requireRole } from "@/lib/requireAdmin";
 
 export const dynamic = "force-dynamic";
 
 // GET -> recent tips + totals (from the Firestore `tips` collection).
+// Tips are owner|manager only (matches the Tips page access).
 export async function GET(request: Request) {
   if (!adminConfigured) return NextResponse.json({ configured: false, tips: [], total: 0, count: 0 });
-  if (!(await requireAdmin(request))) {
-    return NextResponse.json({ error: "Not authorized." }, { status: 401 });
+  const role = await requireRole(request);
+  if (role !== "owner" && role !== "manager") {
+    return NextResponse.json({ error: "Not authorized." }, { status: 403 });
   }
   const db = getAdminDb();
   if (!db) return NextResponse.json({ configured: false, tips: [], total: 0, count: 0 });

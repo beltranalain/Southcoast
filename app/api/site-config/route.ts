@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getSiteConfig } from "@/lib/siteConfig";
 import { getAdminDb, adminConfigured } from "@/lib/firebaseAdmin";
-import { requireAdmin } from "@/lib/requireAdmin";
+import { requireRole } from "@/lib/requireAdmin";
+import type { Role } from "@/lib/admin";
 import { DEFAULT_CONTENT, DEFAULT_BRANDING } from "@/lib/siteData";
 
 // GET  -> current { content, branding } (Firestore over defaults)
@@ -34,9 +35,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ saved: false, demo: true });
   }
 
-  // Verify the caller is an admin (not just any signed-in viewer).
-  if (!(await requireAdmin(request))) {
+  // Verify the caller's token + role server-side (do not rely on the client).
+  // - content / branding: owner|manager only.
+  // - schedule / scene / sounds / bumper: owner|manager|host (a host runs and
+  //   schedules shows).
+  const role = await requireRole(request);
+  if (!role) {
     return NextResponse.json({ error: "Not authorized." }, { status: 401 });
+  }
+  const editorRoles: Role[] = ["owner", "manager"];
+  const showRoles: Role[] = ["owner", "manager", "host"];
+  const needed = section === "content" || section === "branding" ? editorRoles : showRoles;
+  if (!needed.includes(role)) {
+    return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   }
 
   try {
