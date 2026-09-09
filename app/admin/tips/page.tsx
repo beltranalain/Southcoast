@@ -33,6 +33,19 @@ export default function AdminTips() {
     })();
   }, []);
 
+  // Export every saved tip (permanent Firestore record) as a CSV file.
+  function downloadCsv() {
+    const rows = [
+      ["Date", "Name", "Amount (USD)", "Message"],
+      ...tips.map((t) => [new Date(t.ts).toISOString(), t.name, t.amount.toFixed(2), t.message || ""]),
+    ];
+    const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\r\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = "tips.csv"; a.click();
+    URL.revokeObjectURL(url);
+  }
+
   const weekAgo = Date.now() - 7 * 86400000;
   const thisWeek = tips.filter((t) => t.ts >= weekAgo);
   const weekTotal = thisWeek.reduce((s, t) => s + t.amount, 0);
@@ -52,6 +65,11 @@ export default function AdminTips() {
           <h1>Tips</h1>
           <div className="sub">Money viewers have sent during your shows. Payouts land in your Stripe account.</div>
         </div>
+        {state === "ready" && tips.length > 0 && (
+          <div className="admin-actions">
+            <button className="btn btn-ghost btn-sm" type="button" onClick={downloadCsv}>Download CSV</button>
+          </div>
+        )}
       </div>
 
       {!TIPS_ENABLED && (

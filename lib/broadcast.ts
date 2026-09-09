@@ -81,6 +81,7 @@ class StudioEngine {
   screenSharing = false;
   screenLayout: "full" | "pip" | "split" = "pip";
   recording = false; // local (browser) recording of the program
+  autoClearChat = true; // reset the live chat automatically on Go Live (host pref)
   // Branded scene (background behind host + optional green-screen + frame/logo)
   sceneEnabled = false;
   sceneMode: "none" | "chroma" | "ml" = "chroma";
@@ -173,6 +174,7 @@ class StudioEngine {
   async init() {
     if (this.started) return;
     this.started = true;
+    try { this.autoClearChat = localStorage.getItem("cwac-autoclear-chat") !== "0"; } catch {}
     this.canvas = document.createElement("canvas");
     this.canvas.width = W; this.canvas.height = H;
     this.hostVideo = document.createElement("video");
@@ -1025,13 +1027,19 @@ class StudioEngine {
         if (this.pc && (this.pc.connectionState === "failed" || this.pc.connectionState === "disconnected")) { this.live = false; this.emit(); }
       };
       this.live = true;
-      this.clearChat(); // fresh chat for each new broadcast
+      if (this.autoClearChat) this.clearChat(); // fresh chat for each new broadcast (host pref)
     } catch (e: any) { this.error = e.message || "Could not go live."; this.pc?.close(); this.pc = null; }
     finally { this.connecting = false; this.emit(); }
   }
 
   // Wipe the live-chat history (host-only; relayed to the Worker with the admin
   // token). Called automatically on Go Live and from the Chat tab's button.
+  setAutoClearChat(v: boolean) {
+    this.autoClearChat = v;
+    try { localStorage.setItem("cwac-autoclear-chat", v ? "1" : "0"); } catch {}
+    this.emit();
+  }
+
   async clearChat() {
     try {
       const token = await getIdToken();

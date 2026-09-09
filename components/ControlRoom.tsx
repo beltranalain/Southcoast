@@ -398,7 +398,11 @@ export default function ControlRoom() {
                 <h3 style={{ margin: 0 }}>Live chat</h3>
                 <button className="btn btn-ghost btn-sm" type="button" onClick={() => { if (confirm("Clear the live chat for everyone?")) { broadcast.clearChat(); setModMsg("Chat cleared."); } }}>Clear chat</button>
               </div>
-              <div className="panel-sub">Site + YouTube, merged. Timeout or remove a signed-in viewer from here. Chat also resets automatically when you Go Live.</div>
+              <div className="panel-sub">Site + YouTube, merged. Timeout or remove a signed-in viewer from here.</div>
+              <div className="dest-row" style={{ marginTop: 6 }}>
+                <div><div className="dest-name">Reset chat when I go live</div><div className="dest-meta">Start each broadcast with a clean chat</div></div>
+                <label className="toggle"><input type="checkbox" checked={broadcast.autoClearChat} onChange={(e) => broadcast.setAutoClearChat(e.target.checked)} /><span className="track" /></label>
+              </div>
               {modMsg && <p className="form-ok" style={{ fontSize: "12.5px", marginBottom: 10 }}>{modMsg}</p>}
               <div style={{ maxHeight: 460, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10 }}>
                 {chat.length === 0 && <p className="muted" style={{ fontSize: "13px" }}>No messages yet.</p>}
