@@ -52,9 +52,12 @@ function guestName(): string {
   return name;
 }
 
-export default function LiveChat() {
+export default function LiveChat({ asGuest }: { asGuest?: string } = {}) {
   const enabled = Boolean(WS_BASE);
-  const requireAuth = firebaseConfigured; // signed-in viewers only when Firebase is on
+  // Anonymous viewers must sign in (so hosts can moderate them). A show guest,
+  // passed via asGuest, was invited by the host and already has a name - they
+  // chat without a second sign-in.
+  const requireAuth = firebaseConfigured && !asGuest;
   const [messages, setMessages] = useState<ChatMessage[]>(enabled ? [] : DEMO);
   const [count, setCount] = useState<number | null>(null);
   const [connected, setConnected] = useState(false);
@@ -104,9 +107,9 @@ export default function LiveChat() {
     return () => unsub();
   }, [requireAuth]);
 
-  const name = requireAuth
+  const name = asGuest || (requireAuth
     ? viewer?.displayName || viewer?.email?.split("@")[0] || "Viewer"
-    : guest;
+    : guest);
   const canSend = enabled && connected && (!requireAuth || Boolean(viewer));
 
   useEffect(() => {

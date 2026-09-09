@@ -270,7 +270,7 @@ export default function GuestJoinPage() {
           </div>
         </div>
 
-        <LiveChat />
+        <LiveChat asGuest={name.trim() || "Guest"} />
       </div>
     </div>
   );
