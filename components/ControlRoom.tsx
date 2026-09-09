@@ -263,6 +263,8 @@ export default function ControlRoom() {
   const pin = (m: ChatMessage) => { broadcast.setPinned(m.name, m.text); pushOverlay({ action: "comment", name: m.name, text: m.text }); };
   const unpin = () => { broadcast.clearPinned(); pushOverlay({ action: "hideComment" }); };
   const [modMsg, setModMsg] = useState("");
+  const [timeoutFor, setTimeoutFor] = useState<ChatMessage | null>(null); // open the duration modal
+  const [customMin, setCustomMin] = useState("10");
   const moderate = async (action: "ban" | "timeout" | "unban", m: ChatMessage, seconds?: number) => {
     if (!m.uid) { setModMsg("This viewer isn't signed in, so they can't be moderated."); return; }
     setModMsg("");
@@ -413,13 +415,35 @@ export default function ControlRoom() {
                     </div>
                     {m.uid && (
                       <div className="mod-actions">
-                        <button className="btn btn-ghost btn-xs" type="button" title="5 minute timeout" onClick={() => moderate("timeout", m, 300)}>Timeout</button>
+                        <button className="btn btn-ghost btn-xs" type="button" title="Timeout for a set time" onClick={() => setTimeoutFor(m)}>Timeout</button>
                         <button className="btn btn-ghost btn-xs" type="button" title="Remove from chat" onClick={() => moderate("ban", m)}>Ban</button>
                       </div>
                     )}
                   </div>
                 ))}
               </div>
+
+              {timeoutFor && (
+                <div className="modal-backdrop" onClick={() => setTimeoutFor(null)}>
+                  <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+                    <h3 style={{ marginTop: 0 }}>Timeout {timeoutFor.name}</h3>
+                    <div className="panel-sub">They can still watch, but can&apos;t chat until the timeout ends.</div>
+                    <div className="filters" style={{ marginTop: 14, marginBottom: 0 }}>
+                      {([["1 min", 60], ["5 min", 300], ["15 min", 900], ["1 hour", 3600], ["24 hours", 86400]] as [string, number][]).map(([label, secs]) => (
+                        <button key={secs} type="button" className="filter-btn" onClick={() => { moderate("timeout", timeoutFor, secs); setTimeoutFor(null); }}>{label}</button>
+                      ))}
+                    </div>
+                    <div className="form-field" style={{ marginTop: 14 }}>
+                      <label>Custom (minutes)</label>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <input type="number" min={1} max={1440} value={customMin} onChange={(e) => setCustomMin(e.target.value)} />
+                        <button className="btn btn-primary btn-sm" type="button" onClick={() => { const s = Math.max(1, Math.min(1440, Number(customMin) || 10)) * 60; moderate("timeout", timeoutFor, s); setTimeoutFor(null); }}>Apply</button>
+                      </div>
+                    </div>
+                    <button className="btn btn-ghost btn-sm" style={{ marginTop: 14 }} type="button" onClick={() => setTimeoutFor(null)}>Cancel</button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
