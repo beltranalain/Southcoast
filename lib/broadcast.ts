@@ -82,6 +82,8 @@ class StudioEngine {
   screenLayout: "full" | "pip" | "split" = "pip";
   recording = false; // local (browser) recording of the program
   autoClearChat = true; // reset the live chat automatically on Go Live (host pref)
+  cameraOn = true; // host camera live (off actually releases the device - light off)
+  micOn = true; // host microphone live
   // Branded scene (background behind host + optional green-screen + frame/logo)
   sceneEnabled = false;
   sceneMode: "none" | "chroma" | "ml" = "chroma";
@@ -219,6 +221,55 @@ class StudioEngine {
     } catch { this.error = "Camera/microphone access is required."; this.emit(); return null; }
   }
 
+  // Turn the host camera off (stops the device so the light goes off) or back
+  // on. The program shows a "Camera off" placeholder while off.
+  async setCameraOn(on: boolean) {
+    if (on === this.cameraOn) return;
+    this.cameraOn = on; this.emit();
+    if (!on) {
+      this.hostStream?.getVideoTracks().forEach((t) => { t.stop(); this.hostStream?.removeTrack(t); });
+      if (this.hostVideo) this.hostVideo.srcObject = this.hostStream;
+      return;
+    }
+    try {
+      const cam = await navigator.mediaDevices.getUserMedia({ video: this.camId ? { deviceId: { exact: this.camId } } : true });
+      const track = cam.getVideoTracks()[0];
+      if (track && this.hostStream) {
+        this.hostStream.addTrack(track);
+        if (this.hostVideo) { this.hostVideo.srcObject = this.hostStream; this.hostVideo.play().catch(() => {}); }
+      }
+      this.error = ""; this.emit();
+    } catch { this.error = "Camera access is required."; this.cameraOn = false; this.emit(); }
+  }
+
+  // Turn the host microphone off (stops the device) or back on. Off = silence
+  // in the program + monitor.
+  async setMicOn(on: boolean) {
+    if (on === this.micOn) return;
+    this.micOn = on; this.emit();
+    if (!on) {
+      try { this.hostAudioSrc?.disconnect(); } catch {}
+      this.hostStream?.getAudioTracks().forEach((t) => { t.stop(); this.hostStream?.removeTrack(t); });
+      return;
+    }
+    try {
+      const mic = await navigator.mediaDevices.getUserMedia({ audio: this.micId ? { deviceId: { exact: this.micId } } : true });
+      const track = mic.getAudioTracks()[0];
+      if (track && this.hostStream) {
+        this.hostStream.addTrack(track);
+        if (this.audioCtx && this.audioDest) {
+          try { this.hostAudioSrc?.disconnect(); } catch {}
+          try { this.analysers.get("host")?.disconnect(); } catch {}
+          this.analysers.delete("host");
+          this.hostAudioSrc = this.audioCtx.createMediaStreamSource(new MediaStream([track]));
+          this.hostAudioSrc.connect(this.audioDest);
+          this.attachAnalyser("host", this.hostAudioSrc);
+        }
+      }
+      this.error = ""; this.emit();
+    } catch { this.error = "Microphone access is required."; this.micOn = false; this.emit(); }
+  }
+
   private startCompositing() {
     this.ctx2d = this.canvas!.getContext("2d");
     const loop = () => { this.renderFrame(); this.raf = requestAnimationFrame(loop); };
@@ -259,16 +310,16 @@ class StudioEngine {
       if (this.layout === "spotlight" && tiles.length > 1) {
         const strip = 300;
         const bigW = W - strip - gap;
-        drawCoverRounded(ctx, tiles[0].video, 0, 0, bigW, H);
+        this.paintTile(ctx, tiles[0], 0, 0, bigW, H, false);
         this.drawTileLabel(ctx, tiles[0].name, tiles[0].key, 0, 0, bigW, H);
         const ch = (H - gap * (n - 2)) / (n - 1);
         tiles.slice(1).forEach((t, i) => {
           const ty = i * (ch + gap);
-          drawCoverRounded(ctx, t.video, W - strip, ty, strip, ch);
+          this.paintTile(ctx, t, W - strip, ty, strip, ch, true);
           this.drawTileLabel(ctx, t.name, t.key, W - strip, ty, strip, ch);
         });
       } else if (tiles.length === 1) {
-        drawCover(ctx, tiles[0].video, 0, 0, W, H); // single camera fills the frame
+        this.paintTile(ctx, tiles[0], 0, 0, W, H, false); // single camera fills the frame
         this.drawTileLabel(ctx, tiles[0].name, tiles[0].key, 0, 0, W, H, 0);
       } else if (n === 1) {
         // No tiles yet (host video not ready) - keep the empty backdrop.
@@ -278,12 +329,30 @@ class StudioEngine {
         tiles.forEach((t, i) => {
           const c = i % cols, r = Math.floor(i / cols);
           const tx = c * (cw + gap), ty = r * (chh + gap);
-          drawCoverRounded(ctx, t.video, tx, ty, cw, chh);
+          this.paintTile(ctx, t, tx, ty, cw, chh, true);
           this.drawTileLabel(ctx, t.name, t.key, tx, ty, cw, chh);
         });
       }
     }
     this.drawGraphics(ctx);
+  }
+
+  // Draw a tile's video - or a "Camera off" placeholder for the host tile when
+  // the camera is turned off - into the given box.
+  private paintTile(ctx: CanvasRenderingContext2D, t: { video: HTMLVideoElement; key: string }, x: number, y: number, w: number, h: number, rounded: boolean) {
+    if (t.key === "host" && !this.cameraOn) {
+      ctx.save();
+      if (rounded) { roundRectPath(ctx, x, y, w, h, TILE_R); ctx.clip(); }
+      ctx.fillStyle = "#151110"; ctx.fillRect(x, y, w, h);
+      ctx.fillStyle = "rgba(243,239,231,.5)";
+      ctx.font = "500 15px var(--font-inter), Inter, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText("Camera off", x + w / 2, y + h / 2);
+      ctx.restore();
+      return;
+    }
+    if (rounded) drawCoverRounded(ctx, t.video, x, y, w, h);
+    else drawCover(ctx, t.video, x, y, w, h);
   }
 
   // A silent ScriptProcessorNode fires on the audio thread, which browsers do

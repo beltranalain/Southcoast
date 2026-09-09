@@ -335,6 +335,8 @@ export default function ControlRoom() {
                 <button className={`filter-btn${broadcast.layout === "spotlight" ? " active" : ""}`} type="button" onClick={() => broadcast.setLayout("spotlight")}>Spotlight</button>
               </div>
             )}
+            <button className={`btn btn-sm ${broadcast.cameraOn ? "btn-ghost" : "btn-danger"}`} type="button" onClick={() => broadcast.setCameraOn(!broadcast.cameraOn)}>{broadcast.cameraOn ? "Camera on" : "Camera off"}</button>
+            <button className={`btn btn-sm ${broadcast.micOn ? "btn-ghost" : "btn-danger"}`} type="button" onClick={() => broadcast.setMicOn(!broadcast.micOn)}>{broadcast.micOn ? "Mic on" : "Mic off"}</button>
             {broadcast.screenSharing ? (
               <button className="btn btn-ghost btn-sm" type="button" onClick={() => broadcast.stopScreenShare()}>Stop sharing</button>
             ) : (

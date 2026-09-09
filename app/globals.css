@@ -84,6 +84,8 @@ img{display:block;max-width:100%}
 .btn-primary:hover{background:var(--orange2)}
 .btn-ghost{background:transparent;border-color:rgba(243,239,231,.4);color:var(--ink)}
 .btn-ghost:hover{border-color:var(--amber);color:var(--amber)}
+.btn-danger{background:var(--live);color:#fff;border-color:transparent}
+.btn-danger:hover{filter:brightness(1.08)}
 .btn-sm{padding:9px 18px;font-size:13px}
 .btn-live{background:var(--live);color:#fff;box-shadow:0 0 0 0 var(--live-glow);animation:ringpulse 2.2s infinite}
 .btn-live:hover{background:#f2543f}
