@@ -78,7 +78,9 @@ export default function GuestJoinPage() {
           const host = d.participants.find((p: Participant) => p.role === "host" && p.sessionId);
           if (host && !subscribed.current.has(host.sessionId) && rtc.current) {
             subscribed.current.add(host.sessionId);
-            rtc.current.pull(host.sessionId, "video").catch(() => {});
+            // Pull the host's video + audio together so the guest can see AND
+            // hear the host (one serialized negotiation).
+            rtc.current.pull(host.sessionId, ["video", "audio"]).catch(() => {});
           }
         }
       };

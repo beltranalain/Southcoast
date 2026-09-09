@@ -956,8 +956,12 @@ class StudioEngine {
     if (!g) return;
     this.admitted.add(sessionId);
     this.subscribedGuests.add(sessionId);
-    if (g.hasVideo) this.rtc.pull(sessionId, "video").catch(() => {});
-    if (g.hasAudio) this.rtc.pull(sessionId, "audio").catch(() => {});
+    // Pull video + audio in ONE negotiation (a single serialized pull) so the
+    // two don't race and collide on the peer connection.
+    const names: string[] = [];
+    if (g.hasVideo) names.push("video");
+    if (g.hasAudio) names.push("audio");
+    if (names.length) this.rtc.pull(sessionId, names).catch(() => {});
     this.emit();
   }
 

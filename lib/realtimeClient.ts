@@ -35,6 +35,11 @@ export class RealtimeSession {
   pc: RTCPeerConnection;
   sessionId = "";
   private midToSession = new Map<string, string>();
+  // Serialize renegotiations: a single RTCPeerConnection can only run one
+  // offer/answer exchange at a time. Concurrent pulls (e.g. a guest's video +
+  // audio, or admitting several guests at once) would otherwise collide (glare)
+  // and silently fail. Every pull runs through this chain, one after another.
+  private chain: Promise<unknown> = Promise.resolve();
 
   constructor(private onRemoteTrack: RemoteTrackHandler) {
     this.pc = new RTCPeerConnection(RTC_CONFIG);
@@ -80,10 +85,19 @@ export class RealtimeSession {
     return entries.map((e) => e.trackName);
   }
 
-  // Pull a remote participant's track (trackName "video"/"audio").
-  async pull(remoteSessionId: string, trackName: string): Promise<void> {
+  // Pull one or more of a remote participant's tracks ("video"/"audio").
+  // Pass an array to pull both in a SINGLE negotiation (avoids a second
+  // renegotiation and the glare it can cause). Runs on the serialized chain.
+  async pull(remoteSessionId: string, trackName: string | string[]): Promise<void> {
+    const names = Array.isArray(trackName) ? trackName : [trackName];
+    const run = this.chain.then(() => this.doPull(remoteSessionId, names));
+    this.chain = run.catch(() => {}); // keep the chain alive even if one pull fails
+    return run;
+  }
+
+  private async doPull(remoteSessionId: string, names: string[]): Promise<void> {
     const d = await api("tracks", this.sessionId, {
-      tracks: [{ location: "remote", sessionId: remoteSessionId, trackName }],
+      tracks: names.map((trackName) => ({ location: "remote", sessionId: remoteSessionId, trackName })),
     });
     (d?.tracks || []).forEach((t: any) => {
       if (t.mid) this.midToSession.set(t.mid, remoteSessionId);
