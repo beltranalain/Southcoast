@@ -83,9 +83,10 @@ export default function AdminCosts() {
   // Suggested budget = ~1.5x projected monthly spend (storage + estimated delivery).
   const storageCost = data?.breakdown.find((r) => r.key === "cf-storage")?.cost ?? 0;
   const suggested = Math.max(5, Math.ceil(((storageCost + perMonth) * 1.5) / 5) * 5);
-  // Rough monthly comparison vs a flat StreamYard Professional plan.
-  const myMonthly = storageCost + perMonth;
+  // Comparison vs a flat StreamYard Professional plan, using your ACTUAL usage
+  // this month (live - $0 until you actually stream / people watch on-site).
   const STREAMYARD = 39;
+  const myMonthly = total;
   const savings = STREAMYARD - myMonthly;
   const pct = cap > 0 ? Math.min(999, (total / cap) * 100) : 0;
   const level = cap === 0 ? "none" : pct >= 100 ? "over" : pct >= 80 ? "warn" : "ok";
@@ -171,7 +172,7 @@ export default function AdminCosts() {
 
               <div className="panel">
                 <h3>You vs StreamYard</h3>
-                <div className="panel-sub">A rough monthly comparison at your current estimate ({v.toLocaleString()} on-site viewers &times; {m.toLocaleString()} min &times; {s} shows).</div>
+                <div className="panel-sub">Your <b>actual</b> spend this month vs a flat StreamYard Pro plan - updates live as you use it. Right now you&apos;re at {money(myMonthly)}.</div>
                 <div className="vs-grid">
                   <div className="vs-box you">
                     <div className="vs-label">This platform</div>
@@ -185,8 +186,8 @@ export default function AdminCosts() {
                   </div>
                 </div>
                 {savings > 0
-                  ? <div className="callout" style={{ marginTop: 14 }}><b>You save ~{money(savings)}/mo</b> (~{money(savings * 12)}/yr) at this estimate - plus tips and audience ownership StreamYard can&apos;t offer. Send big shows to YouTube and the gap grows.</div>
-                  : <div className="callout" style={{ marginTop: 14 }}>At this on-site audience you&apos;re above a flat plan - but you still own your audience + take tips. Route big shows to the free YouTube simulcast to cut this down.</div>}
+                  ? <div className="callout" style={{ marginTop: 14 }}><b>You&apos;re saving ~{money(savings)}/mo</b> (~{money(savings * 12)}/yr) so far this month - plus tips and audience ownership StreamYard can&apos;t offer. Keep big shows on the free YouTube simulcast and it stays this low.</div>
+                  : <div className="callout" style={{ marginTop: 14 }}>Your on-site usage this month is above a flat plan - but you still own your audience + take tips. Route big shows to the free YouTube simulcast to cut this down.</div>}
               </div>
             </div>
 
