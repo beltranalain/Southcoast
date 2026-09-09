@@ -151,6 +151,7 @@ class StudioEngine {
   private sceneBg: HTMLImageElement | null = null;
   private sceneFrame: HTMLImageElement | null = null;
   private sceneLogo: HTMLImageElement | null = null;
+  private brandLogo: HTMLImageElement | null = null; // shown on the "Camera off" card
   private keyCanvas: HTMLCanvasElement | null = null;
   private segmenter: any = null;
   private segReady = false;
@@ -270,6 +271,9 @@ class StudioEngine {
     } catch { this.error = "Microphone access is required."; this.micOn = false; this.emit(); }
   }
 
+  // The brand logo to show on the "Camera off" card (from branding config).
+  setBrandLogo(url: string) { this.brandLogo = url ? this.loadImg(url) : null; }
+
   private startCompositing() {
     this.ctx2d = this.canvas!.getContext("2d");
     const loop = () => { this.renderFrame(); this.raf = requestAnimationFrame(loop); };
@@ -343,11 +347,49 @@ class StudioEngine {
     if (t.key === "host" && !this.cameraOn) {
       ctx.save();
       if (rounded) { roundRectPath(ctx, x, y, w, h, TILE_R); ctx.clip(); }
-      ctx.fillStyle = "#151110"; ctx.fillRect(x, y, w, h);
-      ctx.fillStyle = "rgba(243,239,231,.5)";
-      ctx.font = "500 15px var(--font-inter), Inter, sans-serif";
+      // Dark radial backdrop.
+      const cx = x + w / 2;
+      const g = ctx.createRadialGradient(cx, y + h * 0.42, 10, cx, y + h * 0.42, Math.max(w, h) * 0.6);
+      g.addColorStop(0, "#1B1613"); g.addColorStop(1, "#0B0A09");
+      ctx.fillStyle = g; ctx.fillRect(x, y, w, h);
+
+      // Breathing pulse (drives the logo opacity + a soft ring).
+      const now = typeof performance !== "undefined" ? performance.now() : 0;
+      const pulse = 0.45 + 0.55 * (0.5 + 0.5 * Math.sin(now / 850));
+      const unit = Math.min(w, h);
+      const logo = this.brandLogo;
+      const fs = Math.max(13, Math.round(unit * 0.055));
+      let midY = y + h / 2;
+
+      if (logo?.complete && logo.naturalWidth) {
+        const lw = Math.min(unit * 0.30, 220);
+        const lh = lw * (logo.naturalHeight / logo.naturalWidth || 1);
+        midY = y + h / 2 - lh * 0.4;
+        // soft pulsing halo behind the logo
+        ctx.save();
+        const halo = ctx.createRadialGradient(cx, midY, 4, cx, midY, lw * 0.95);
+        halo.addColorStop(0, `rgba(245,165,36,${0.16 * pulse})`);
+        halo.addColorStop(1, "rgba(245,165,36,0)");
+        ctx.fillStyle = halo; ctx.fillRect(cx - lw, midY - lw, lw * 2, lw * 2);
+        ctx.restore();
+        ctx.globalAlpha = 0.55 + 0.45 * pulse;
+        ctx.drawImage(logo, cx - lw / 2, midY - lh / 2, lw, lh);
+        ctx.globalAlpha = 1;
+        midY = midY + lh * 0.6 + fs;
+      } else {
+        // No logo set: a pulsing amber ring as the mark.
+        const r = unit * 0.09;
+        midY = y + h / 2 - r * 0.4;
+        ctx.beginPath(); ctx.arc(cx, midY, r, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(245,165,36,${0.5 + 0.5 * pulse})`;
+        ctx.lineWidth = Math.max(2, unit * 0.012); ctx.stroke();
+        midY = midY + r + fs * 1.4;
+      }
+
+      ctx.fillStyle = "#F3EFE7";
+      ctx.font = `700 ${fs}px Inter, system-ui, sans-serif`;
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillText("Camera off", x + w / 2, y + h / 2);
+      ctx.fillText("Camera off", cx, midY);
       ctx.restore();
       return;
     }

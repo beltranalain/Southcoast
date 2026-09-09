@@ -68,6 +68,7 @@ export default function ControlRoom() {
     fetch("/api/site-config", { cache: "no-store" })
       .then((r) => r.json())
       .then((d) => {
+        if (d?.branding?.logo) broadcast.setBrandLogo(d.branding.logo);
         if (d?.scene) { const sc = { tickerOn: false, tickerLabel: "", ticker: "", ...d.scene }; setScene(sc); broadcast.setScene(sc); }
         if (d?.bumper) { const bm = { enabled: false, mode: "card", headline: "Starting soon", subtext: "", background: "", videoUrl: "", startsAt: 0, ...d.bumper } as BumperCfg; setBumper(bm); broadcast.setBumper(bm); }
         if (Array.isArray(d?.schedule)) setSchedule(d.schedule);
