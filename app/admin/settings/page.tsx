@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getIdToken } from "@/lib/firebase";
+import { saveSection, loadConfig } from "@/lib/saveSection";
 
 type Status = "ok" | "fail" | "off";
 type Health = Record<string, Status>;
@@ -21,6 +22,18 @@ export default function AdminSettings() {
   const [health, setHealth] = useState<Health | null>(null);
   const [checking, setChecking] = useState(true);
   const [recording, setRecording] = useState<boolean | null>(null);
+  const [tips, setTips] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    loadConfig()
+      .then((cfg) => setTips(cfg?.branding?.tipsEnabled !== false))
+      .catch(() => {});
+  }, []);
+
+  async function toggleTips(v: boolean) {
+    setTips(v);
+    await saveSection("branding", { tipsEnabled: v }).catch(() => {});
+  }
 
   useEffect(() => {
     (async () => {
@@ -116,6 +129,10 @@ export default function AdminSettings() {
             <div className="dest-row">
               <div><div className="dest-name">Enable live chat</div><div className="dest-meta">On the live page</div></div>
               <label className="toggle"><input type="checkbox" defaultChecked /><span className="track" /></label>
+            </div>
+            <div className="dest-row">
+              <div><div className="dest-name">Accept tips</div><div className="dest-meta">Shows the tip buttons in chat. Turn off to hide them.</div></div>
+              <label className="toggle"><input type="checkbox" checked={tips ?? true} disabled={tips === null} onChange={(e) => toggleTips(e.target.checked)} /><span className="track" /></label>
             </div>
           </div>
           <div className="panel">

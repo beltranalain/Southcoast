@@ -90,12 +90,21 @@ export default function LiveChat({ asGuest }: { asGuest?: string } = {}) {
   const [tipErr, setTipErr] = useState("");
   const [tipThanks, setTipThanks] = useState(false);
   const [tipSecret, setTipSecret] = useState<string | null>(null); // open modal when set
+  const [tipsOn, setTipsOn] = useState(true); // host can hide tips (branding.tipsEnabled)
 
   const wsRef = useRef<WebSocket | null>(null);
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => { if (!requireAuth) setGuest(guestName()); }, [requireAuth]);
+
+  // Whether the host is accepting tips (hides the tip buttons when off).
+  useEffect(() => {
+    fetch("/api/site-config", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => { if (d?.branding) setTipsOn(d.branding.tipsEnabled !== false); })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!requireAuth) return;
@@ -335,7 +344,7 @@ export default function LiveChat({ asGuest }: { asGuest?: string } = {}) {
 
       {tipThanks && <div className="tip-thanks">Thanks for the tip! It'll show on the stream.</div>}
 
-      {!showAuth && canSend && !isMuted && (
+      {!showAuth && canSend && !isMuted && tipsOn && (
         tipping ? (
           <div className="tip-panel">
             <div className="tip-row">

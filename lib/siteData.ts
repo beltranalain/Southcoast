@@ -158,6 +158,7 @@ export type SiteBranding = {
   favicon: string; // data URL or ""
   showChannelBug: boolean; // permanent show-name label on the live page
   channelBug: string; // label text (falls back to the show name)
+  tipsEnabled: boolean; // show the tip / "Send a tip" buttons in chat
 };
 
 export const DEFAULT_BRANDING: SiteBranding = {
@@ -171,6 +172,7 @@ export const DEFAULT_BRANDING: SiteBranding = {
   favicon: "",
   showChannelBug: false,
   channelBug: "The South Coast Cane Show",
+  tipsEnabled: true,
 };
 
 // Branded "scene": background behind the host, optional green-screen removal,
