@@ -4,6 +4,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { RealtimeSession } from "@/lib/realtimeClient";
 import LiveChat from "@/components/LiveChat";
+import { GuestBackground, type BgMode } from "@/lib/guestBackground";
 
 const WS_BASE = process.env.NEXT_PUBLIC_CHAT_WS_URL || "";
 type AV = "both" | "video" | "audio" | "neither";
@@ -24,11 +25,16 @@ export default function GuestJoinPage() {
   const [hasCam, setHasCam] = useState(false);
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
+  // Guest-side background (blur / virtual background), processed on this device.
+  const [bgMode, setBgMode] = useState<BgMode>("off");
+  const [bgReady, setBgReady] = useState(false);
 
   const localVideo = useRef<HTMLVideoElement | null>(null);
   const hostVideo = useRef<HTMLVideoElement | null>(null);
   const localStream = useRef<MediaStream | null>(null);
   const hostStream = useRef<MediaStream | null>(null);
+  const bg = useRef<GuestBackground | null>(null);
+  const bgInput = useRef<HTMLInputElement | null>(null);
   const rtc = useRef<RealtimeSession | null>(null);
   const ws = useRef<WebSocket | null>(null);
   const meId = useRef<string>("");
@@ -46,7 +52,13 @@ export default function GuestJoinPage() {
         localStream.current = stream;
         setHasMic(stream.getAudioTracks().length > 0);
         setHasCam(stream.getVideoTracks().length > 0);
-        if (localVideo.current && wantVideo) localVideo.current.srcObject = stream;
+        // If they have a camera, route it through the background processor so
+        // blur / virtual background can be applied on their own device.
+        if (stream.getVideoTracks().length > 0) {
+          const proc = new GuestBackground((r) => setBgReady(r));
+          await proc.start(stream);
+          bg.current = proc;
+        }
       }
     } catch {
       setStatus("Camera/mic permission denied. You can still join with them off.");
@@ -63,8 +75,10 @@ export default function GuestJoinPage() {
         if (hostVideo.current) { hostVideo.current.srcObject = ms; hostVideo.current.play?.().catch(() => {}); }
       });
       rtc.current = session;
-      if (localStream.current) {
-        await session.publish(localStream.current);
+      // Publish the processed stream when a camera is in use, else the raw stream.
+      const publishStream = bg.current ? bg.current.stream() : localStream.current;
+      if (publishStream) {
+        await session.publish(publishStream);
         sessionId = session.sessionId; // set by publish (Cloudflare creates the session there)
       }
     } catch {
@@ -113,7 +127,9 @@ export default function GuestJoinPage() {
   // early - that's what left the previews black.
   useEffect(() => {
     if (!joined) return;
-    if (localVideo.current && localStream.current) { localVideo.current.srcObject = localStream.current; localVideo.current.play?.().catch(() => {}); }
+    // Preview the processed feed when the background processor is active.
+    const preview = bg.current ? bg.current.stream() : localStream.current;
+    if (localVideo.current && preview) { localVideo.current.srcObject = preview; localVideo.current.play?.().catch(() => {}); }
     if (hostVideo.current && hostStream.current) { hostVideo.current.srcObject = hostStream.current; hostVideo.current.play?.().catch(() => {}); }
   }, [joined]);
 
@@ -121,14 +137,31 @@ export default function GuestJoinPage() {
   function leave() {
     try { ws.current?.close(); } catch {}
     try { rtc.current?.close(); } catch {}
+    try { bg.current?.stop(); } catch {}
+    bg.current = null;
     localStream.current?.getTracks().forEach((t) => t.stop());
     localStream.current = null;
     hostStream.current = null;
     subscribed.current = new Set();
     setRoster([]);
     setHostLive(false);
+    setBgMode("off");
+    setBgReady(false);
     setJoined(false);
     setStatus("");
+  }
+
+  // Guest background controls (processed on-device).
+  function pickBgMode(m: BgMode) {
+    setBgMode(m);
+    bg.current?.setMode(m);
+  }
+  function pickBgImage(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; e.target.value = "";
+    if (!file || !bg.current) return;
+    const reader = new FileReader();
+    reader.onload = () => { bg.current!.setImage(String(reader.result || "")); bg.current!.setMode("image"); setBgMode("image"); };
+    reader.readAsDataURL(file);
   }
 
   // Toggle the local mic / camera by enabling/disabling the published track
@@ -206,6 +239,25 @@ export default function GuestJoinPage() {
           </div>
 
           <p className="form-ok" style={{ marginTop: 16 }}>{status}</p>
+
+          {hasCam && (
+            <div className="panel" style={{ marginTop: 20 }}>
+              <div className="mod-row" style={{ alignItems: "center", marginBottom: 10 }}>
+                <div>
+                  <h3 style={{ margin: 0 }}>Background</h3>
+                  <div className="panel-sub" style={{ marginBottom: 0 }}>
+                    Runs on your device.{bgMode !== "off" && !bgReady ? " Loading the AI model..." : ""}
+                  </div>
+                </div>
+              </div>
+              <div className="filters" style={{ marginBottom: 0 }}>
+                <button type="button" className={`filter-btn${bgMode === "off" ? " active" : ""}`} onClick={() => pickBgMode("off")}>Off</button>
+                <button type="button" className={`filter-btn${bgMode === "blur" ? " active" : ""}`} onClick={() => pickBgMode("blur")}>Blur</button>
+                <button type="button" className={`filter-btn${bgMode === "image" ? " active" : ""}`} onClick={() => bgInput.current?.click()}>Virtual background</button>
+              </div>
+              <input ref={bgInput} type="file" accept="image/*" hidden onChange={pickBgImage} />
+            </div>
+          )}
 
           <div className="panel" style={{ marginTop: 20 }}>
             <h3>In the room</h3>
