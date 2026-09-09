@@ -17,10 +17,12 @@ export default function GuestJoinPage() {
   const [joined, setJoined] = useState(false);
   const [status, setStatus] = useState("");
   const [roster, setRoster] = useState<Participant[]>([]);
+  const [hostLive, setHostLive] = useState(false);
 
   const localVideo = useRef<HTMLVideoElement | null>(null);
   const hostVideo = useRef<HTMLVideoElement | null>(null);
   const localStream = useRef<MediaStream | null>(null);
+  const hostStream = useRef<MediaStream | null>(null);
   const rtc = useRef<RealtimeSession | null>(null);
   const ws = useRef<WebSocket | null>(null);
   const meId = useRef<string>("");
@@ -44,13 +46,13 @@ export default function GuestJoinPage() {
 
     let sessionId: string | undefined;
     try {
-      const session = new RealtimeSession((sid, track) => {
-        // show the host's video when it arrives
-        if (hostVideo.current) {
-          const ms = (hostVideo.current.srcObject as MediaStream) || new MediaStream();
-          ms.addTrack(track);
-          hostVideo.current.srcObject = ms;
-        }
+      const session = new RealtimeSession((_sid, track) => {
+        // Accumulate the host's video + audio into one stream and show it.
+        const ms = hostStream.current || new MediaStream();
+        ms.addTrack(track);
+        hostStream.current = ms;
+        if (track.kind === "video") setHostLive(true);
+        if (hostVideo.current) { hostVideo.current.srcObject = ms; hostVideo.current.play?.().catch(() => {}); }
       });
       rtc.current = session;
       if (localStream.current) {
@@ -98,6 +100,29 @@ export default function GuestJoinPage() {
     };
   }, []);
 
+  // Attach the local + host streams once the joined view has mounted. The video
+  // elements don't exist until then, so setting srcObject during join() is too
+  // early - that's what left the previews black.
+  useEffect(() => {
+    if (!joined) return;
+    if (localVideo.current && localStream.current) { localVideo.current.srcObject = localStream.current; localVideo.current.play?.().catch(() => {}); }
+    if (hostVideo.current && hostStream.current) { hostVideo.current.srcObject = hostStream.current; hostVideo.current.play?.().catch(() => {}); }
+  }, [joined]);
+
+  // Leave the show: tear down the connection and return to the join screen.
+  function leave() {
+    try { ws.current?.close(); } catch {}
+    try { rtc.current?.close(); } catch {}
+    localStream.current?.getTracks().forEach((t) => t.stop());
+    localStream.current = null;
+    hostStream.current = null;
+    subscribed.current = new Set();
+    setRoster([]);
+    setHostLive(false);
+    setJoined(false);
+    setStatus("");
+  }
+
   if (!joined) {
     return (
       <div className="signin-wrap">
@@ -122,21 +147,30 @@ export default function GuestJoinPage() {
     );
   }
 
+  const camOff = av === "neither" || av === "audio";
+
   return (
     <div className="wrap" style={{ paddingTop: 40, paddingBottom: 60 }}>
-      <span className="eyebrow">Green room</span>
-      <h1 className="anton" style={{ fontSize: "clamp(30px,5vw,52px)", marginBottom: 20 }}>You&apos;re in the show</h1>
-      <div className="grid grid-2">
+      <div className="green-head">
         <div>
-          <div className="panel-sub">The host</div>
-          <div className="player-wrap"><video ref={hostVideo} autoPlay playsInline /></div>
+          <span className="eyebrow">Green room</span>
+          <h1 className="anton" style={{ fontSize: "clamp(28px,5vw,48px)", marginBottom: 4 }}>You&apos;re in the show</h1>
         </div>
-        <div>
-          <div className="panel-sub">You{av === "neither" ? " (camera off)" : ""}</div>
-          <div className="player-wrap"><video ref={localVideo} autoPlay playsInline muted /></div>
+        <button className="btn btn-ghost" type="button" onClick={leave}>Leave the show</button>
+      </div>
+
+      {/* One stage: the host fills it; your own camera sits in the corner. */}
+      <div className="green-stage">
+        <video ref={hostVideo} autoPlay playsInline className="green-host" />
+        {!hostLive && <div className="green-wait">Connecting to the host...</div>}
+        <div className="green-self">
+          {camOff ? <div className="green-self-off">Camera off</div> : <video ref={localVideo} autoPlay playsInline muted />}
+          <span className="green-self-tag">You</span>
         </div>
       </div>
+
       <p className="form-ok" style={{ marginTop: 16 }}>{status}</p>
+
       <div className="panel" style={{ marginTop: 24 }}>
         <h3>In the room</h3>
         {roster.map((p) => (
