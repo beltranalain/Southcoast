@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { BRAND } from "@/lib/siteData";
 import { firebaseConfigured, getFirebaseAuth } from "@/lib/firebase";
-import { isAdminEmail } from "@/lib/admin";
+import { isEnvOwner } from "@/lib/admin";
 import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 
 export default function AdminLogin() {
@@ -29,7 +29,22 @@ export default function AdminLogin() {
       const auth = getFirebaseAuth();
       if (!auth) throw new Error("Auth unavailable.");
       const cred = await signInWithEmailAndPassword(auth, email, password);
-      if (!isAdminEmail(cred.user.email)) {
+      // Env owners are admitted immediately. Everyone else is checked against
+      // the team via the server (whoami re-verifies the token + role).
+      let allowed = isEnvOwner(cred.user.email);
+      if (!allowed) {
+        try {
+          const token = await cred.user.getIdToken();
+          const res = await fetch("/api/admin/whoami", {
+            headers: { Authorization: `Bearer ${token}` },
+            cache: "no-store",
+          });
+          allowed = res.ok;
+        } catch {
+          allowed = false;
+        }
+      }
+      if (!allowed) {
         await signOut(auth);
         setError("This account isn't an admin.");
         return;
