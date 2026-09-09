@@ -3,6 +3,7 @@
 import { useParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { RealtimeSession } from "@/lib/realtimeClient";
+import LiveChat from "@/components/LiveChat";
 
 const WS_BASE = process.env.NEXT_PUBLIC_CHAT_WS_URL || "";
 type AV = "both" | "video" | "audio" | "neither";
@@ -18,6 +19,11 @@ export default function GuestJoinPage() {
   const [status, setStatus] = useState("");
   const [roster, setRoster] = useState<Participant[]>([]);
   const [hostLive, setHostLive] = useState(false);
+  // Local mic/camera controls (what the guest is publishing).
+  const [hasMic, setHasMic] = useState(false);
+  const [hasCam, setHasCam] = useState(false);
+  const [micOn, setMicOn] = useState(true);
+  const [camOn, setCamOn] = useState(true);
 
   const localVideo = useRef<HTMLVideoElement | null>(null);
   const hostVideo = useRef<HTMLVideoElement | null>(null);
@@ -38,6 +44,8 @@ export default function GuestJoinPage() {
       if (wantVideo || wantAudio) {
         const stream = await navigator.mediaDevices.getUserMedia({ video: wantVideo, audio: wantAudio });
         localStream.current = stream;
+        setHasMic(stream.getAudioTracks().length > 0);
+        setHasCam(stream.getVideoTracks().length > 0);
         if (localVideo.current && wantVideo) localVideo.current.srcObject = stream;
       }
     } catch {
@@ -123,6 +131,21 @@ export default function GuestJoinPage() {
     setStatus("");
   }
 
+  // Toggle the local mic / camera by enabling/disabling the published track
+  // (keeps the connection and the track's slot; just stops sending media).
+  function toggleMic() {
+    const track = localStream.current?.getAudioTracks()[0];
+    if (!track) return;
+    track.enabled = !track.enabled;
+    setMicOn(track.enabled);
+  }
+  function toggleCam() {
+    const track = localStream.current?.getVideoTracks()[0];
+    if (!track) return;
+    track.enabled = !track.enabled;
+    setCamOn(track.enabled);
+  }
+
   if (!joined) {
     return (
       <div className="signin-wrap">
@@ -147,8 +170,6 @@ export default function GuestJoinPage() {
     );
   }
 
-  const camOff = av === "neither" || av === "audio";
-
   return (
     <div className="wrap" style={{ paddingTop: 40, paddingBottom: 60 }}>
       <div className="green-head">
@@ -159,26 +180,45 @@ export default function GuestJoinPage() {
         <button className="btn btn-ghost" type="button" onClick={leave}>Leave the show</button>
       </div>
 
-      {/* One stage: the host fills it; your own camera sits in the corner. */}
-      <div className="green-stage">
-        <video ref={hostVideo} autoPlay playsInline className="green-host" />
-        {!hostLive && <div className="green-wait">Connecting to the host...</div>}
-        <div className="green-self">
-          {camOff ? <div className="green-self-off">Camera off</div> : <video ref={localVideo} autoPlay playsInline muted />}
-          <span className="green-self-tag">You</span>
-        </div>
-      </div>
-
-      <p className="form-ok" style={{ marginTop: 16 }}>{status}</p>
-
-      <div className="panel" style={{ marginTop: 24 }}>
-        <h3>In the room</h3>
-        {roster.map((p) => (
-          <div className="dest-row" key={p.id}>
-            <div><div className="dest-name">{p.name}{p.role === "host" ? " (host)" : ""}</div>
-              <div className="dest-meta">{p.hasVideo ? "video" : "no video"} · {p.hasAudio ? "audio" : "muted"}</div></div>
+      <div className="livegrid">
+        <div>
+          {/* One stage: the host fills it; your own camera sits in the corner. */}
+          <div className="green-stage">
+            <video ref={hostVideo} autoPlay playsInline className="green-host" />
+            {!hostLive && <div className="green-wait">Connecting to the host...</div>}
+            <div className="green-self">
+              {hasCam ? (
+                <>
+                  <video ref={localVideo} autoPlay playsInline muted style={{ display: camOn ? "block" : "none" }} />
+                  {!camOn && <div className="green-self-off">Camera off</div>}
+                </>
+              ) : (
+                <div className="green-self-off">Camera off</div>
+              )}
+              <span className="green-self-tag">You</span>
+            </div>
+            {(hasMic || hasCam) && (
+              <div className="green-controls">
+                {hasMic && <button type="button" className={`green-ctrl${micOn ? "" : " off"}`} onClick={toggleMic}>{micOn ? "Mute" : "Unmute"}</button>}
+                {hasCam && <button type="button" className={`green-ctrl${camOn ? "" : " off"}`} onClick={toggleCam}>{camOn ? "Camera off" : "Camera on"}</button>}
+              </div>
+            )}
           </div>
-        ))}
+
+          <p className="form-ok" style={{ marginTop: 16 }}>{status}</p>
+
+          <div className="panel" style={{ marginTop: 20 }}>
+            <h3>In the room</h3>
+            {roster.map((p) => (
+              <div className="dest-row" key={p.id}>
+                <div><div className="dest-name">{p.name}{p.role === "host" ? " (host)" : ""}</div>
+                  <div className="dest-meta">{p.hasVideo ? "video" : "no video"} · {p.hasAudio ? "audio" : "muted"}</div></div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <LiveChat />
       </div>
     </div>
   );
