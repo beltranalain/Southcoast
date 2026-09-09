@@ -102,6 +102,41 @@ export default function AdminCosts() {
 
       {state === "ready" && data && (
         <>
+          <div className="panel">
+            <h3>How you&apos;re charged (in plain English)</h3>
+            <div className="panel-sub">You only ever pay Cloudflare for two things - and both are avoidable. Everything else is free.</div>
+            <div className="charge-grid">
+              <div className="charge-row">
+                <div><b>Going live</b><span>Broadcasting your show up to the platform</span></div>
+                <span className="charge-tag free">Free</span>
+              </div>
+              <div className="charge-row">
+                <div><b>Viewers on YouTube (your simulcast)</b><span>YouTube pays the bandwidth - viewer count &amp; show length don&apos;t matter</span></div>
+                <span className="charge-tag free">Free &middot; unlimited</span>
+              </div>
+              <div className="charge-row">
+                <div><b>Viewers on your own site player</b><span>People watching on your branded site (where tips live)</span></div>
+                <span className="charge-tag">${data.prices.deliveryPer1k} / 1,000 min watched</span>
+              </div>
+              <div className="charge-row">
+                <div><b>Saved recordings</b><span>Only if &quot;Auto-save broadcasts to library&quot; is on (Settings)</span></div>
+                <span className="charge-tag">${data.prices.storagePer1k} / 1,000 min stored</span>
+              </div>
+            </div>
+            <div className="callout">
+              <b>vs StreamYard:</b> StreamYard charges a flat ~$20-60/mo no matter what, and your audience watches on YouTube. Here, if you send viewers to your YouTube simulcast the same way, you pay only Cloudflare&apos;s ~$5/mo minimum - and a viral 3-hour show costs the same whether 100 or 10,000 watch. You only pay per‑viewer for people on your <b>own</b> site, which StreamYard can&apos;t offer at all - and that&apos;s where audience ownership + tips come from.
+            </div>
+            <div className="sop-block">
+              <div className="sop-label">Keep it near zero</div>
+              <ul className="sop-list">
+                <li>Promote the <b>YouTube</b> watch link for big shows - those viewers are always free.</li>
+                <li>Turn off <b>Auto-save broadcasts</b> (Settings) if you don&apos;t need on-site recordings - removes storage cost.</li>
+                <li>Delete old Cloudflare recordings you no longer need.</li>
+                <li>Set a <b>budget</b> below so you&apos;re alerted before any surprise.</li>
+              </ul>
+            </div>
+          </div>
+
           {level === "over" && <div className="form-error" style={{ marginBottom: 16 }}><strong>Over budget.</strong> Estimated {money(total)} vs your {money(cap)} cap.</div>}
           {level === "warn" && <div className="notice" style={{ marginBottom: 16 }}><strong>Approaching your budget.</strong> {money(total)} of {money(cap)} ({Math.round(pct)}%).</div>}
 
@@ -149,12 +184,12 @@ export default function AdminCosts() {
 
               <div className="panel">
                 <h3>Per-show cost estimator</h3>
-                <div className="panel-sub">Auto-filled from your own data. Streaming cost is viewer-minutes &times; {money(perMin)} per minute (WebRTC and HLS bill the same). Storage and everything else are separate.</div>
+                <div className="panel-sub">Only <b>on-site</b> viewers cost money ({money(perMin)}/min each). YouTube viewers are free - don&apos;t count them here. Auto-filled from your own data.</div>
                 <div className="est-grid" style={{ marginTop: 12 }}>
                   <div className="form-field">
-                    <label>Avg. viewers</label>
+                    <label>On-site viewers</label>
                     <input type="number" min={0} step={10} value={viewers} onChange={(e) => setViewers(e.target.value)} />
-                    <small className="est-src">{data.estimate?.savedViewers ? "your saved default" : data.estimate?.derivedViewers != null ? "derived from analytics" : "estimate - save your own"}</small>
+                    <small className="est-src">{data.estimate?.savedViewers ? "your saved default" : data.estimate?.derivedViewers != null ? "derived from analytics" : "on your player (YouTube is free)"}</small>
                   </div>
                   <div className="form-field">
                     <label>Show length (min)</label>
