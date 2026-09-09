@@ -147,7 +147,7 @@ export default function AdminCosts() {
           <div className="two-col">
             <div>
               <div className="panel">
-                <h3>This month (estimated)</h3>
+                <h3>This month so far</h3>
                 <div className="cost-total">{money(total)}<span> / mo</span></div>
                 {cap > 0 && (
                   <div className="budget-bar">
@@ -155,7 +155,7 @@ export default function AdminCosts() {
                   </div>
                 )}
                 <div className="panel-sub" style={{ marginTop: 10 }}>
-                  {cap > 0 ? `${Math.round(pct)}% of your ${money(cap)} budget` : "No budget set yet."} · Estimates only - the exact bill is in your Cloudflare dashboard.
+                  Your <b>actual</b> usage so far this month. {cap > 0 ? `${Math.round(pct)}% of your ${money(cap)} budget. ` : ""}The exact bill is in your Cloudflare dashboard.
                 </div>
               </div>
 
@@ -208,7 +208,7 @@ export default function AdminCosts() {
 
               <div className="panel">
                 <h3>Per-show cost estimator</h3>
-                <div className="panel-sub">Only <b>on-site</b> viewers cost money ({money(perMin)}/min each). YouTube viewers are free - don&apos;t count them here. Auto-filled from your own data.</div>
+                <div className="panel-sub"><b>A what-if calculator - not your bill.</b> Only <b>on-site</b> viewers cost money ({money(perMin)}/min each); YouTube viewers are free. Auto-filled from your own data.</div>
                 <div className="est-grid" style={{ marginTop: 12 }}>
                   <div className="form-field">
                     <label>On-site viewers</label>
@@ -227,8 +227,8 @@ export default function AdminCosts() {
                   </div>
                 </div>
                 <div className="est-out">
-                  <div><span>Per show</span><b>{money(perShow)}</b></div>
-                  <div><span>Per month</span><b className="or">{money(perMonth)}</b></div>
+                  <div><span>Projected / show</span><b>{money(perShow)}</b></div>
+                  <div><span>Projected / month</span><b className="or">{money(perMonth)}</b></div>
                 </div>
                 <div className="est-foot">
                   <span className="panel-sub">{v.toLocaleString()} viewers &times; {m.toLocaleString()} min = {(v * m).toLocaleString()} viewer-minutes per show.</span>
