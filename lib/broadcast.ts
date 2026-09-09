@@ -362,20 +362,28 @@ class StudioEngine {
       let midY = y + h / 2;
 
       if (logo?.complete && logo.naturalWidth) {
-        const lw = Math.min(unit * 0.30, 220);
-        const lh = lw * (logo.naturalHeight / logo.naturalWidth || 1);
-        midY = y + h / 2 - lh * 0.4;
+        const aspect = logo.naturalHeight / logo.naturalWidth || 1;
+        const baseLw = Math.min(unit * 0.30, 220);
+        const baseLh = baseLw * aspect;
+        const centerY = y + h / 2 - baseLh * 0.4;
+        const scale = 1 + 0.05 * Math.sin(now / 700); // gentle breathing scale
+        const lw = baseLw * scale, lh = baseLh * scale;
         // soft pulsing halo behind the logo
         ctx.save();
-        const halo = ctx.createRadialGradient(cx, midY, 4, cx, midY, lw * 0.95);
-        halo.addColorStop(0, `rgba(245,165,36,${0.16 * pulse})`);
+        const halo = ctx.createRadialGradient(cx, centerY, 4, cx, centerY, baseLw * 0.95);
+        halo.addColorStop(0, `rgba(245,165,36,${0.18 * pulse})`);
         halo.addColorStop(1, "rgba(245,165,36,0)");
-        ctx.fillStyle = halo; ctx.fillRect(cx - lw, midY - lw, lw * 2, lw * 2);
+        ctx.fillStyle = halo; ctx.fillRect(cx - baseLw, centerY - baseLw, baseLw * 2, baseLw * 2);
         ctx.restore();
-        ctx.globalAlpha = 0.55 + 0.45 * pulse;
-        ctx.drawImage(logo, cx - lw / 2, midY - lh / 2, lw, lh);
+        // rounded logo (matches the platform's rounded tiles)
+        ctx.save();
+        roundRectPath(ctx, cx - lw / 2, centerY - lh / 2, lw, lh, Math.min(lw, lh) * 0.18);
+        ctx.clip();
+        ctx.globalAlpha = 0.75 + 0.25 * pulse;
+        ctx.drawImage(logo, cx - lw / 2, centerY - lh / 2, lw, lh);
+        ctx.restore();
         ctx.globalAlpha = 1;
-        midY = midY + lh * 0.6 + fs;
+        midY = centerY + baseLh * 0.6 + fs;
       } else {
         // No logo set: a pulsing amber ring as the mark.
         const r = unit * 0.09;
