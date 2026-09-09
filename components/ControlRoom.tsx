@@ -423,7 +423,19 @@ export default function ControlRoom() {
                 <input type="text" readOnly value={broadcast.inviteUrl()} />
                 <button className="btn btn-ghost btn-sm" type="button" onClick={() => navigator.clipboard?.writeText(broadcast.inviteUrl())}>Copy</button>
               </div>
-              <div className="panel-sub">In the room</div>
+              <div className="mod-row" style={{ alignItems: "center", marginBottom: 4 }}>
+                <div className="panel-sub" style={{ marginBottom: 0 }}>In the room</div>
+                {(() => {
+                  const audioGuests = broadcast.roster.filter((p) => p.sessionId && broadcast.admitted.has(p.sessionId) && p.hasAudio);
+                  if (audioGuests.length === 0) return null;
+                  const anyUnmuted = audioGuests.some((p) => !broadcast.mutedGuests.has(p.sessionId!));
+                  return (
+                    <button className="btn btn-ghost btn-sm" type="button" onClick={() => (anyUnmuted ? broadcast.muteAllGuests() : broadcast.unmuteAllGuests())}>
+                      {anyUnmuted ? "Mute all" : "Unmute all"}
+                    </button>
+                  );
+                })()}
+              </div>
               <div className="dest-row"><div><div className="dest-name">South Coast Cane (you)</div><div className="dest-meta">host</div></div><span className="pill published">On</span></div>
               {broadcast.roster.length === 0 && <p className="muted" style={{ fontSize: "13px", marginTop: 10 }}>No guests yet. Share the link above.</p>}
               {broadcast.roster.map((p) => {
@@ -431,11 +443,18 @@ export default function ControlRoom() {
                 return (
                   <div className="dest-row" key={p.id}>
                     <div style={{ minWidth: 0 }}>
-                      <div className="dest-name">{p.name}{onStage && <span className="pill published" style={{ marginLeft: 8 }}>On air</span>}</div>
+                      <div className="dest-name">{p.name}{onStage && <span className="pill published" style={{ marginLeft: 8 }}>On air</span>}{onStage && p.sessionId && broadcast.isGuestMuted(p.sessionId) && <span className="pill draft" style={{ marginLeft: 6 }}>Muted</span>}</div>
                       <div className="dest-meta">{p.hasVideo ? "video" : "no video"} · {p.hasAudio ? "audio" : "muted"}</div>
                     </div>
                     {onStage ? (
-                      <button className="btn btn-ghost btn-sm" type="button" onClick={() => broadcast.removeGuest(p.sessionId!)}>Remove</button>
+                      <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                        {p.hasAudio && (
+                          <button className="btn btn-ghost btn-sm" type="button" onClick={() => broadcast.toggleGuestMute(p.sessionId!)}>
+                            {broadcast.isGuestMuted(p.sessionId!) ? "Unmute" : "Mute"}
+                          </button>
+                        )}
+                        <button className="btn btn-ghost btn-sm" type="button" onClick={() => broadcast.removeGuest(p.sessionId!)}>Remove</button>
+                      </div>
                     ) : (
                       <button className="btn btn-primary btn-sm" type="button" disabled={!p.sessionId || !broadcast.realtimeReady} onClick={() => broadcast.admitGuest(p.sessionId!)}>Admit</button>
                     )}

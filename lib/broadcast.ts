@@ -123,6 +123,9 @@ class StudioEngine {
   private hostStream: MediaStream | null = null;
   private guestVideos = new Map<string, HTMLVideoElement>();
   private guestAudio = new Map<string, MediaStreamAudioSourceNode>();
+  // Per-guest gain node (host mute control) + the set of muted guests.
+  private guestGain = new Map<string, GainNode>();
+  mutedGuests = new Set<string>();
   // Active-speaker detection: one AnalyserNode per source (key "host" or sessionId),
   // tapped off the existing audio graph without disturbing the mix routing.
   private analysers = new Map<string, AnalyserNode>();
@@ -942,8 +945,11 @@ class StudioEngine {
     } else if (track.kind === "audio" && this.audioCtx && this.audioDest) {
       try {
         const src = this.audioCtx.createMediaStreamSource(new MediaStream([track]));
-        src.connect(this.audioDest);
+        const gain = this.audioCtx.createGain();
+        gain.gain.value = this.mutedGuests.has(sid) ? 0 : 1;
+        src.connect(gain); gain.connect(this.audioDest);
         this.guestAudio.set(sid, src);
+        this.guestGain.set(sid, gain);
         this.attachAnalyser(sid, src);
       } catch {}
     }
@@ -972,12 +978,34 @@ class StudioEngine {
     if (v) { try { (v.srcObject as MediaStream)?.getTracks().forEach((t) => t.stop()); } catch {} v.srcObject = null; this.guestVideos.delete(sessionId); }
     const a = this.guestAudio.get(sessionId);
     if (a) { try { a.disconnect(); } catch {} this.guestAudio.delete(sessionId); }
+    const gn = this.guestGain.get(sessionId);
+    if (gn) { try { gn.disconnect(); } catch {} this.guestGain.delete(sessionId); }
+    this.mutedGuests.delete(sessionId);
     const an = this.analysers.get(sessionId);
     if (an) { try { an.disconnect(); } catch {} this.analysers.delete(sessionId); }
     this.levels.delete(sessionId);
     if (this.activeKey === sessionId) this.activeKey = null;
     this.emit();
   }
+
+  // ---- Host mute controls: silence a guest in the program mix (gain 0)
+  // without dropping their connection. "Mute all" applies to everyone on air.
+  isGuestMuted(sessionId: string) { return this.mutedGuests.has(sessionId); }
+  muteGuest(sessionId: string) {
+    this.mutedGuests.add(sessionId);
+    const g = this.guestGain.get(sessionId); if (g) g.gain.value = 0;
+    this.emit();
+  }
+  unmuteGuest(sessionId: string) {
+    this.mutedGuests.delete(sessionId);
+    const g = this.guestGain.get(sessionId); if (g) g.gain.value = 1;
+    this.emit();
+  }
+  toggleGuestMute(sessionId: string) {
+    if (this.mutedGuests.has(sessionId)) this.unmuteGuest(sessionId); else this.muteGuest(sessionId);
+  }
+  muteAllGuests() { this.admitted.forEach((sid) => this.muteGuest(sid)); }
+  unmuteAllGuests() { Array.from(this.mutedGuests).forEach((sid) => this.unmuteGuest(sid)); }
 
   inviteUrl() { return typeof window !== "undefined" ? window.location.origin + "/join/" + ROOM : ""; }
 
