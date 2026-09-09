@@ -24,6 +24,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { href: "/admin/analytics", label: "Analytics", roles: ALL_FULL },
   { href: "/admin/settings", label: "Settings", roles: ALL_FULL },
   { href: "/admin/team", label: "Team", roles: ["owner"] },
+  { href: "/admin/help", label: "Help", roles: ["owner", "manager", "host", "moderator"] },
 ];
 
 // Extra (non-nav) pathnames that share access with a nav item. Studio + On Air
