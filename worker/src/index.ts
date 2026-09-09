@@ -169,6 +169,15 @@ export class ChatRoom {
     const action = String(body?.action ?? "");
     const uid = String(body?.uid ?? "").slice(0, 128);
     const name = String(body?.name ?? "").slice(0, MAX_NAME);
+
+    // Clear the room history (e.g. at the start of a new broadcast) and tell
+    // everyone connected to empty their message list. No uid needed.
+    if (action === "clear") {
+      await this.state.storage.put("history", []);
+      this.broadcast(JSON.stringify({ type: "clear" }));
+      return;
+    }
+
     if (!uid) return;
 
     const bans = new Set((await this.state.storage.get<string[]>("bans")) ?? []);

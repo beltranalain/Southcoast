@@ -128,6 +128,7 @@ export default function LiveChat({ asGuest }: { asGuest?: string } = {}) {
         let data: any;
         try { data = JSON.parse(event.data); } catch { return; }
         if (data.type === "history" && Array.isArray(data.messages)) setMessages(data.messages);
+        else if (data.type === "clear") setMessages([]);
         else if (data.type === "chat") setMessages((prev) => [...prev.slice(-199), data]);
         else if (data.type === "count") setCount(data.count);
         else if (data.type === "muted") setMuted({ banned: Boolean(data.banned), until: Number(data.until) || 0 });

@@ -5,7 +5,7 @@ const WS = process.env.NEXT_PUBLIC_CHAT_WS_URL || "";
 const HTTP = WS.replace(/^wss:/, "https:").replace(/^ws:/, "http:");
 const SECRET = process.env.CHAT_ADMIN_SECRET || "";
 
-// POST { action: "ban"|"timeout"|"unban", uid, name?, seconds?, room? }
+// POST { action: "ban"|"timeout"|"unban"|"clear", uid, name?, seconds?, room? }
 // Host-only. Verifies the admin token, then relays to the chat Worker with the
 // shared secret (so the secret never touches the browser).
 export async function POST(request: Request) {
@@ -23,7 +23,8 @@ export async function POST(request: Request) {
   const uid = String(body.uid || "");
   const name = String(body.name || "");
   const seconds = Number(body.seconds) || undefined;
-  if (!["ban", "timeout", "unban"].includes(action) || !uid) {
+  // "clear" wipes the room history (no uid); the rest target a viewer by uid.
+  if (action !== "clear" && (!["ban", "timeout", "unban"].includes(action) || !uid)) {
     return NextResponse.json({ error: "Bad request." }, { status: 400 });
   }
 

@@ -1025,8 +1025,22 @@ class StudioEngine {
         if (this.pc && (this.pc.connectionState === "failed" || this.pc.connectionState === "disconnected")) { this.live = false; this.emit(); }
       };
       this.live = true;
+      this.clearChat(); // fresh chat for each new broadcast
     } catch (e: any) { this.error = e.message || "Could not go live."; this.pc?.close(); this.pc = null; }
     finally { this.connecting = false; this.emit(); }
+  }
+
+  // Wipe the live-chat history (host-only; relayed to the Worker with the admin
+  // token). Called automatically on Go Live and from the Chat tab's button.
+  async clearChat() {
+    try {
+      const token = await getIdToken();
+      await fetch("/api/chat/moderate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ action: "clear", room: "live" }),
+      });
+    } catch { /* best-effort */ }
   }
 
   // ---- Local recording: save the program to a file on the host's computer ----

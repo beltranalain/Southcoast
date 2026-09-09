@@ -248,6 +248,7 @@ export default function ControlRoom() {
     const cw = new WebSocket(`${WS_BASE}/room/live/ws`);
     cw.onmessage = (e) => { let d: any; try { d = JSON.parse(e.data); } catch { return; }
       if (d.type === "history" && Array.isArray(d.messages)) setChat(d.messages.slice(-60));
+      else if (d.type === "clear") setChat([]);
       else if (d.type === "chat") setChat((p) => [...p.slice(-59), d]);
       else if (d.type === "tip") broadcast.showTipAlert(d.name, d.amount, d.message); };
     chatWs.current = cw;
@@ -393,8 +394,11 @@ export default function ControlRoom() {
 
           {tab === "chat" && (
             <div className="panel">
-              <h3>Live chat</h3>
-              <div className="panel-sub">Site + YouTube, merged. Timeout or remove a signed-in viewer from here.</div>
+              <div className="mod-row" style={{ alignItems: "center", marginBottom: 4 }}>
+                <h3 style={{ margin: 0 }}>Live chat</h3>
+                <button className="btn btn-ghost btn-sm" type="button" onClick={() => { if (confirm("Clear the live chat for everyone?")) { broadcast.clearChat(); setModMsg("Chat cleared."); } }}>Clear chat</button>
+              </div>
+              <div className="panel-sub">Site + YouTube, merged. Timeout or remove a signed-in viewer from here. Chat also resets automatically when you Go Live.</div>
               {modMsg && <p className="form-ok" style={{ fontSize: "12.5px", marginBottom: 10 }}>{modMsg}</p>}
               <div style={{ maxHeight: 460, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10 }}>
                 {chat.length === 0 && <p className="muted" style={{ fontSize: "13px" }}>No messages yet.</p>}
