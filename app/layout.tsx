@@ -48,6 +48,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   return (
     <html lang="en" className={`${inter.variable} ${anton.variable}`} style={themeVars}>
+      <head>
+        {/* Apply the saved light/dark theme before paint to avoid a flash. */}
+        <script dangerouslySetInnerHTML={{ __html: `try{if(localStorage.getItem('theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}` }} />
+      </head>
       <body>{children}</body>
     </html>
   );

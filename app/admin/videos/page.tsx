@@ -1,5 +1,6 @@
 import { getUploads, youtubeConfigured } from "@/lib/youtube";
 import { PRIMARY_CHANNEL } from "@/lib/channels";
+import UploadVideoButton from "@/components/UploadVideoButton";
 
 export default async function AdminVideos() {
   const videos = await getUploads(PRIMARY_CHANNEL.uploadsPlaylist, 25);
@@ -12,7 +13,7 @@ export default async function AdminVideos() {
           <div className="sub">Real uploads from YouTube. Saved broadcasts from Cloudflare Stream will appear here too.</div>
         </div>
         <div className="admin-actions">
-          <button className="btn btn-primary btn-sm" type="button">Upload video</button>
+          <UploadVideoButton />
         </div>
       </div>
 

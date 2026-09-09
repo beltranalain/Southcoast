@@ -19,7 +19,26 @@
   --shadow:0 18px 44px rgba(0,0,0,.55);
   --font:var(--font-inter),"Inter",system-ui,sans-serif;
 }
+/* Light theme (opt-in via <html data-theme="light">). Flips the core surface
+   tokens; amber/live accents stay. Best-effort - a few dark overlays remain. */
+:root[data-theme="light"]{
+  --bg:#F4F1EA !important; /* beat the inline --bg the layout sets from branding */
+  --bg2:#FFFFFF; --bg3:#ECE7DC;
+  --bg-elevated:#FFFFFF; --bg-card:#FFFFFF;
+  --cream:#1A1512; --ink:#1A1512; --text:#1A1512;
+  --mute:#6B6157; --text-muted:#6B6157; --text-dim:#8A8073;
+  --line:rgba(20,17,16,.14); --border:rgba(20,17,16,.14);
+  --shadow:0 18px 44px rgba(0,0,0,.12);
+}
 *{box-sizing:border-box;margin:0;padding:0}
+/* Make the native date/time picker icon visible on the dark UI (invert the
+   default black glyph); leave it as-is in light mode. */
+input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator{filter:invert(1);opacity:.75;cursor:pointer}
+:root[data-theme="light"] input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+:root[data-theme="light"] input[type="date"]::-webkit-calendar-picker-indicator,
+:root[data-theme="light"] input[type="time"]::-webkit-calendar-picker-indicator{filter:none}
 html{scroll-behavior:smooth}
 body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;overflow-x:hidden}
 a{color:inherit;text-decoration:none}

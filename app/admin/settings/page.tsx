@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { getIdToken } from "@/lib/firebase";
 import { saveSection, loadConfig } from "@/lib/saveSection";
+import ThemeToggle from "@/components/ThemeToggle";
 
 type Status = "ok" | "fail" | "off";
 type Health = Record<string, Status>;
@@ -133,6 +134,14 @@ export default function AdminSettings() {
             <div className="dest-row">
               <div><div className="dest-name">Accept tips</div><div className="dest-meta">Shows the tip buttons in chat. Turn off to hide them.</div></div>
               <label className="toggle"><input type="checkbox" checked={tips ?? true} disabled={tips === null} onChange={(e) => toggleTips(e.target.checked)} /><span className="track" /></label>
+            </div>
+          </div>
+          <div className="panel">
+            <h3>Appearance</h3>
+            <div className="panel-sub">Studio theme on this device.</div>
+            <div className="dest-row">
+              <div><div className="dest-name">Light mode</div><div className="dest-meta">Dark is the default look; light is easier in bright rooms</div></div>
+              <ThemeToggle />
             </div>
           </div>
           <div className="panel">
