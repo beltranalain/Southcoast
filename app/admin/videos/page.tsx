@@ -1,9 +1,27 @@
 import { getUploads, youtubeConfigured } from "@/lib/youtube";
 import { PRIMARY_CHANNEL } from "@/lib/channels";
+import { listStreamVideos, streamIframeSrc } from "@/lib/stream";
 import UploadVideoButton from "@/components/UploadVideoButton";
 
+type Row = { id: string; title: string; thumbnail: string; publishedAt: number; source: "yt" | "cf"; href: string };
+
 export default async function AdminVideos() {
-  const videos = await getUploads(PRIMARY_CHANNEL.uploadsPlaylist, 25);
+  const [ytVideos, streamVids] = await Promise.all([
+    getUploads(PRIMARY_CHANNEL.uploadsPlaylist, 25),
+    listStreamVideos(),
+  ]);
+  // Merge YouTube uploads + Cloudflare Stream videos (recordings + uploads),
+  // newest first, so a freshly uploaded file shows up here once processed.
+  const yt: Row[] = ytVideos.map((v: any) => ({ id: v.id, title: v.title, thumbnail: v.thumbnail, publishedAt: new Date(v.publishedAt).getTime(), source: "yt", href: `https://www.youtube.com/watch?v=${v.id}` }));
+  const cf: Row[] = (streamVids || []).map((v: any) => ({
+    id: v.uid,
+    title: v.meta?.name || "Untitled upload",
+    thumbnail: v.thumbnail || "",
+    publishedAt: new Date(v.created || 0).getTime(),
+    source: "cf",
+    href: streamIframeSrc(v.uid),
+  }));
+  const videos: Row[] = [...cf, ...yt].sort((a, b) => b.publishedAt - a.publishedAt);
 
   return (
     <>
@@ -32,17 +50,17 @@ export default async function AdminVideos() {
             </thead>
             <tbody>
               {videos.map((v) => (
-                <tr key={v.id}>
+                <tr key={`${v.source}-${v.id}`}>
                   <td>
                     <div className="vid-cell">
                       <div className="vid-thumb" style={{ backgroundImage: `url(${v.thumbnail})`, backgroundSize: "cover" }} />
                       <div><div className="vt">{v.title}</div></div>
                     </div>
                   </td>
-                  <td>{new Date(v.publishedAt).toLocaleDateString()}</td>
-                  <td><span className="pill published">YouTube</span></td>
+                  <td>{v.publishedAt ? new Date(v.publishedAt).toLocaleDateString() : "-"}</td>
+                  <td><span className="pill published">{v.source === "cf" ? "Cloudflare" : "YouTube"}</span></td>
                   <td className="row-actions">
-                    <a href={`https://www.youtube.com/watch?v=${v.id}`} target="_blank" rel="noopener noreferrer">Open</a>
+                    <a href={v.href} target="_blank" rel="noopener noreferrer">Open</a>
                   </td>
                 </tr>
               ))}
