@@ -25,6 +25,7 @@ export default async function AboutPage() {
         <div className="wrap">
           <div className="about">
             <div>
+              {content.portrait && <img src={content.portrait} alt="" className="about-portrait" />}
               <div className="astat"><div className="n">5</div><div className="c">Productions</div></div>
               <div className="astat"><div className="n">10K+</div><div className="c">Hours streamed</div></div>
               <div className="astat"><div className="n">2</div><div className="c">Channels</div></div>

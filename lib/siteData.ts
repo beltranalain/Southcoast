@@ -138,6 +138,7 @@ export type SiteContent = {
   aboutText: string;
   emailGeneral: string;
   emailBooking: string;
+  portrait: string; // About-page portrait image (data URL) or ""
 };
 
 export const DEFAULT_CONTENT: SiteContent = {
@@ -145,6 +146,7 @@ export const DEFAULT_CONTENT: SiteContent = {
     "An independent studio out of South Florida making five shows that have almost nothing in common. Live talk, long-form conversation, video shot from the driver's seat and a documentary series told in chapters. Some of it is about football. Most of it isn't. One person shoots it, cuts it and hosts it.\n\nBroadcasts go out live on this site and on YouTube at the same time, so the community that already follows along on YouTube never gets left behind, while the home base stays fully ours.",
   emailGeneral: BRAND.emailGeneral,
   emailBooking: BRAND.emailBooking,
+  portrait: "",
 };
 
 export type SiteBranding = {

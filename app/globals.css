@@ -394,6 +394,15 @@ h2.big{font-size:clamp(30px,4.4vw,56px);line-height:.92}
 .sop-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:7px;font-size:14px;color:var(--cream)}
 .sop-list li{position:relative;padding-left:16px;color:rgba(243,239,231,.9)}
 .sop-list li::before{content:"";position:absolute;left:2px;top:9px;width:5px;height:5px;border-radius:50%;background:var(--amber)}
+/* Site preview modal */
+.preview-backdrop{position:fixed;inset:0;z-index:120;background:rgba(5,4,4,.75);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:24px}
+.preview-modal{background:var(--bg2);border:1px solid var(--line);border-radius:16px;width:min(1200px,96vw);height:min(880px,92vh);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.6)}
+.preview-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.preview-stage{flex:1;background:#000;overflow:auto;display:flex;justify-content:center}
+.preview-frame{border:0;width:100%;height:100%;background:#000}
+.preview-frame.mobile{width:390px;max-width:100%;flex:0 0 390px;border-left:1px solid var(--line);border-right:1px solid var(--line)}
+/* About-page portrait */
+.about-portrait{width:100%;aspect-ratio:1;object-fit:cover;border-radius:16px;border:1px solid var(--line);margin-bottom:22px}
 .playerwell .badge{position:absolute;left:18px;top:18px;z-index:5;display:inline-flex;align-items:center;gap:8px;background:var(--live);color:#fff;padding:6px 13px 6px 11px;border-radius:6px;font-size:11.5px;font-weight:800;letter-spacing:.13em;text-transform:uppercase}
 .playerwell .badge i{width:6px;height:6px;border-radius:50%;background:#fff;animation:pulse 1.7s infinite}
 .playerwell .viewers{position:absolute;right:18px;top:18px;z-index:5;background:rgba(10,9,8,.72);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.18);border-radius:6px;padding:6px 13px;font-size:12px;font-weight:600}

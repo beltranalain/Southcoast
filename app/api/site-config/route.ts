@@ -135,6 +135,12 @@ export async function POST(request: Request) {
     for (const key of Object.keys(allowed)) {
       if (key in data) clean[key] = data[key];
     }
+    // Inline image fields are data URLs - keep them valid + under Firestore's
+    // 1MB doc limit (drop oversized/non-image blobs; color strings are untouched).
+    for (const k of ["portrait", "logo", "favicon"]) {
+      const v = clean[k];
+      if (typeof v === "string" && v.startsWith("data:") && (!v.startsWith("data:image") || v.length > 900_000)) clean[k] = "";
+    }
     await db.collection("site").doc(section).set(clean, { merge: true });
     return NextResponse.json({ saved: true });
   } catch {

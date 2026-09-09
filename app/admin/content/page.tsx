@@ -1,15 +1,47 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SERIES, DEFAULT_CONTENT, type SiteContent } from "@/lib/siteData";
 import { CHANNELS } from "@/lib/channels";
 import { saveSection, loadConfig } from "@/lib/saveSection";
+import PreviewSiteModal from "@/components/PreviewSiteModal";
+
+// Resize a picked image to a 600x600 cover portrait (WebP data URL) so it stays
+// small enough to store inline in Firestore.
+function resizePortrait(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const S = 600;
+        const c = document.createElement("canvas"); c.width = S; c.height = S;
+        const ctx = c.getContext("2d"); if (!ctx) throw new Error("no ctx");
+        const scale = Math.max(S / img.width, S / img.height);
+        const dw = img.width * scale, dh = img.height * scale;
+        ctx.drawImage(img, (S - dw) / 2, (S - dh) / 2, dw, dh);
+        const webp = c.toDataURL("image/webp", 0.82);
+        resolve(webp.startsWith("data:image/webp") ? webp : c.toDataURL("image/jpeg", 0.82));
+      } catch (e) { reject(e); } finally { URL.revokeObjectURL(url); }
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("bad image")); };
+    img.src = url;
+  });
+}
 
 export default function AdminContent() {
   const [form, setForm] = useState<SiteContent>(DEFAULT_CONTENT);
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "demo" | "error">("idle");
   const [message, setMessage] = useState("");
+  const [preview, setPreview] = useState(false);
+  const portraitInput = useRef<HTMLInputElement | null>(null);
+
+  async function pickPortrait(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; e.target.value = "";
+    if (!file) return;
+    try { set("portrait", await resizePortrait(file)); }
+    catch { setMessage("Could not read that image."); }
+  }
 
   useEffect(() => {
     loadConfig()
@@ -47,12 +79,14 @@ export default function AdminContent() {
           <div className="sub">Edit the words and sections viewers see. No code required.</div>
         </div>
         <div className="admin-actions">
-          <Link className="btn btn-ghost btn-sm" href="/">Preview site</Link>
+          <button className="btn btn-ghost btn-sm" type="button" onClick={() => setPreview(true)}>Preview site</button>
           <button className="btn btn-primary btn-sm" type="button" onClick={save} disabled={status === "saving"}>
             {status === "saving" ? "Saving..." : "Save changes"}
           </button>
         </div>
       </div>
+
+      {preview && <PreviewSiteModal onClose={() => setPreview(false)} />}
 
       {message && (
         <div className={status === "error" ? "form-error" : "form-ok"} style={{ marginBottom: 18 }}>
@@ -70,9 +104,15 @@ export default function AdminContent() {
               <textarea style={{ minHeight: 200 }} value={form.aboutText} onChange={(e) => set("aboutText", e.target.value)} />
             </div>
             <div className="uploader">
-              <div className="logo-prev">SC</div>
-              <div className="up-info"><div className="up-t">About portrait</div><div className="up-s">Image upload arrives with Firebase Storage.</div></div>
-              <button className="btn btn-ghost btn-sm" type="button" disabled>Upload</button>
+              <div className="logo-prev">
+                {form.portrait ? <img src={form.portrait} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "inherit" }} /> : "SC"}
+              </div>
+              <div className="up-info"><div className="up-t">About portrait</div><div className="up-s">Shown on the About page. Saved with your content (click Save changes).</div></div>
+              <input ref={portraitInput} type="file" accept="image/*" hidden onChange={pickPortrait} />
+              <div style={{ display: "flex", gap: 8 }}>
+                <button className="btn btn-ghost btn-sm" type="button" onClick={() => portraitInput.current?.click()}>{form.portrait ? "Change" : "Upload"}</button>
+                {form.portrait && <button className="btn btn-ghost btn-sm" type="button" onClick={() => set("portrait", "")}>Remove</button>}
+              </div>
             </div>
           </div>
 

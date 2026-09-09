@@ -177,7 +177,7 @@ export default function AdminSchedule() {
                     </span>
                     <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexShrink: 0, alignItems: "center" }}>
                       {!expired && perShow != null && perShow > 0 && (
-                        <span className="est-chip" title="Estimated streaming cost for this broadcast (viewers x length)">~{money(perShow)}</span>
+                        <span className="est-chip" title="Estimated streaming cost for this broadcast (avg viewers x length x delivery rate). Tune it on the Costs page.">~{money(perShow)} est.</span>
                       )}
                       {!expired && <button className="btn btn-primary btn-sm" type="button" onClick={() => goLive(idx)}>Go live</button>}
                       <button className="btn btn-ghost btn-sm" type="button" onClick={() => removeAt(idx)}>Remove</button>
