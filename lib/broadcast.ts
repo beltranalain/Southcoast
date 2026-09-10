@@ -11,6 +11,19 @@ const ROOM = "main";
 const SIGNAL_ROOM = `rt-${ROOM}`;
 const W = 1280, H = 720;
 
+// Ask the webcam for full HD at 30fps. Without this, browsers default to ~480p,
+// which then gets upscaled onto the program canvas and looks soft. "ideal" so
+// it gracefully falls back on cameras that can't do 1080p.
+function camVideo(deviceId?: string): MediaTrackConstraints {
+  const c: MediaTrackConstraints = {
+    width: { ideal: 1920 },
+    height: { ideal: 1080 },
+    frameRate: { ideal: 30 },
+  };
+  if (deviceId) c.deviceId = { exact: deviceId };
+  return c;
+}
+
 type Ingest = { whipUrl: string; rtmpsUrl: string; streamKey: string } | null;
 export type Participant = { id: string; name: string; role: string; sessionId?: string; hasVideo: boolean; hasAudio: boolean };
 type Banner = { title: string; subtitle: string } | null;
@@ -194,7 +207,7 @@ class StudioEngine {
     if (camId) this.camId = camId; if (micId) this.micId = micId;
     try {
       const next = await navigator.mediaDevices.getUserMedia({
-        video: this.camId ? { deviceId: { exact: this.camId } } : true,
+        video: camVideo(this.camId),
         audio: this.micId ? { deviceId: { exact: this.micId } } : true,
       });
       if (this.pc && this.live) {
@@ -233,7 +246,7 @@ class StudioEngine {
       return;
     }
     try {
-      const cam = await navigator.mediaDevices.getUserMedia({ video: this.camId ? { deviceId: { exact: this.camId } } : true });
+      const cam = await navigator.mediaDevices.getUserMedia({ video: camVideo(this.camId) });
       const track = cam.getVideoTracks()[0];
       if (track && this.hostStream) {
         this.hostStream.addTrack(track);
