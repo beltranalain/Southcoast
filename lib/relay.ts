@@ -15,14 +15,14 @@ function headers() {
 
 export type RelayDest = { id: string; url: string; key: string };
 
-export async function relayStart(hlsUrl: string, destinations: RelayDest[]): Promise<{ ok: boolean; error?: string }> {
+export async function relayStart(whepUrl: string, destinations: RelayDest[]): Promise<{ ok: boolean; error?: string }> {
   if (!relayConfigured) return { ok: false, error: "Simulcast relay not configured." };
   if (!destinations.length) return { ok: false, error: "No active destinations." };
   try {
     const res = await fetch(`${RELAY_URL}/start`, {
       method: "POST",
       headers: headers(),
-      body: JSON.stringify({ hlsUrl, destinations }),
+      body: JSON.stringify({ whepUrl, destinations }),
       cache: "no-store",
     });
     const d = await res.json().catch(() => ({}));

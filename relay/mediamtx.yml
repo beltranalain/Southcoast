@@ -1,0 +1,26 @@
+# MediaMTX config for the simulcast relay.
+# We use MediaMTX only as a WebRTC (WHEP) *client*: it pulls the browser
+# broadcast from Cloudflare and re-serves it locally over RTSP, which ffmpeg
+# then pushes to YouTube/etc. Paths are added at runtime via the API when a
+# broadcast starts. All inbound servers except RTSP (localhost) are disabled.
+
+logLevel: info
+
+# Runtime control API (localhost only) - server.js adds/removes paths here.
+api: yes
+apiAddress: 127.0.0.1:9997
+
+# Local RTSP so ffmpeg can read the pulled stream. Not exposed publicly.
+rtsp: yes
+rtspAddress: 127.0.0.1:8554
+
+# Everything else off - we don't serve to the public from here.
+rtmp: no
+hls: no
+webrtc: no
+srt: no
+playback: no
+metrics: no
+pprof: no
+
+paths: {}

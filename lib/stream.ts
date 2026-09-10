@@ -99,9 +99,8 @@ export async function getLiveInput(): Promise<StreamIngest | null> {
   }
 }
 
-// Public HLS playback URL for the live broadcast. The simulcast relay pulls
-// this and pushes it to YouTube/Facebook/Twitch. Returns null if Stream isn't
-// configured or no live input can be resolved.
+// Public HLS playback URL for the live broadcast. NOTE: a WebRTC (WHIP)
+// broadcast produces no HLS, so this is only useful for RTMPS/SRT ingest.
 export async function liveHlsUrl(): Promise<string | null> {
   if (!streamConfigured) return null;
   const uid = await resolveInputUid();
@@ -110,6 +109,19 @@ export async function liveHlsUrl(): Promise<string | null> {
     ? `https://customer-${CF_CUSTOMER_CODE}.cloudflarestream.com`
     : "https://videodelivery.net";
   return `${host}/${uid}/manifest/video.m3u8`;
+}
+
+// WebRTC (WHEP) playback URL for the live broadcast. The browser studio ingests
+// over WebRTC, which has no HLS - so the simulcast relay pulls THIS and pushes
+// it to YouTube/Facebook/Twitch. Returns null if it can't be resolved.
+export async function liveWhepUrl(): Promise<string | null> {
+  const input = await getLiveInput();
+  if (input?.whepUrl) return input.whepUrl;
+  // Fallback: construct the standard Cloudflare WHEP play URL.
+  if (!CF_CUSTOMER_CODE) return null;
+  const uid = await resolveInputUid();
+  if (!uid) return null;
+  return `https://customer-${CF_CUSTOMER_CODE}.cloudflarestream.com/${uid}/webRTC/play`;
 }
 
 // ---- Simulcast (Live) Outputs: fan the input out to YouTube etc. ----

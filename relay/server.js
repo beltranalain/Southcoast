@@ -1,188 +1,179 @@
-// Simulcast relay.
+// Simulcast relay (WebRTC edition).
 //
-// The browser studio publishes to Cloudflare over WebRTC (WHIP). Cloudflare will
-// NOT forward a WebRTC input to its Live Outputs, so it cannot simulcast to
-// YouTube on its own. This tiny service closes that gap: it pulls Cloudflare's
-// HLS playback of the live broadcast and pushes it to YouTube/Facebook/Twitch
-// over RTMP with ffmpeg `-c copy` (no re-encode -> almost no CPU).
+// The browser studio publishes to Cloudflare over WebRTC (WHIP). A WebRTC
+// broadcast on Cloudflare has NO HLS/DASH file - it is playable only over
+// WebRTC (WHEP). So to simulcast to YouTube without OBS we must speak WebRTC.
 //
-// The Next.js app calls POST /start when the host goes live and POST /stop when
-// they end. Everything is protected by a shared secret (RELAY_SECRET).
+// Pipeline:
+//   Cloudflare WHEP  --(MediaMTX pulls it)-->  local RTSP  --(ffmpeg)-->  RTMP -> YouTube/etc.
 //
-// No dependencies beyond Node 18+ and ffmpeg on PATH.
+// MediaMTX does the hard WebRTC part (as a WHEP client) and re-serves the
+// stream on localhost RTSP. ffmpeg copies the H.264 video through and
+// transcodes the Opus audio to AAC (cheap) for RTMP/FLV.
+//
+// The Next.js app calls POST /start (with the Cloudflare WHEP URL) when the
+// host goes live, and POST /stop when they end. Protected by RELAY_SECRET.
 
 import http from "node:http";
 import { spawn } from "node:child_process";
 
 const PORT = Number(process.env.PORT || 8080);
 const SECRET = process.env.RELAY_SECRET || "";
-const RESTART_DELAY_MS = 3000; // HLS may not be ready the instant we go live; retry.
+const MTX_API = "http://127.0.0.1:9997";
+const RTSP_PATH = "live"; // single broadcast at a time
+const RTSP_URL = `rtsp://127.0.0.1:8554/${RTSP_PATH}`;
+const RESTART_DELAY_MS = 3000;
 const MAX_RESTART_DELAY_MS = 15000;
 
-// ---- Session state -------------------------------------------------------
-// One active broadcast at a time. Each destination gets its own ffmpeg child so
-// one platform failing (bad key) never takes the others down.
-let session = null; // { hlsUrl, dests: Map<id, DestState> }
+let session = null; // { whep, dests: Map<id, DestState> }
+let mtxReady = false;
 
-/** @typedef {{ id:string, target:string, proc:any, alive:boolean, restarts:number,
- *   backoff:number, lastError:string, timer:any, stopping:boolean }} DestState */
+function log(...a) { console.log(new Date().toISOString(), ...a); }
 
 function joinUrlKey(url, key) {
   const u = String(url || "").trim().replace(/\/+$/, "");
   const k = String(key || "").trim();
   return k ? `${u}/${k}` : u;
 }
-
 function redact(target) {
-  // Hide the stream key in logs/status (keep the last 4 chars).
-  return target.replace(/\/([^/]{4})[^/]*$/, (_m, tail) => `/****${tail}`);
+  return target.replace(/\/([^/]{4})[^/]*$/, (_m, t) => `/****${t}`);
+}
+// Cloudflare gives us an https WHEP URL; MediaMTX wants the wheps:// scheme.
+function toWheps(whep) {
+  return String(whep || "").trim().replace(/^https:\/\//, "wheps://").replace(/^http:\/\//, "whep://");
 }
 
-function log(...args) {
-  // eslint-disable-next-line no-console
-  console.log(new Date().toISOString(), ...args);
+// ---- MediaMTX (WHEP client) -------------------------------------------------
+function startMediaMtx() {
+  const proc = spawn("mediamtx", ["/app/mediamtx.yml"], { stdio: ["ignore", "inherit", "inherit"] });
+  proc.on("exit", (code) => { log(`mediamtx exited (${code}) - restarting in 2s`); mtxReady = false; setTimeout(startMediaMtx, 2000); });
+  waitForMtx();
+}
+async function waitForMtx() {
+  for (let i = 0; i < 60; i++) {
+    try {
+      const r = await fetch(`${MTX_API}/v3/config/global/get`);
+      if (r.ok) { mtxReady = true; log("mediamtx API ready"); return; }
+    } catch { /* not up yet */ }
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  log("mediamtx API did not become ready in time");
 }
 
-function spawnFfmpeg(hlsUrl, dest) {
-  // -re: read input at native rate. Reconnect flags keep us resilient to the
-  // HLS manifest briefly disappearing. -c copy: pass the H.264/AAC through
-  // untouched (Cloudflare already encoded it) so this is nearly free on CPU.
+async function mtxAddSource(whepUrl) {
+  const source = toWheps(whepUrl);
+  // Clean slate: delete any existing path, then add.
+  try { await fetch(`${MTX_API}/v3/config/paths/delete/${RTSP_PATH}`, { method: "DELETE" }); } catch { /* ignore */ }
+  const body = JSON.stringify({ source, sourceOnDemand: true, sourceOnDemandCloseAfter: "10s" });
+  const r = await fetch(`${MTX_API}/v3/config/paths/add/${RTSP_PATH}`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body,
+  });
+  if (!r.ok) throw new Error(`mediamtx add path failed: ${r.status} ${await r.text().catch(() => "")}`);
+  log(`mediamtx pulling WHEP source (on demand)`);
+}
+async function mtxRemoveSource() {
+  try { await fetch(`${MTX_API}/v3/config/paths/delete/${RTSP_PATH}`, { method: "DELETE" }); } catch { /* ignore */ }
+}
+
+// ---- ffmpeg: local RTSP -> RTMP out ----------------------------------------
+function spawnFfmpeg(dest) {
+  // Video H.264 passthrough (Cloudflare WebRTC is H.264); audio Opus -> AAC.
   const args = [
-    "-hide_banner",
-    "-loglevel", "warning",
-    "-re",
-    "-reconnect", "1",
-    "-reconnect_at_eof", "1",
-    "-reconnect_streamed", "1",
-    "-reconnect_delay_max", "5",
-    "-i", hlsUrl,
-    "-c", "copy",
+    "-hide_banner", "-loglevel", "warning",
+    "-rtsp_transport", "tcp",
+    "-i", RTSP_URL,
+    "-c:v", "copy",
+    "-c:a", "aac", "-ar", "44100", "-b:a", "128k",
     "-f", "flv",
     dest.target,
   ];
   const proc = spawn("ffmpeg", args, { stdio: ["ignore", "ignore", "pipe"] });
-  dest.proc = proc;
-  dest.alive = true;
-
-  proc.stderr.on("data", (b) => {
-    const line = b.toString().trim();
-    if (line) dest.lastError = line.split("\n").pop().slice(0, 300);
-  });
-
+  dest.proc = proc; dest.alive = true;
+  proc.stderr.on("data", (b) => { const line = b.toString().trim(); if (line) dest.lastError = line.split("\n").pop().slice(0, 300); });
   proc.on("exit", (code, signal) => {
-    dest.alive = false;
-    dest.proc = null;
+    dest.alive = false; dest.proc = null;
     if (dest.stopping || !session || !session.dests.has(dest.id)) return;
-    // Unexpected exit while the broadcast is still live -> back off and retry.
     dest.restarts += 1;
     dest.backoff = Math.min(MAX_RESTART_DELAY_MS, (dest.backoff || RESTART_DELAY_MS) * 1.5);
     log(`ffmpeg exited (${signal || code}) for ${redact(dest.target)} - retry #${dest.restarts} in ${Math.round(dest.backoff)}ms`);
-    dest.timer = setTimeout(() => {
-      if (session && session.dests.has(dest.id) && !dest.stopping) spawnFfmpeg(session.hlsUrl, dest);
-    }, dest.backoff);
+    dest.timer = setTimeout(() => { if (session && session.dests.has(dest.id) && !dest.stopping) spawnFfmpeg(dest); }, dest.backoff);
   });
-
   log(`ffmpeg started -> ${redact(dest.target)}`);
 }
-
 function stopDest(dest) {
   dest.stopping = true;
   if (dest.timer) { clearTimeout(dest.timer); dest.timer = null; }
-  if (dest.proc) {
-    try { dest.proc.kill("SIGTERM"); } catch { /* already gone */ }
-  }
+  if (dest.proc) { try { dest.proc.kill("SIGTERM"); } catch { /* gone */ } }
 }
 
-function stopSession() {
-  if (!session) return;
-  for (const dest of session.dests.values()) stopDest(dest);
-  session = null;
-  log("session stopped");
-}
-
-function startSession(hlsUrl, destinations) {
-  stopSession();
-  session = { hlsUrl, dests: new Map() };
+async function startSession(whepUrl, destinations) {
+  await stopSession();
+  await mtxAddSource(whepUrl);
+  session = { whep: whepUrl, dests: new Map() };
   for (const d of destinations) {
     const target = joinUrlKey(d.url, d.key);
     if (!target) continue;
-    /** @type {DestState} */
     const dest = { id: String(d.id || target), target, proc: null, alive: false, restarts: 0, backoff: RESTART_DELAY_MS, lastError: "", timer: null, stopping: false };
     session.dests.set(dest.id, dest);
-    spawnFfmpeg(hlsUrl, dest);
+    spawnFfmpeg(dest);
   }
   log(`session started -> ${session.dests.size} destination(s)`);
 }
+async function stopSession() {
+  if (session) { for (const d of session.dests.values()) stopDest(d); session = null; log("session stopped"); }
+  await mtxRemoveSource();
+}
 
 function statusPayload() {
-  if (!session) return { live: false, destinations: [] };
+  if (!session) return { live: false, mtxReady, destinations: [] };
   return {
-    live: true,
-    hls: session.hlsUrl,
-    destinations: [...session.dests.values()].map((d) => ({
-      id: d.id,
-      target: redact(d.target),
-      alive: d.alive,
-      restarts: d.restarts,
-      lastError: d.lastError || undefined,
-    })),
+    live: true, mtxReady, whep: session.whep,
+    destinations: [...session.dests.values()].map((d) => ({ id: d.id, target: redact(d.target), alive: d.alive, restarts: d.restarts, lastError: d.lastError || undefined })),
   };
 }
 
-// ---- HTTP control API ----------------------------------------------------
+// ---- HTTP control API -------------------------------------------------------
 function send(res, status, body) {
   const data = JSON.stringify(body);
   res.writeHead(status, { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(data) });
   res.end(data);
 }
-
 function authed(req) {
-  if (!SECRET) return true; // no secret configured -> open (dev only)
-  const h = req.headers["authorization"] || "";
-  return h === `Bearer ${SECRET}`;
+  if (!SECRET) return true;
+  return (req.headers["authorization"] || "") === `Bearer ${SECRET}`;
 }
-
 function readJson(req) {
   return new Promise((resolve) => {
-    let raw = "";
-    req.on("data", (c) => { raw += c; if (raw.length > 1e6) req.destroy(); });
+    let raw = ""; req.on("data", (c) => { raw += c; if (raw.length > 1e6) req.destroy(); });
     req.on("end", () => { try { resolve(JSON.parse(raw || "{}")); } catch { resolve(null); } });
     req.on("error", () => resolve(null));
   });
 }
 
 const server = http.createServer(async (req, res) => {
-  const url = new URL(req.url, `http://localhost`);
-  const path = url.pathname;
-
-  if (path === "/health") return send(res, 200, { ok: true });
-
+  const path = new URL(req.url, "http://localhost").pathname;
+  if (path === "/health") return send(res, 200, { ok: true, mtxReady });
   if (!authed(req)) return send(res, 401, { error: "Unauthorized" });
 
-  if (path === "/status" && req.method === "GET") {
-    return send(res, 200, statusPayload());
-  }
+  if (path === "/status" && req.method === "GET") return send(res, 200, statusPayload());
 
   if (path === "/start" && req.method === "POST") {
     const body = await readJson(req);
-    if (!body || !body.hlsUrl || !Array.isArray(body.destinations) || body.destinations.length === 0) {
-      return send(res, 400, { error: "hlsUrl and non-empty destinations[] are required." });
+    const whep = body && (body.whepUrl || body.sourceUrl || body.hlsUrl);
+    if (!whep || !Array.isArray(body.destinations) || body.destinations.length === 0) {
+      return send(res, 400, { error: "whepUrl and non-empty destinations[] are required." });
     }
-    startSession(String(body.hlsUrl), body.destinations);
+    if (!mtxReady) return send(res, 503, { error: "Relay warming up, try again in a moment." });
+    try { await startSession(String(whep), body.destinations); }
+    catch (e) { return send(res, 500, { error: String(e.message || e) }); }
     return send(res, 200, { ok: true, ...statusPayload() });
   }
 
-  if (path === "/stop" && req.method === "POST") {
-    stopSession();
-    return send(res, 200, { ok: true });
-  }
+  if (path === "/stop" && req.method === "POST") { await stopSession(); return send(res, 200, { ok: true }); }
 
   return send(res, 404, { error: "Not found" });
 });
 
+startMediaMtx();
 server.listen(PORT, () => log(`simulcast relay listening on :${PORT}`));
-
-// Clean shutdown so ffmpeg children don't linger.
-for (const sig of ["SIGINT", "SIGTERM"]) {
-  process.on(sig, () => { stopSession(); process.exit(0); });
-}
+for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, async () => { await stopSession(); process.exit(0); });

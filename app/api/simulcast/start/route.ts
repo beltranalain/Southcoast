@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/requireAdmin";
-import { liveHlsUrl } from "@/lib/stream";
+import { liveWhepUrl } from "@/lib/stream";
 import { activeDestinations } from "@/lib/simulcast";
 import { relayStart, relayConfigured } from "@/lib/relay";
 
@@ -19,9 +19,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Simulcast relay not connected. Set RELAY_URL to enable YouTube streaming." }, { status: 200 });
   }
 
-  const hls = await liveHlsUrl();
-  if (!hls) return NextResponse.json({ ok: false, error: "No live broadcast to forward yet." }, { status: 200 });
+  const whep = await liveWhepUrl();
+  if (!whep) return NextResponse.json({ ok: false, error: "No live broadcast to forward yet." }, { status: 200 });
 
-  const r = await relayStart(hls, dests.map((d) => ({ id: d.id, url: d.url, key: d.key })));
+  const r = await relayStart(whep, dests.map((d) => ({ id: d.id, url: d.url, key: d.key })));
   return NextResponse.json({ ...r, forwarded: r.ok ? dests.length : 0 });
 }
