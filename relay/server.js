@@ -86,11 +86,12 @@ function spawnFfmpeg(dest) {
     "-map", "0:v:0", "-map", "0:a:0?",
     // Cloudflare's browser (WebRTC) video is VP8, which RTMP/FLV can't carry.
     // Transcode to H.264 with a steady keyframe interval (YouTube needs one
-    // every ~2s). zerolatency keeps it live; veryfast keeps CPU sane.
-    "-c:v", "libx264", "-preset", "veryfast", "-tune", "zerolatency",
-    "-profile:v", "main", "-pix_fmt", "yuv420p",
+    // every ~2s). No zerolatency tune - it noticeably softens the image and
+    // the small extra latency is invisible next to YouTube's own buffer.
+    "-c:v", "libx264", "-preset", "veryfast",
+    "-profile:v", "high", "-pix_fmt", "yuv420p",
     "-g", "60", "-keyint_min", "60", "-sc_threshold", "0",
-    "-b:v", "4000k", "-maxrate", "4000k", "-bufsize", "8000k",
+    "-b:v", "6000k", "-maxrate", "6000k", "-bufsize", "12000k",
     "-c:a", "aac", "-b:a", "128k", "-ar", "48000", "-ac", "2",
     "-max_muxing_queue_size", "1024",
     "-f", "flv",

@@ -119,9 +119,23 @@ export class RealtimeSession {
 
 // Publish a MediaStream (e.g. the composited canvas + mixed audio) to a
 // Cloudflare Stream Live Input over WHIP. Returns the RTCPeerConnection.
-export async function whipPublish(whipUrl: string, stream: MediaStream): Promise<RTCPeerConnection> {
+export async function whipPublish(whipUrl: string, stream: MediaStream, maxKbps = 4500): Promise<RTCPeerConnection> {
   const pc = new RTCPeerConnection(RTC_CONFIG);
   stream.getTracks().forEach((t) => pc.addTrack(t, stream));
+  // WebRTC defaults to a low, conservative bitrate which looks soft at 720p.
+  // Raise the ceiling and keep resolution over framerate under pressure.
+  const vsender = pc.getSenders().find((s) => s.track?.kind === "video");
+  if (vsender) {
+    try { (vsender.track as MediaStreamTrack & { contentHint: string }).contentHint = "detail"; } catch { /* not supported */ }
+    try {
+      const params = vsender.getParameters();
+      if (!params.encodings || params.encodings.length === 0) params.encodings = [{}];
+      params.encodings[0].maxBitrate = maxKbps * 1000;
+      params.encodings[0].maxFramerate = 30;
+      (params as RTCRtpSendParameters & { degradationPreference?: string }).degradationPreference = "maintain-resolution";
+      await vsender.setParameters(params);
+    } catch { /* best-effort */ }
+  }
   const offer = await pc.createOffer();
   await pc.setLocalDescription(offer);
   await iceComplete(pc);
