@@ -33,8 +33,10 @@ export async function GET(request: Request) {
   const chatWs = process.env.NEXT_PUBLIC_CHAT_WS_URL || "";
   const chatHttp = chatWs.replace(/^wss:/, "https:").replace(/^ws:/, "http:");
   const resendKey = process.env.RESEND_API_KEY || "";
+  const relayUrl = process.env.RELAY_URL || "";
+  const relaySecret = process.env.RELAY_SECRET || "";
 
-  const [firebase, youtube, stream, chat, stripe, resend] = await Promise.all([
+  const [firebase, youtube, stream, relay, chat, stripe, resend] = await Promise.all([
     check(adminConfigured, async () => {
       const db = getAdminDb();
       if (!db) return false;
@@ -46,6 +48,9 @@ export async function GET(request: Request) {
       return Boolean(s);
     }),
     check(streamConfigured, async () => Boolean(await getLiveInput())),
+    // The relay scales to zero (sleeps when idle), so we DON'T ping it here -
+    // that would wake it and cost money. Configured = ready; it wakes on Go Live.
+    check(Boolean(relayUrl && relaySecret), async () => true),
     check(Boolean(chatHttp), async () => {
       const r = await withTimeout(fetch(chatHttp, { cache: "no-store" }), 5000);
       return r.ok;
@@ -62,5 +67,5 @@ export async function GET(request: Request) {
     }),
   ]);
 
-  return NextResponse.json({ firebase, youtube, stream, chat, stripe, resend });
+  return NextResponse.json({ firebase, youtube, stream, relay, chat, stripe, resend });
 }

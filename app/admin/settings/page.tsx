@@ -12,6 +12,7 @@ const INTEGRATIONS: { key: string; name: string; detail: string }[] = [
   { key: "firebase", name: "Firebase", detail: "Admin sign-in, content, and user accounts" },
   { key: "youtube", name: "YouTube Data API", detail: "Pulls real videos and live status" },
   { key: "stream", name: "Cloudflare Stream", detail: "Live ingest, simulcast, and video storage" },
+  { key: "relay", name: "Simulcast relay (Fly.io)", detail: "Forwards browser broadcasts to YouTube/Facebook/Twitch" },
   { key: "chat", name: "Live chat (Cloudflare Durable Objects)", detail: "Real-time chat + guest Worker" },
   { key: "stripe", name: "Stripe", detail: "Tips and payments" },
   { key: "resend", name: "Contact email (Resend)", detail: "Delivers contact-form messages" },

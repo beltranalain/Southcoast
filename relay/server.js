@@ -62,36 +62,61 @@ async function waitForMtx() {
 
 async function mtxAddSource(whepUrl) {
   const source = toWheps(whepUrl);
-  // Clean slate: delete any existing path, then add.
+  // Clean slate: delete any existing path, then add. Not on-demand: we connect
+  // immediately so we can probe the incoming video codec before starting ffmpeg.
   try { await fetch(`${MTX_API}/v3/config/paths/delete/${RTSP_PATH}`, { method: "DELETE" }); } catch { /* ignore */ }
-  const body = JSON.stringify({ source, sourceOnDemand: true, sourceOnDemandCloseAfter: "10s" });
+  const body = JSON.stringify({ source, sourceOnDemand: false });
   const r = await fetch(`${MTX_API}/v3/config/paths/add/${RTSP_PATH}`, {
     method: "POST", headers: { "Content-Type": "application/json" }, body,
   });
   if (!r.ok) throw new Error(`mediamtx add path failed: ${r.status} ${await r.text().catch(() => "")}`);
-  log(`mediamtx pulling WHEP source (on demand)`);
+  log(`mediamtx pulling WHEP source`);
 }
 async function mtxRemoveSource() {
   try { await fetch(`${MTX_API}/v3/config/paths/delete/${RTSP_PATH}`, { method: "DELETE" }); } catch { /* ignore */ }
 }
 
+// Wait for the source to come online and report its video codec ("h264" or
+// "vp8"). Defaults to "vp8" (re-encode) so we never send YouTube a codec it
+// can't read.
+async function mtxVideoCodec() {
+  for (let i = 0; i < 25; i++) {
+    try {
+      const r = await fetch(`${MTX_API}/v3/paths/get/${RTSP_PATH}`);
+      if (r.ok) {
+        const d = await r.json();
+        const tracks = (d.tracks || []).join(",").toLowerCase();
+        if (d.ready && tracks) {
+          if (tracks.includes("h264") || tracks.includes("h.264") || tracks.includes("avc")) return "h264";
+          return "vp8";
+        }
+      }
+    } catch { /* not ready */ }
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  return "vp8";
+}
+
 // ---- ffmpeg: local RTSP -> RTMP out ----------------------------------------
-function spawnFfmpeg(dest) {
-  // Video H.264 passthrough (Cloudflare WebRTC is H.264); audio Opus -> AAC.
+function spawnFfmpeg(dest, vcodec) {
+  // If the browser sent H.264 (preferred), copy it straight through - no second
+  // lossy encode, so it's as sharp as the source and cheap on CPU. If it's VP8,
+  // we must transcode to H.264 for RTMP/FLV.
+  const video = vcodec === "h264"
+    ? ["-c:v", "copy"]
+    : [
+        "-c:v", "libx264", "-preset", "veryfast",
+        "-profile:v", "high", "-pix_fmt", "yuv420p",
+        "-g", "60", "-keyint_min", "60", "-sc_threshold", "0",
+        "-b:v", "6000k", "-maxrate", "6000k", "-bufsize", "12000k",
+      ];
   const args = [
     "-hide_banner", "-loglevel", "warning",
     "-rtsp_transport", "tcp",
     "-fflags", "+genpts",
     "-i", RTSP_URL,
     "-map", "0:v:0", "-map", "0:a:0?",
-    // Cloudflare's browser (WebRTC) video is VP8, which RTMP/FLV can't carry.
-    // Transcode to H.264 with a steady keyframe interval (YouTube needs one
-    // every ~2s). No zerolatency tune - it noticeably softens the image and
-    // the small extra latency is invisible next to YouTube's own buffer.
-    "-c:v", "libx264", "-preset", "veryfast",
-    "-profile:v", "high", "-pix_fmt", "yuv420p",
-    "-g", "60", "-keyint_min", "60", "-sc_threshold", "0",
-    "-b:v", "6000k", "-maxrate", "6000k", "-bufsize", "12000k",
+    ...video,
     "-c:a", "aac", "-b:a", "128k", "-ar", "48000", "-ac", "2",
     "-max_muxing_queue_size", "1024",
     "-f", "flv",
@@ -110,7 +135,7 @@ function spawnFfmpeg(dest) {
     dest.restarts += 1;
     dest.backoff = Math.min(MAX_RESTART_DELAY_MS, (dest.backoff || RESTART_DELAY_MS) * 1.5);
     log(`ffmpeg exited (${signal || code}) for ${redact(dest.target)} - retry #${dest.restarts} in ${Math.round(dest.backoff)}ms`);
-    dest.timer = setTimeout(() => { if (session && session.dests.has(dest.id) && !dest.stopping) spawnFfmpeg(dest); }, dest.backoff);
+    dest.timer = setTimeout(() => { if (session && session.dests.has(dest.id) && !dest.stopping) spawnFfmpeg(dest, session.vcodec || "vp8"); }, dest.backoff);
   });
   log(`ffmpeg started -> ${redact(dest.target)}`);
 }
@@ -123,13 +148,16 @@ function stopDest(dest) {
 async function startSession(whepUrl, destinations) {
   await stopSession();
   await mtxAddSource(whepUrl);
-  session = { whep: whepUrl, dests: new Map() };
+  session = { whep: whepUrl, dests: new Map(), vcodec: "vp8" };
+  // Probe the incoming video codec so we can copy (H.264) or transcode (VP8).
+  session.vcodec = await mtxVideoCodec();
+  log(`source video codec: ${session.vcodec} (${session.vcodec === "h264" ? "copy" : "transcode"})`);
   for (const d of destinations) {
     const target = joinUrlKey(d.url, d.key);
     if (!target) continue;
     const dest = { id: String(d.id || target), target, proc: null, alive: false, restarts: 0, backoff: RESTART_DELAY_MS, lastError: "", timer: null, stopping: false };
     session.dests.set(dest.id, dest);
-    spawnFfmpeg(dest);
+    spawnFfmpeg(dest, session.vcodec);
   }
   log(`session started -> ${session.dests.size} destination(s)`);
 }
@@ -141,7 +169,7 @@ async function stopSession() {
 function statusPayload() {
   if (!session) return { live: false, mtxReady, destinations: [] };
   return {
-    live: true, mtxReady, whep: session.whep,
+    live: true, mtxReady, whep: session.whep, vcodec: session.vcodec,
     destinations: [...session.dests.values()].map((d) => ({ id: d.id, target: redact(d.target), alive: d.alive, restarts: d.restarts, lastError: d.lastError || undefined })),
   };
 }
