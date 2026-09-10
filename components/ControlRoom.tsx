@@ -52,6 +52,12 @@ export default function ControlRoom() {
   const [sounds, setSounds] = useState<SoundPad[]>([]);
   const [soundLabel, setSoundLabel] = useState("");
   const [soundMsg, setSoundMsg] = useState("");
+  // Live audience: people connected to the live page (proxy for on-site viewers)
+  // + a running estimated cost for this broadcast session.
+  const [onSite, setOnSite] = useState(0);
+  const [sessionCost, setSessionCost] = useState(0);
+  const onSiteRef = useRef(0);
+  const wasLiveRef = useRef(false);
   const [pressed, setPressed] = useState<string | null>(null);
 
   const stageRef = useRef<HTMLDivElement | null>(null);
@@ -251,9 +257,18 @@ export default function ControlRoom() {
       if (d.type === "history" && Array.isArray(d.messages)) setChat(d.messages.slice(-60));
       else if (d.type === "clear") setChat([]);
       else if (d.type === "chat") setChat((p) => [...p.slice(-59), d]);
+      else if (d.type === "count") { const n = Math.max(0, (Number(d.count) || 0) - 1); onSiteRef.current = n; setOnSite(n); }
       else if (d.type === "tip") broadcast.showTipAlert(d.name, d.amount, d.message); };
     chatWs.current = cw;
-    return () => { ow.close(); cw.close(); };
+    // Accumulate this session's on-site delivery cost while live: on-site
+    // viewers x elapsed minutes x $0.001. Resets each time you go live.
+    const costTimer = setInterval(() => {
+      if (broadcast.live) {
+        if (!wasLiveRef.current) { wasLiveRef.current = true; setSessionCost(0); }
+        setSessionCost((c) => c + onSiteRef.current * (15 / 60) * 0.001);
+      } else { wasLiveRef.current = false; }
+    }, 15000);
+    return () => { ow.close(); cw.close(); clearInterval(costTimer); };
   }, []);
 
   // Push graphics to BOTH the browser composite (engine) and the OBS overlay.
@@ -353,6 +368,11 @@ export default function ControlRoom() {
           {ingest === null && <div className="notice" style={{ marginTop: 14 }}><strong>Cloudflare Stream not connected.</strong> Preview works; Go Live turns on once the Stream keys are set.</div>}
           {broadcast.error && <p className="form-error" style={{ marginTop: 10 }}>{broadcast.error}</p>}
           {live && <p className="form-ok" style={{ marginTop: 10 }}>Live on your site and simulcasting to YouTube.</p>}
+          <div className="live-aud">
+            <span className="la-item"><b>{onSite}</b> on your site<small>watching your player</small></span>
+            <span className="la-item paid"><b>~${sessionCost.toFixed(2)}</b> this session<small>on-site delivery so far</small></span>
+            <span className="la-item free"><b>YouTube</b> free<small>simulcast viewers cost $0</small></span>
+          </div>
         </div>
 
         {/* ---- Show controls ---- */}
