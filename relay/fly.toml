@@ -13,11 +13,12 @@ primary_region = "iad"
 [http_service]
   internal_port = 8080
   force_https = true
-  # Keep one machine always on. This relay holds a live ffmpeg process with no
-  # inbound traffic, so auto-stop would kill a broadcast mid-stream.
-  auto_stop_machines = "off"
+  # Scale to zero: the machine sleeps when idle (cost ~= $0) and auto-starts on
+  # the /start call when you go live. The studio sends a heartbeat every 60s
+  # while broadcasting so it stays awake for the whole show, then sleeps again.
+  auto_stop_machines = "stop"
   auto_start_machines = true
-  min_machines_running = 1
+  min_machines_running = 0
 
   [[http_service.checks]]
     interval = "30s"

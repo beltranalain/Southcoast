@@ -82,10 +82,20 @@ export default function ControlRoom() {
   // going live - it's best-effort.
   async function goLive() {
     await broadcast.goLive();
-    try {
-      const token = await getIdToken();
-      await fetch("/api/simulcast/start", { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {} });
-    } catch { /* best-effort */ }
+    // Kick the simulcast relay. It scales to zero to save cost, so the first
+    // call may need a few tries while the machine cold-boots (~10-20s). Retry
+    // until it takes. Never blocks going live - best-effort.
+    const token = await getIdToken().catch(() => null);
+    const hdr: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+    for (let i = 0; i < 10; i++) {
+      if (!broadcast.live) break; // host stopped before it connected
+      try {
+        const r = await fetch("/api/simulcast/start", { method: "POST", headers: hdr });
+        const d = await r.json().catch(() => ({}));
+        if (r.ok && (d.ok || d.forwarded > 0 || d.note)) break;
+      } catch { /* retry */ }
+      await new Promise((res) => setTimeout(res, 4000));
+    }
   }
   async function endBroadcast() {
     broadcast.stop();
@@ -94,6 +104,18 @@ export default function ControlRoom() {
       await fetch("/api/simulcast/stop", { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {} });
     } catch { /* best-effort */ }
   }
+
+  // Heartbeat: while live, ping the relay so its scale-to-zero host stays awake
+  // for the whole broadcast (it sleeps again shortly after you stop).
+  useEffect(() => {
+    const t = setInterval(() => {
+      if (!broadcast.live) return;
+      getIdToken()
+        .then((token) => fetch("/api/simulcast/status", { headers: token ? { Authorization: `Bearer ${token}` } : {}, cache: "no-store" }).catch(() => {}))
+        .catch(() => {});
+    }, 60000);
+    return () => clearInterval(t);
+  }, []);
 
   const stageRef = useRef<HTMLDivElement | null>(null);
   const overlayWs = useRef<WebSocket | null>(null);
