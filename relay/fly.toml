@@ -27,5 +27,6 @@ primary_region = "iad"
     path = "/health"
 
 [[vm]]
-  size = "shared-cpu-1x"
-  memory = "512mb"
+  # Video is transcoded VP8 -> H.264 live, so give it real CPU headroom.
+  size = "shared-cpu-2x"
+  memory = "2048mb"
