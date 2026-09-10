@@ -19,6 +19,10 @@ primary_region = "iad"
   auto_stop_machines = "stop"
   auto_start_machines = true
   min_machines_running = 0
+  # The studio POSTs /api/simulcast/warm when the page mounts (wakes the machine
+  # and waits for MediaMTX), then polls /status every 5s for the whole broadcast,
+  # which keeps it awake. Without the warm call the first Go Live races the cold
+  # start and /start returns 503.
 
   [[http_service.checks]]
     interval = "30s"
@@ -28,6 +32,11 @@ primary_region = "iad"
     path = "/health"
 
 [[vm]]
-  # Video is transcoded VP8 -> H.264 live, so give it real CPU headroom.
-  size = "shared-cpu-2x"
+  # The relay re-encodes once (CBR, 2s GOP) and tees the result to every
+  # destination. That is a real x264 workload, and a shared slice gets throttled
+  # mid-show, which shows up as dropped frames and mush on YouTube.
+  #   720p30  @ 4500k -> performance-1x is enough
+  #   1080p30 @ 6000k -> performance-2x
+  # Override the profile with OUT_WIDTH / OUT_HEIGHT / OUT_FPS / OUT_BITRATE_KBPS.
+  size = "performance-1x"
   memory = "2048mb"

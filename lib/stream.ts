@@ -57,6 +57,46 @@ export async function getLiveInputStatus(
 
 const LIVE_INPUT_UID = process.env.CLOUDFLARE_STREAM_LIVE_INPUT_UID || "";
 
+// ---- Input B: the playback/recording input --------------------------------
+// The browser studio ingests over WebRTC (WHIP). Cloudflare does not produce
+// HLS *or* a VOD recording from a WHIP input, and will not forward it to Live
+// Outputs. So the relay pushes an RTMPS copy of the program into a SECOND live
+// input. That input behaves like a normal RTMPS broadcast: the site player gets
+// HLS, recording works, and the archive fills itself.
+//
+//   studio --WHIP--> input A --WHEP--> relay --RTMP--> YouTube / Facebook
+//                                            --RTMPS-> input B --> site + VOD
+const PLAYBACK_INPUT_UID = process.env.CLOUDFLARE_STREAM_PLAYBACK_INPUT_UID || "";
+
+export const playbackInputConfigured = Boolean(PLAYBACK_INPUT_UID);
+
+// UID the public site should play. Falls back to the WHIP input so an
+// unconfigured deployment degrades instead of breaking.
+export function playbackInputUid(): string {
+  return PLAYBACK_INPUT_UID || LIVE_INPUT_UID;
+}
+
+export type PlaybackIngest = { uid: string; rtmpsUrl: string; streamKey: string };
+
+// RTMPS ingest details for input B, so the relay can push a copy into it.
+export async function getPlaybackIngest(): Promise<PlaybackIngest | null> {
+  if (!streamConfigured || !PLAYBACK_INPUT_UID) return null;
+  try {
+    const res = await fetch(`${BASE}/live_inputs/${PLAYBACK_INPUT_UID}`, {
+      headers: headers(),
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    const r = (await res.json()).result ?? {};
+    const rtmpsUrl = r.rtmps?.url ?? "";
+    const streamKey = r.rtmps?.streamKey ?? "";
+    if (!rtmpsUrl || !streamKey) return null;
+    return { uid: PLAYBACK_INPUT_UID, rtmpsUrl, streamKey };
+  } catch {
+    return null;
+  }
+}
+
 export type StreamIngest = {
   uid: string;
   whipUrl: string; // WebRTC publish endpoint - browser "Go Live"
@@ -99,11 +139,11 @@ export async function getLiveInput(): Promise<StreamIngest | null> {
   }
 }
 
-// Public HLS playback URL for the live broadcast. NOTE: a WebRTC (WHIP)
-// broadcast produces no HLS, so this is only useful for RTMPS/SRT ingest.
+// Public HLS playback URL. A WHIP input has no HLS, so this reads input B
+// (fed by the relay) whenever it is configured.
 export async function liveHlsUrl(): Promise<string | null> {
   if (!streamConfigured) return null;
-  const uid = await resolveInputUid();
+  const uid = PLAYBACK_INPUT_UID || (await resolveInputUid());
   if (!uid) return null;
   const host = CF_CUSTOMER_CODE
     ? `https://customer-${CF_CUSTOMER_CODE}.cloudflarestream.com`
@@ -188,7 +228,8 @@ export async function updateOutput(outputId: string, enabled: boolean): Promise<
 // ---- Auto-recording: keep every broadcast as a VOD in the Library ----
 export async function getRecordingMode(): Promise<"automatic" | "off" | null> {
   if (!streamConfigured) return null;
-  const uid = await resolveInputUid();
+  // Recording lives on input B (a WHIP input never produces a VOD asset).
+  const uid = PLAYBACK_INPUT_UID || (await resolveInputUid());
   if (!uid) return null;
   try {
     const res = await fetch(`${BASE}/live_inputs/${uid}`, { headers: headers(), cache: "no-store" });
@@ -202,7 +243,7 @@ export async function getRecordingMode(): Promise<"automatic" | "off" | null> {
 
 export async function setRecordingMode(enabled: boolean): Promise<boolean> {
   if (!streamConfigured) return false;
-  const uid = await resolveInputUid();
+  const uid = PLAYBACK_INPUT_UID || (await resolveInputUid());
   if (!uid) return false;
   try {
     const res = await fetch(`${BASE}/live_inputs/${uid}`, {

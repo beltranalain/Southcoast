@@ -43,3 +43,39 @@ chat visible on the video. (The overlay above already handles pinned comments an
 
 The trade: OBS is a desktop app instead of a browser tab, but you own everything and pay no
 per-seat subscription.
+
+
+## Why YouTube looked worse than the site (and what fixed it)
+
+**Symptom:** the broadcast looks sharp on your own site and blurry / low-resolution
+on YouTube.
+
+**Cause:** YouTube's ingest expects CBR with a **2-second closed GOP** and uses that
+to build its quality ladder. WebRTC emits keyframes on demand at irregular
+intervals with no fixed GOP. The relay used to pass H.264 through with `-c copy`,
+so YouTube received a stream it could not segment cleanly and served a low
+rendition. Our own player is WebRTC and does not care about GOP, which is why the
+site looked fine - the difference was never the source, it was the container.
+
+**Fix:** the relay no longer copies. It re-encodes once with an explicit
+`-g` / `-keyint_min` of 2 seconds, `-sc_threshold 0`, true CBR
+(`nal-hrd=cbr:force-cfr=1`) and a fixed frame rate, then fans that single encode
+out to every destination with ffmpeg's `tee` muxer. One encode, N destinations,
+and `onfail=ignore` so a bad key on one platform cannot take down the others or
+the copy feeding your own site.
+
+**Tuning:** set on the relay, not in the app.
+
+| Variable | Default | Notes |
+| --- | --- | --- |
+| `OUT_WIDTH` / `OUT_HEIGHT` | 1280 x 720 | 1920x1080 needs a bigger VM |
+| `OUT_FPS` | 30 | GOP is always 2x this |
+| `OUT_BITRATE_KBPS` | 4500 | 720p30. Use ~6000 for 1080p30 |
+
+A clean 720p that never drops beats a soft 1080p every time. Move up only after a
+private test stream shows stable ingest in YouTube Studio.
+
+**Still bad?** Check the studio's "Where it is actually going" panel while live. If
+`vcodec` is not `h264`, the browser failed to negotiate H.264 into Cloudflare and
+there is an extra decode in the path. If restarts are climbing, the VM is CPU
+starved - drop the bitrate or resolution before anything else.

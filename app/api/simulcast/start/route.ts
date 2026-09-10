@@ -1,27 +1,79 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/requireAdmin";
-import { liveWhepUrl } from "@/lib/stream";
+import { liveWhepUrl, getPlaybackIngest } from "@/lib/stream";
 import { activeDestinations } from "@/lib/simulcast";
 import { relayStart, relayConfigured } from "@/lib/relay";
 
-// Called by the studio right after Go Live. Resolves the Cloudflare HLS URL for
-// the current broadcast and tells the relay to forward it to every enabled
-// destination. Safe no-op (ok:true) when there are no destinations so it never
-// blocks going live.
+// Called by the studio right after Go Live.
+//
+// Two jobs:
+//  1. Forward the WebRTC program to every enabled destination (YouTube, etc).
+//  2. ALWAYS forward a copy into Cloudflare input B over RTMPS. That is what
+//     gives the public site an HLS player and an automatic recording — a WHIP
+//     input produces neither.
+//
+// Job 2 runs even with zero user destinations, because the site player and the
+// archive depend on it.
 
 export async function POST(request: Request) {
-  if (!(await requireAdmin(request))) return NextResponse.json({ error: "Not authorized." }, { status: 401 });
-
-  const dests = await activeDestinations();
-  if (dests.length === 0) return NextResponse.json({ ok: true, forwarded: 0, note: "No simulcast destinations enabled." });
-
-  if (!relayConfigured) {
-    return NextResponse.json({ ok: false, error: "Simulcast relay not connected. Set RELAY_URL to enable YouTube streaming." }, { status: 200 });
+  if (!(await requireAdmin(request))) {
+    return NextResponse.json({ error: "Not authorized." }, { status: 401 });
   }
 
-  const whep = await liveWhepUrl();
-  if (!whep) return NextResponse.json({ ok: false, error: "No live broadcast to forward yet." }, { status: 200 });
+  const [userDests, playback] = await Promise.all([
+    activeDestinations(),
+    getPlaybackIngest(),
+  ]);
 
-  const r = await relayStart(whep, dests.map((d) => ({ id: d.id, url: d.url, key: d.key })));
-  return NextResponse.json({ ...r, forwarded: r.ok ? dests.length : 0 });
+  const dests = userDests.map((d) => ({ id: d.id, url: d.url, key: d.key }));
+
+  // Input B first: the site player matters more than any external platform.
+  if (playback) {
+    dests.unshift({ id: "cf-playback", url: playback.rtmpsUrl, key: playback.streamKey });
+  }
+
+  if (dests.length === 0) {
+    return NextResponse.json({
+      ok: true,
+      forwarded: 0,
+      warning:
+        "No destinations and no playback input. The broadcast is live over WebRTC only — " +
+        "the site player and the recording will not work. Set CLOUDFLARE_STREAM_PLAYBACK_INPUT_UID.",
+    });
+  }
+
+  if (!relayConfigured) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          "Simulcast relay not connected. Set RELAY_URL — without it there is no YouTube " +
+          "output, no site player and no recording.",
+      },
+      { status: 200 }
+    );
+  }
+
+  // Cloudflare needs a moment after WHIP connects before WHEP playback resolves.
+  // Retry briefly rather than failing the whole broadcast on a race.
+  let whep: string | null = null;
+  for (let i = 0; i < 6; i++) {
+    whep = await liveWhepUrl();
+    if (whep) break;
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  if (!whep) {
+    return NextResponse.json(
+      { ok: false, error: "Cloudflare has not published a WebRTC playback URL yet. Try again in a few seconds." },
+      { status: 200 }
+    );
+  }
+
+  const r = await relayStart(whep, dests);
+  return NextResponse.json({
+    ...r,
+    forwarded: r.ok ? dests.length : 0,
+    playback: Boolean(playback),
+    external: userDests.length,
+  });
 }

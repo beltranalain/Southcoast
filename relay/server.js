@@ -17,6 +17,22 @@
 import http from "node:http";
 import { spawn } from "node:child_process";
 
+// ---- Output profile -------------------------------------------------------
+// YouTube's ingest is built around CBR with a 2-second CLOSED GOP; it uses that
+// to build its quality ladder. WebRTC emits keyframes on demand, at irregular
+// intervals, with no fixed GOP. So "-c copy" hands YouTube a stream it cannot
+// segment, and YouTube responds by serving a low rendition - the stream looks
+// fine on our own site (WebRTC playback ignores GOP) and terrible on YouTube.
+//
+// We therefore ALWAYS re-encode for RTMP, once, with an explicit GOP, and fan
+// the single encode out to every destination with ffmpeg's tee muxer. One
+// encode for N destinations instead of N encodes.
+const OUT_W = Number(process.env.OUT_WIDTH || 1280);
+const OUT_H = Number(process.env.OUT_HEIGHT || 720);
+const OUT_FPS = Number(process.env.OUT_FPS || 30);
+const OUT_KBPS = Number(process.env.OUT_BITRATE_KBPS || 4500);
+const GOP = OUT_FPS * 2; // 2 seconds, as YouTube expects
+
 const PORT = Number(process.env.PORT || 8080);
 const SECRET = process.env.RELAY_SECRET || "";
 const MTX_API = "http://127.0.0.1:9997";
@@ -97,80 +113,103 @@ async function mtxVideoCodec() {
   return "vp8";
 }
 
-// ---- ffmpeg: local RTSP -> RTMP out ----------------------------------------
-function spawnFfmpeg(dest, vcodec) {
-  // If the browser sent H.264 (preferred), copy it straight through - no second
-  // lossy encode, so it's as sharp as the source and cheap on CPU. If it's VP8,
-  // we must transcode to H.264 for RTMP/FLV.
-  const video = vcodec === "h264"
-    ? ["-c:v", "copy"]
-    : [
-        "-c:v", "libx264", "-preset", "veryfast",
-        "-profile:v", "high", "-pix_fmt", "yuv420p",
-        "-g", "60", "-keyint_min", "60", "-sc_threshold", "0",
-        "-b:v", "6000k", "-maxrate", "6000k", "-bufsize", "12000k",
-      ];
+// ---- ffmpeg: one encode, tee'd to every destination -------------------------
+// `onfail=ignore` keeps a bad YouTube key from killing Facebook and, more
+// importantly, from killing the copy that feeds our own site.
+function teeTarget(dests) {
+  return dests.map((d) => `[f=flv:onfail=ignore]${d.target}`).join("|");
+}
+
+function spawnPipeline() {
+  if (!session || session.dests.size === 0) return;
+  const dests = [...session.dests.values()];
   const args = [
     "-hide_banner", "-loglevel", "warning",
     "-rtsp_transport", "tcp",
     "-fflags", "+genpts",
     "-i", RTSP_URL,
     "-map", "0:v:0", "-map", "0:a:0?",
-    ...video,
-    "-c:a", "aac", "-b:a", "128k", "-ar", "48000", "-ac", "2",
+    // Video: CBR, fixed 2s closed GOP, constant frame rate. This is the part
+    // that makes YouTube serve full resolution instead of a low rendition.
+    "-c:v", "libx264", "-preset", "veryfast", "-profile:v", "high",
+    "-pix_fmt", "yuv420p",
+    "-vf", `scale=${OUT_W}:${OUT_H}:force_original_aspect_ratio=decrease,pad=${OUT_W}:${OUT_H}:(ow-iw)/2:(oh-ih)/2,format=yuv420p`,
+    "-r", String(OUT_FPS),
+    "-g", String(GOP), "-keyint_min", String(GOP), "-sc_threshold", "0",
+    "-b:v", `${OUT_KBPS}k`, "-minrate", `${OUT_KBPS}k`, "-maxrate", `${OUT_KBPS}k`,
+    "-bufsize", `${OUT_KBPS * 2}k`,
+    "-x264-params", "nal-hrd=cbr:force-cfr=1",
+    "-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-ac", "2",
     "-max_muxing_queue_size", "1024",
-    "-f", "flv",
-    dest.target,
+    "-flags", "+global_header",
+    "-f", "tee", teeTarget(dests),
   ];
   const proc = spawn("ffmpeg", args, { stdio: ["ignore", "ignore", "pipe"] });
-  dest.proc = proc; dest.alive = true;
+  session.proc = proc;
+  session.alive = true;
   proc.stderr.on("data", (b) => {
     const text = b.toString();
-    for (const line of text.split("\n")) { const t = line.trim(); if (t) log(`ffmpeg[${redact(dest.target)}] ${t}`); }
-    const last = text.trim().split("\n").pop(); if (last) dest.lastError = last.slice(0, 300);
+    for (const line of text.split("\n")) { const t = line.trim(); if (t) log(`ffmpeg ${t}`); }
+    const last = text.trim().split("\n").pop();
+    if (last) session.lastError = last.slice(0, 300);
   });
   proc.on("exit", (code, signal) => {
-    dest.alive = false; dest.proc = null;
-    if (dest.stopping || !session || !session.dests.has(dest.id)) return;
-    dest.restarts += 1;
-    dest.backoff = Math.min(MAX_RESTART_DELAY_MS, (dest.backoff || RESTART_DELAY_MS) * 1.5);
-    log(`ffmpeg exited (${signal || code}) for ${redact(dest.target)} - retry #${dest.restarts} in ${Math.round(dest.backoff)}ms`);
-    dest.timer = setTimeout(() => { if (session && session.dests.has(dest.id) && !dest.stopping) spawnFfmpeg(dest, session.vcodec || "vp8"); }, dest.backoff);
+    session && (session.alive = false, session.proc = null);
+    if (!session || session.stopping) return;
+    session.restarts += 1;
+    session.backoff = Math.min(MAX_RESTART_DELAY_MS, (session.backoff || RESTART_DELAY_MS) * 1.5);
+    log(`ffmpeg exited (${signal || code}) - retry #${session.restarts} in ${Math.round(session.backoff)}ms`);
+    session.timer = setTimeout(() => { if (session && !session.stopping) spawnPipeline(); }, session.backoff);
   });
-  log(`ffmpeg started -> ${redact(dest.target)}`);
-}
-function stopDest(dest) {
-  dest.stopping = true;
-  if (dest.timer) { clearTimeout(dest.timer); dest.timer = null; }
-  if (dest.proc) { try { dest.proc.kill("SIGTERM"); } catch { /* gone */ } }
+  log(`ffmpeg started: ${OUT_W}x${OUT_H}@${OUT_FPS} ${OUT_KBPS}k CBR, GOP ${GOP} -> ${dests.length} destination(s)`);
 }
 
 async function startSession(whepUrl, destinations) {
   await stopSession();
   await mtxAddSource(whepUrl);
-  session = { whep: whepUrl, dests: new Map(), vcodec: "vp8" };
-  // Probe the incoming video codec so we can copy (H.264) or transcode (VP8).
+  session = { whep: whepUrl, dests: new Map(), vcodec: "vp8", proc: null, alive: false, restarts: 0, backoff: RESTART_DELAY_MS, lastError: "", timer: null, stopping: false };
+  // Still probed, purely so the studio can warn when the browser failed to
+  // negotiate H.264 (a VP8 source means an extra decode on the way in).
   session.vcodec = await mtxVideoCodec();
-  log(`source video codec: ${session.vcodec} (${session.vcodec === "h264" ? "copy" : "transcode"})`);
+  log(`source video codec: ${session.vcodec}`);
   for (const d of destinations) {
     const target = joinUrlKey(d.url, d.key);
     if (!target) continue;
-    const dest = { id: String(d.id || target), target, proc: null, alive: false, restarts: 0, backoff: RESTART_DELAY_MS, lastError: "", timer: null, stopping: false };
-    session.dests.set(dest.id, dest);
-    spawnFfmpeg(dest, session.vcodec);
+    session.dests.set(String(d.id || target), { id: String(d.id || target), target });
   }
+  spawnPipeline();
   log(`session started -> ${session.dests.size} destination(s)`);
 }
+
 async function stopSession() {
-  if (session) { for (const d of session.dests.values()) stopDest(d); session = null; log("session stopped"); }
+  if (session) {
+    session.stopping = true;
+    if (session.timer) clearTimeout(session.timer);
+    if (session.proc) { try { session.proc.kill("SIGTERM"); } catch { /* gone */ } }
+    session = null;
+    log("session stopped");
+  }
   await mtxRemoveSource();
 }
 
 function statusPayload() {
   if (!session) return { live: false, mtxReady, destinations: [] };
   return {
-    live: true, mtxReady, whep: session.whep, vcodec: session.vcodec,
-    destinations: [...session.dests.values()].map((d) => ({ id: d.id, target: redact(d.target), alive: d.alive, restarts: d.restarts, lastError: d.lastError || undefined })),
+    live: true,
+    mtxReady,
+    whep: session.whep,
+    vcodec: session.vcodec,
+    encode: `${OUT_W}x${OUT_H}@${OUT_FPS} ${OUT_KBPS}k CBR gop${GOP}`,
+    restarts: session.restarts,
+    // One pipeline feeds every destination, so they share liveness. tee's
+    // onfail=ignore means one bad key does not take the others down.
+    destinations: [...session.dests.values()].map((d) => ({
+      id: d.id,
+      target: redact(d.target),
+      alive: session.alive,
+      restarts: session.restarts,
+      lastError: session.lastError || undefined,
+    })),
   };
 }
 

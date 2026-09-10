@@ -22,7 +22,12 @@ export default async function LivePage() {
 
   // Prefer our own Cloudflare Stream player when configured; else YouTube embed.
   const cfCode = process.env.NEXT_PUBLIC_CF_STREAM_CUSTOMER_CODE;
-  const cfInput = process.env.NEXT_PUBLIC_CF_STREAM_LIVE_INPUT_UID;
+  // Play input B (RTMPS, fed by the relay). The studio's WHIP input produces no
+  // HLS, so pointing the iframe at it shows a black player during every
+  // browser-studio broadcast. Falls back to the old input if B isn't set yet.
+  const cfInput =
+    process.env.NEXT_PUBLIC_CF_STREAM_PLAYBACK_INPUT_UID ||
+    process.env.NEXT_PUBLIC_CF_STREAM_LIVE_INPUT_UID;
   const onOwnPlatform = Boolean(cfCode && cfInput);
   const playerSrc = onOwnPlatform
     ? `https://customer-${cfCode}.cloudflarestream.com/${cfInput}/iframe`

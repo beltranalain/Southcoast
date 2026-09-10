@@ -119,7 +119,7 @@ export class RealtimeSession {
 
 // Publish a MediaStream (e.g. the composited canvas + mixed audio) to a
 // Cloudflare Stream Live Input over WHIP. Returns the RTCPeerConnection.
-export async function whipPublish(whipUrl: string, stream: MediaStream, maxKbps = 4500): Promise<RTCPeerConnection> {
+export async function whipPublish(whipUrl: string, stream: MediaStream, maxKbps = 6000): Promise<RTCPeerConnection> {
   const pc = new RTCPeerConnection(RTC_CONFIG);
   stream.getTracks().forEach((t) => pc.addTrack(t, stream));
   // Prefer H.264 so Cloudflare ingests H.264 (not VP8). The relay can then copy

@@ -33,6 +33,20 @@ export async function relayStart(whepUrl: string, destinations: RelayDest[]): Pr
   }
 }
 
+// Wake the relay and wait for MediaMTX to be ready. Called when the studio
+// page mounts so Go Live never races a cold start.
+export async function relayWarm(): Promise<{ ok: boolean; ready: boolean; error?: string }> {
+  if (!relayConfigured) return { ok: false, ready: false, error: "Relay not configured." };
+  try {
+    const res = await fetch(`${RELAY_URL}/health`, { headers: headers(), cache: "no-store" });
+    if (!res.ok) return { ok: false, ready: false, error: `Relay responded ${res.status}.` };
+    const d = await res.json().catch(() => ({}));
+    return { ok: true, ready: Boolean(d.mtxReady) };
+  } catch {
+    return { ok: false, ready: false, error: "Could not reach the simulcast relay." };
+  }
+}
+
 export async function relayStop(): Promise<{ ok: boolean }> {
   if (!relayConfigured) return { ok: true };
   try {

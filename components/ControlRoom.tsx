@@ -117,6 +117,20 @@ export default function ControlRoom() {
     return () => clearInterval(t);
   }, []);
 
+  // Warm the relay on mount so Go Live never races its scale-to-zero cold start,
+  // and make sure closing the tab can't leave a relay session (and its cost)
+  // running. Both best-effort.
+  useEffect(() => {
+    getIdToken()
+      .then((token) => fetch("/api/simulcast/warm", { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {} }).catch(() => {}))
+      .catch(() => {});
+    return () => {
+      getIdToken()
+        .then((token) => fetch("/api/simulcast/stop", { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {}, keepalive: true }).catch(() => {}))
+        .catch(() => {});
+    };
+  }, []);
+
   const stageRef = useRef<HTMLDivElement | null>(null);
   const overlayWs = useRef<WebSocket | null>(null);
   const chatWs = useRef<WebSocket | null>(null);
