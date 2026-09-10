@@ -67,12 +67,13 @@ const SECTIONS: Section[] = [
     title: "Go Live - Sources (Simulcast)",
     purpose: "Send your broadcast out to other platforms at the same time (YouTube, Facebook, Twitch, or any RTMP).",
     use: [
-      "Pick a preset or Custom, paste the platform's RTMP URL + stream key, and add it.",
+      "Pick a preset (YouTube/Facebook/Twitch) or Custom, paste the platform's stream KEY, and Add.",
       "Toggle a destination on/off to pause it without deleting; Remove deletes it.",
-      "This runs server-side on Cloudflare - it doesn't use your computer's upload.",
+      "When you Go Live in the studio, each enabled destination shows 'streaming' once it connects (give it 15-30s).",
+      "This runs on a background relay, not your computer - the host just clicks Go Live in the browser. No OBS or StreamYard.",
     ],
-    dos: ["Add destinations before going live.", "Double-check the stream key from each platform."],
-    donts: ["Don't share your stream keys.", "Don't expect LinkedIn/Kick/etc. presets - use Custom with the per-broadcast URL those platforms give you."],
+    dos: ["Add destinations before going live.", "On YouTube: set the broadcast to Unlisted or Public (not Private), and turn Dual stream OFF.", "Copy the Stream KEY, not the Stream URL."],
+    donts: ["Don't share your stream keys.", "Don't set the YouTube broadcast to Private - Private can't receive a simulcast.", "Don't expect LinkedIn/Kick/etc. presets - use Custom with the per-broadcast URL those platforms give you."],
   },
   {
     id: "videos",

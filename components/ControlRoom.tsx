@@ -76,6 +76,25 @@ export default function ControlRoom() {
   }
   const [pressed, setPressed] = useState<string | null>(null);
 
+  // Go Live also kicks off the simulcast relay (forwards the broadcast to
+  // YouTube/Facebook/Twitch). The relay auto-retries until Cloudflare's HLS is
+  // ready, so we can fire this right after publishing. Simulcast never blocks
+  // going live - it's best-effort.
+  async function goLive() {
+    await broadcast.goLive();
+    try {
+      const token = await getIdToken();
+      await fetch("/api/simulcast/start", { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    } catch { /* best-effort */ }
+  }
+  async function endBroadcast() {
+    broadcast.stop();
+    try {
+      const token = await getIdToken();
+      await fetch("/api/simulcast/stop", { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    } catch { /* best-effort */ }
+  }
+
   const stageRef = useRef<HTMLDivElement | null>(null);
   const overlayWs = useRef<WebSocket | null>(null);
   const chatWs = useRef<WebSocket | null>(null);
@@ -350,11 +369,11 @@ export default function ControlRoom() {
           </div>
           <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
             {!live ? (
-              <button className="btn btn-live" type="button" onClick={() => broadcast.goLive()} disabled={broadcast.connecting || ingest === null}>
+              <button className="btn btn-live" type="button" onClick={goLive} disabled={broadcast.connecting || ingest === null}>
                 {broadcast.connecting ? "Connecting..." : "Go Live"}
               </button>
             ) : (
-              <button className="btn btn-ghost" type="button" onClick={() => broadcast.stop()}>Stop broadcast</button>
+              <button className="btn btn-ghost" type="button" onClick={endBroadcast}>Stop broadcast</button>
             )}
             {broadcast.screenSharing ? (
               <div className="filters" style={{ margin: 0 }}>

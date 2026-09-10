@@ -99,6 +99,19 @@ export async function getLiveInput(): Promise<StreamIngest | null> {
   }
 }
 
+// Public HLS playback URL for the live broadcast. The simulcast relay pulls
+// this and pushes it to YouTube/Facebook/Twitch. Returns null if Stream isn't
+// configured or no live input can be resolved.
+export async function liveHlsUrl(): Promise<string | null> {
+  if (!streamConfigured) return null;
+  const uid = await resolveInputUid();
+  if (!uid) return null;
+  const host = CF_CUSTOMER_CODE
+    ? `https://customer-${CF_CUSTOMER_CODE}.cloudflarestream.com`
+    : "https://videodelivery.net";
+  return `${host}/${uid}/manifest/video.m3u8`;
+}
+
 // ---- Simulcast (Live) Outputs: fan the input out to YouTube etc. ----
 export async function listOutputs(): Promise<any[]> {
   if (!streamConfigured) return [];
