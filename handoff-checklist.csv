@@ -7,6 +7,7 @@ Done,Category,Item,What it's for,Keys / output,Cost,Est. monthly cost,Usage,Note
 ,1. Accounts,Resend (optional),Contact-form email,RESEND_API_KEY; CONTACT_TO_EMAIL,Free tier,$0 ,<3k emails/mo (free tier),Only if using the contact form
 ,1. Accounts,Domain registrar,Point the domain DNS at Vercel,-,~$10-15/yr,~$1/mo,1 domain,e.g. southcoastcane.com
 ,1. Accounts,GitHub,Code repo (deploys from here),-,Free,$0 ,1 repo,Can stay under the developer
+,1. Accounts,Fly.io,"Simulcast relay: forwards the browser broadcast to YouTube/Facebook/Twitch (Cloudflare can't forward the studio's WebRTC feed)",RELAY_URL; RELAY_SECRET,~$0 idle + cents/hr live,~$1-3/mo,Scales to zero; only runs during broadcasts,"Needs a credit card on file. Deploy the relay/ folder (see relay/README.md). Replaces StreamYard's paid simulcast"
 ,2. Deploy & connect,Add all env vars to Vercel,Wire up every account above,-,-,-,-,Redeploy after adding
 ,2. Deploy & connect,FIREBASE_ADMIN_PRIVATE_KEY format,Paste WITHOUT surrounding quotes; keep the \n,-,-,-,-,Quotes break it (common gotcha)
 ,2. Deploy & connect,Enable Firebase Auth providers,Google + Email/Password,-,-,-,-,Authentication > Sign-in method
@@ -14,6 +15,8 @@ Done,Category,Item,What it's for,Keys / output,Cost,Est. monthly cost,Usage,Note
 ,2. Deploy & connect,Create client admin login,Firebase Auth user with client's email,-,-,-,-,Also set NEXT_PUBLIC_ADMIN_EMAILS to it
 ,2. Deploy & connect,Set up Stripe webhook,checkout.session.completed -> /api/tips/webhook,STRIPE_WEBHOOK_SECRET,-,-,-,Copy the signing secret
 ,2. Deploy & connect,Deploy the chat Worker,If using a new Cloudflare account,-,-,$0 ,Free tier (Workers + Durable Objects),wrangler deploy + set CHAT_ADMIN_SECRET
+,2. Deploy & connect,Deploy the simulcast relay (Fly.io),So browser Go Live reaches YouTube,RELAY_SECRET (on Fly),-,-,-,"In relay/: flyctl auth login; flyctl launch --copy-config --now; flyctl secrets set RELAY_SECRET"
+,2. Deploy & connect,Add RELAY_URL + RELAY_SECRET to Vercel,Connect the site to the relay,RELAY_URL; RELAY_SECRET,-,-,-,Same RELAY_SECRET on Fly and Vercel; redeploy after
 ,2. Deploy & connect,Point domain DNS at Vercel,Custom domain live,-,-,-,-,Add domain in Vercel + registrar DNS
 ,2. Deploy & connect,Cloudflare token: add Account Analytics Read,So the Costs page shows delivery minutes/cost,-,-,-,-,Otherwise delivery shows a dash; storage still tracks
 ,3. Verify,Settings page all green,"Firebase, YouTube, Stream, Chat, Stripe",-,-,-,-,Admin > Settings (live status)
