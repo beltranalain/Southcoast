@@ -21,6 +21,14 @@ export default function AdminCosts() {
   const [viewers, setViewers] = useState("50");
   const [minutes, setMinutes] = useState("120");
   const [shows, setShows] = useState("4");
+  const [delivery, setDelivery] = useState<"own" | "youtube">("own");
+
+  useEffect(() => {
+    fetch("/api/site-config", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => { if (d?.branding?.liveDelivery) setDelivery(d.branding.liveDelivery); })
+      .catch(() => {});
+  }, []);
 
   async function load() {
     try {
@@ -110,6 +118,9 @@ export default function AdminCosts() {
           <div className="panel">
             <h3>How you&apos;re charged (in plain English)</h3>
             <div className="panel-sub">You only ever pay Cloudflare for two things - and both are avoidable. Everything else is free.</div>
+            <div className={`deliver-status ${delivery === "youtube" ? "free" : ""}`}>
+              Site viewers currently watch via <b>{delivery === "youtube" ? "the free YouTube embed" : "your own Cloudflare player"}</b> - {delivery === "youtube" ? "on-site delivery is $0 (great for large audiences)." : "you pay ~$0.001 per on-site viewer-minute."} <span>Switch it on Go Live.</span>
+            </div>
             <div className="charge-grid">
               <div className="charge-row">
                 <div><b>Going live</b><span>Broadcasting your show up to the platform</span></div>

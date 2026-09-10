@@ -1,10 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useReducer, useRef, useState } from "react";
 import { broadcast } from "@/lib/broadcast";
 import { getIdToken } from "@/lib/firebase";
 import SimulcastManager from "@/components/SimulcastManager";
+import LivePipModal from "@/components/LivePipModal";
 
 const WS_BASE = process.env.NEXT_PUBLIC_CHAT_WS_URL || "";
 type Tab = "onair" | "chat" | "guests" | "sources" | "scene" | "intro" | "sounds";
@@ -57,6 +57,7 @@ export default function ControlRoom() {
   const [onSite, setOnSite] = useState(0);
   const [sessionCost, setSessionCost] = useState(0);
   const [liveDelivery, setLiveDelivery] = useState<"own" | "youtube">("own");
+  const [pip, setPip] = useState(false);
   const onSiteRef = useRef(0);
   const wasLiveRef = useRef(false);
 
@@ -379,8 +380,9 @@ export default function ControlRoom() {
             ) : (
               <button className="btn btn-ghost btn-sm" type="button" onClick={() => broadcast.startRecording()}>Record locally</button>
             )}
-            <Link className="btn btn-ghost btn-sm" href="/live" target="_blank">Open live page</Link>
+            <button className="btn btn-ghost btn-sm" type="button" onClick={() => setPip(true)}>Open live page</button>
           </div>
+          {pip && <LivePipModal onClose={() => setPip(false)} />}
           {ingest === null && <div className="notice" style={{ marginTop: 14 }}><strong>Cloudflare Stream not connected.</strong> Preview works; Go Live turns on once the Stream keys are set.</div>}
           {broadcast.error && <p className="form-error" style={{ marginTop: 10 }}>{broadcast.error}</p>}
           {live && <p className="form-ok" style={{ marginTop: 10 }}>Live on your site and simulcasting to YouTube.</p>}
