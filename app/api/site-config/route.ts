@@ -141,6 +141,7 @@ export async function POST(request: Request) {
       const v = clean[k];
       if (typeof v === "string" && v.startsWith("data:") && (!v.startsWith("data:image") || v.length > 900_000)) clean[k] = "";
     }
+    if ("liveDelivery" in clean && clean.liveDelivery !== "youtube") clean.liveDelivery = "own";
     await db.collection("site").doc(section).set(clean, { merge: true });
     return NextResponse.json({ saved: true });
   } catch {

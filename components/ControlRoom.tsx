@@ -56,8 +56,23 @@ export default function ControlRoom() {
   // + a running estimated cost for this broadcast session.
   const [onSite, setOnSite] = useState(0);
   const [sessionCost, setSessionCost] = useState(0);
+  const [liveDelivery, setLiveDelivery] = useState<"own" | "youtube">("own");
   const onSiteRef = useRef(0);
   const wasLiveRef = useRef(false);
+
+  // Site player source: own Cloudflare player (paid per-viewer) or the free
+  // YouTube embed (unlimited viewers at $0). Saved to branding so the live page reads it.
+  async function saveDelivery(mode: "own" | "youtube") {
+    setLiveDelivery(mode);
+    try {
+      const token = await getIdToken();
+      await fetch("/api/site-config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ section: "branding", data: { liveDelivery: mode } }),
+      });
+    } catch { /* best-effort */ }
+  }
   const [pressed, setPressed] = useState<string | null>(null);
 
   const stageRef = useRef<HTMLDivElement | null>(null);
@@ -75,6 +90,7 @@ export default function ControlRoom() {
       .then((r) => r.json())
       .then((d) => {
         if (d?.branding?.logo) broadcast.setBrandLogo(d.branding.logo);
+        if (d?.branding?.liveDelivery) setLiveDelivery(d.branding.liveDelivery);
         if (d?.scene) { const sc = { tickerOn: false, tickerLabel: "", ticker: "", ...d.scene }; setScene(sc); broadcast.setScene(sc); }
         if (d?.bumper) { const bm = { enabled: false, mode: "card", headline: "Starting soon", subtext: "", background: "", videoUrl: "", startsAt: 0, ...d.bumper } as BumperCfg; setBumper(bm); broadcast.setBumper(bm); }
         if (Array.isArray(d?.schedule)) setSchedule(d.schedule);
@@ -373,6 +389,19 @@ export default function ControlRoom() {
             <span className="la-item paid"><b>~${sessionCost.toFixed(2)}</b> this session<small>on-site delivery so far</small></span>
             <span className="la-item free"><b>YouTube</b> free<small>simulcast viewers cost $0</small></span>
           </div>
+
+          <div className="deliver-row">
+            <span className="deliver-label">Site viewers watch via</span>
+            <div className="filters" style={{ margin: 0 }}>
+              <button type="button" className={`filter-btn${liveDelivery === "own" ? " active" : ""}`} onClick={() => saveDelivery("own")}>Own player &middot; paid</button>
+              <button type="button" className={`filter-btn${liveDelivery === "youtube" ? " active" : ""}`} onClick={() => saveDelivery("youtube")}>YouTube embed &middot; free</button>
+            </div>
+          </div>
+          <p className="panel-sub" style={{ marginTop: 6 }}>
+            {liveDelivery === "youtube"
+              ? "Your live page shows YouTube's player - unlimited viewers cost $0. Best for large audiences (you keep the branded site; YouTube pays the bandwidth)."
+              : "Your live page uses your own low-latency player - you pay ~$0.001 per on-site viewer-minute. Best for smaller/loyal audiences + tips."}
+          </p>
         </div>
 
         {/* ---- Show controls ---- */}

@@ -161,6 +161,7 @@ export type SiteBranding = {
   showChannelBug: boolean; // permanent show-name label on the live page
   channelBug: string; // label text (falls back to the show name)
   tipsEnabled: boolean; // show the tip / "Send a tip" buttons in chat
+  liveDelivery: "own" | "youtube"; // site player: own Cloudflare (paid) or free YouTube embed
 };
 
 export const DEFAULT_BRANDING: SiteBranding = {
@@ -175,6 +176,7 @@ export const DEFAULT_BRANDING: SiteBranding = {
   showChannelBug: false,
   channelBug: "The South Coast Cane Show",
   tipsEnabled: true,
+  liveDelivery: "own",
 };
 
 // Branded "scene": background behind the host, optional green-screen removal,

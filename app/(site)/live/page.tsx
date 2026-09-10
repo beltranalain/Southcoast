@@ -52,7 +52,17 @@ export default async function LivePage() {
                     : "Live now"
                   : "Auto - shows when live"}
               </span>
-              <LivePlayer src={playerSrc} logo={branding.logo} />
+              {branding.liveDelivery === "youtube" ? (
+                <iframe
+                  src={`https://www.youtube.com/embed/live_stream?channel=${PRIMARY_CHANNEL.channelId}&autoplay=1`}
+                  title="Live on YouTube"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: 0 }}
+                />
+              ) : (
+                <LivePlayer src={playerSrc} logo={branding.logo} />
+              )}
               {channelBug && (
                 <div className="lower3">
                   <span className="l3b" style={{ background: "rgba(10,9,8,.82)" }}>{channelBug}</span>

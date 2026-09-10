@@ -428,6 +428,8 @@ h2.big{font-size:clamp(30px,4.4vw,56px);line-height:.92}
 .live-aud .la-item small{color:var(--mute);font-size:11px;margin-top:4px}
 .live-aud .la-item.paid b{color:var(--amber)}
 .live-aud .la-item.free b{color:var(--ok)}
+.deliver-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:14px}
+.deliver-label{font-size:12px;color:var(--mute);text-transform:uppercase;letter-spacing:.08em;font-weight:700}
 .playerwell .badge{position:absolute;left:18px;top:18px;z-index:5;display:inline-flex;align-items:center;gap:8px;background:var(--live);color:#fff;padding:6px 13px 6px 11px;border-radius:6px;font-size:11.5px;font-weight:800;letter-spacing:.13em;text-transform:uppercase}
 .playerwell .badge i{width:6px;height:6px;border-radius:50%;background:#fff;animation:pulse 1.7s infinite}
 .playerwell .viewers{position:absolute;right:18px;top:18px;z-index:5;background:rgba(10,9,8,.72);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.18);border-radius:6px;padding:6px 13px;font-size:12px;font-weight:600}
