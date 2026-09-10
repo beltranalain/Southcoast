@@ -81,15 +81,22 @@ function spawnFfmpeg(dest) {
   const args = [
     "-hide_banner", "-loglevel", "warning",
     "-rtsp_transport", "tcp",
+    "-fflags", "+genpts",
     "-i", RTSP_URL,
+    "-map", "0:v:0", "-map", "0:a:0?",
     "-c:v", "copy",
-    "-c:a", "aac", "-ar", "44100", "-b:a", "128k",
+    "-c:a", "aac", "-b:a", "128k", "-ar", "48000", "-ac", "2",
+    "-max_muxing_queue_size", "1024",
     "-f", "flv",
     dest.target,
   ];
   const proc = spawn("ffmpeg", args, { stdio: ["ignore", "ignore", "pipe"] });
   dest.proc = proc; dest.alive = true;
-  proc.stderr.on("data", (b) => { const line = b.toString().trim(); if (line) dest.lastError = line.split("\n").pop().slice(0, 300); });
+  proc.stderr.on("data", (b) => {
+    const text = b.toString();
+    for (const line of text.split("\n")) { const t = line.trim(); if (t) log(`ffmpeg[${redact(dest.target)}] ${t}`); }
+    const last = text.trim().split("\n").pop(); if (last) dest.lastError = last.slice(0, 300);
+  });
   proc.on("exit", (code, signal) => {
     dest.alive = false; dest.proc = null;
     if (dest.stopping || !session || !session.dests.has(dest.id)) return;
