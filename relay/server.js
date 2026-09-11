@@ -133,7 +133,10 @@ const AUDIO_ARGS = ["-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-ac", "2", "
 
 function externalArgs(dests) {
   const tee = dests.map((d) => `[f=flv:onfail=ignore]${d.target}`).join("|");
-  return [...IN_ARGS, ...ENCODE_V, ...AUDIO_ARGS, "-f", "tee", tee];
+  // +global_header writes the H.264 config into the FLV sequence header, which
+  // YouTube needs to lock onto the stream. Dropping it during the SRT work is
+  // what broke YouTube ingest; the working version had it.
+  return [...IN_ARGS, ...ENCODE_V, ...AUDIO_ARGS, "-flags", "+global_header", "-f", "tee", tee];
 }
 function playbackArgs(target /* , vcodec */) {
   // Always re-encode for input B. Copying the WHEP H.264 into MPEG-TS drops the
