@@ -119,9 +119,36 @@ export class RealtimeSession {
 
 // Publish a MediaStream (e.g. the composited canvas + mixed audio) to a
 // Cloudflare Stream Live Input over WHIP. Returns the RTCPeerConnection.
-export async function whipPublish(whipUrl: string, stream: MediaStream): Promise<RTCPeerConnection> {
+export async function whipPublish(whipUrl: string, stream: MediaStream, maxKbps = 6000): Promise<RTCPeerConnection> {
   const pc = new RTCPeerConnection(RTC_CONFIG);
   stream.getTracks().forEach((t) => pc.addTrack(t, stream));
+  // Prefer H.264 so Cloudflare ingests H.264 (not VP8). The relay can then copy
+  // the video straight to YouTube instead of re-encoding it - no second lossy
+  // pass, so it looks noticeably sharper (and costs less CPU). Falls back to
+  // the browser default if H.264 isn't offered.
+  try {
+    const vtrans = pc.getTransceivers().find((tr) => tr.sender?.track?.kind === "video");
+    const caps = typeof RTCRtpSender !== "undefined" ? RTCRtpSender.getCapabilities("video") : null;
+    if (vtrans && caps?.codecs && typeof vtrans.setCodecPreferences === "function") {
+      const h264 = caps.codecs.filter((c) => c.mimeType.toLowerCase() === "video/h264");
+      const rest = caps.codecs.filter((c) => c.mimeType.toLowerCase() !== "video/h264");
+      if (h264.length) vtrans.setCodecPreferences([...h264, ...rest]);
+    }
+  } catch { /* keep default codec order */ }
+  // WebRTC defaults to a low, conservative bitrate which looks soft at 720p.
+  // Raise the ceiling and keep resolution over framerate under pressure.
+  const vsender = pc.getSenders().find((s) => s.track?.kind === "video");
+  if (vsender) {
+    try { (vsender.track as MediaStreamTrack & { contentHint: string }).contentHint = "detail"; } catch { /* not supported */ }
+    try {
+      const params = vsender.getParameters();
+      if (!params.encodings || params.encodings.length === 0) params.encodings = [{}];
+      params.encodings[0].maxBitrate = maxKbps * 1000;
+      params.encodings[0].maxFramerate = 30;
+      (params as RTCRtpSendParameters & { degradationPreference?: string }).degradationPreference = "maintain-resolution";
+      await vsender.setParameters(params);
+    } catch { /* best-effort */ }
+  }
   const offer = await pc.createOffer();
   await pc.setLocalDescription(offer);
   await iceComplete(pc);
