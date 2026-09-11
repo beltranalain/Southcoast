@@ -9,6 +9,22 @@ import { GuestBackground, type BgMode } from "@/lib/guestBackground";
 const WS_BASE = process.env.NEXT_PUBLIC_CHAT_WS_URL || "";
 type AV = "both" | "video" | "audio" | "neither";
 type Participant = { id: string; name: string; role: string; sessionId?: string; hasVideo: boolean; hasAudio: boolean };
+type View = "everyone" | "me";
+
+// A remote participant's live video/audio tile. Keeps its own <video> in sync
+// with the (live) MediaStream it's given.
+function RemoteTile({ stream, label }: { stream: MediaStream; label: string }) {
+  const ref = useRef<HTMLVideoElement | null>(null);
+  useEffect(() => {
+    if (ref.current) { ref.current.srcObject = stream; ref.current.play?.().catch(() => {}); }
+  }, [stream]);
+  return (
+    <div className="green-tile">
+      <video ref={ref} autoPlay playsInline />
+      <span className="green-self-tag">{label}</span>
+    </div>
+  );
+}
 
 export default function GuestJoinPage() {
   const params = useParams<{ room: string }>();
@@ -19,7 +35,10 @@ export default function GuestJoinPage() {
   const [joined, setJoined] = useState(false);
   const [status, setStatus] = useState("");
   const [roster, setRoster] = useState<Participant[]>([]);
-  const [hostLive, setHostLive] = useState(false);
+  // What the guest is looking at: the whole show (everyone) or just themselves.
+  const [view, setView] = useState<View>("everyone");
+  // Remote participants we're showing (host + other guests), by SFU session id.
+  const [remotes, setRemotes] = useState<{ sid: string; name: string }[]>([]);
   // Local mic/camera controls (what the guest is publishing).
   const [hasMic, setHasMic] = useState(false);
   const [hasCam, setHasCam] = useState(false);
@@ -30,9 +49,9 @@ export default function GuestJoinPage() {
   const [bgReady, setBgReady] = useState(false);
 
   const localVideo = useRef<HTMLVideoElement | null>(null);
-  const hostVideo = useRef<HTMLVideoElement | null>(null);
   const localStream = useRef<MediaStream | null>(null);
-  const hostStream = useRef<MediaStream | null>(null);
+  const remoteStreams = useRef<Map<string, MediaStream>>(new Map());
+  const nameBySession = useRef<Map<string, string>>(new Map());
   const bg = useRef<GuestBackground | null>(null);
   const bgInput = useRef<HTMLInputElement | null>(null);
   const rtc = useRef<RealtimeSession | null>(null);
@@ -66,13 +85,13 @@ export default function GuestJoinPage() {
 
     let sessionId: string | undefined;
     try {
-      const session = new RealtimeSession((_sid, track) => {
-        // Accumulate the host's video + audio into one stream and show it.
-        const ms = hostStream.current || new MediaStream();
+      // Separate each remote by SFU session id so we can show everyone, not
+      // just merge them into one stream.
+      const session = new RealtimeSession((sid, track) => {
+        let ms = remoteStreams.current.get(sid);
+        if (!ms) { ms = new MediaStream(); remoteStreams.current.set(sid, ms); }
         ms.addTrack(track);
-        hostStream.current = ms;
-        if (track.kind === "video") setHostLive(true);
-        if (hostVideo.current) { hostVideo.current.srcObject = ms; hostVideo.current.play?.().catch(() => {}); }
+        setRemotes((prev) => (prev.some((r) => r.sid === sid) ? [...prev] : [...prev, { sid, name: nameBySession.current.get(sid) || "Guest" }]));
       });
       rtc.current = session;
       // Publish the processed stream when a camera is in use, else the raw stream.
@@ -98,14 +117,17 @@ export default function GuestJoinPage() {
         let d: any; try { d = JSON.parse(e.data); } catch { return; }
         if (d.type === "studio" && d.action === "roster") {
           setRoster(d.participants);
-          // subscribe to the host's video
-          const host = d.participants.find((p: Participant) => p.role === "host" && p.sessionId);
-          if (host && !subscribed.current.has(host.sessionId) && rtc.current) {
-            subscribed.current.add(host.sessionId);
-            // Pull the host's video + audio together so the guest can see AND
-            // hear the host (one serialized negotiation).
-            rtc.current.pull(host.sessionId, ["video", "audio"]).catch(() => {});
-          }
+          // Pull EVERYONE else in the room (host + other guests), so the guest
+          // can watch the whole show. Skip ourselves.
+          const ownSid = rtc.current?.sessionId;
+          (d.participants as Participant[]).forEach((p) => {
+            if (!p.sessionId || p.sessionId === ownSid || subscribed.current.has(p.sessionId) || !rtc.current) return;
+            subscribed.current.add(p.sessionId);
+            nameBySession.current.set(p.sessionId, p.name + (p.role === "host" ? " (host)" : ""));
+            rtc.current.pull(p.sessionId, ["video", "audio"]).catch(() => subscribed.current.delete(p.sessionId));
+          });
+          // Keep tile labels fresh if names arrived after the tracks.
+          setRemotes((prev) => prev.map((r) => ({ ...r, name: nameBySession.current.get(r.sid) || r.name })));
         }
       };
     }
@@ -122,16 +144,13 @@ export default function GuestJoinPage() {
     };
   }, []);
 
-  // Attach the local + host streams once the joined view has mounted. The video
-  // elements don't exist until then, so setting srcObject during join() is too
-  // early - that's what left the previews black.
+  // (Re)attach the local preview whenever the joined view mounts or the guest
+  // switches views (the <video> element remounts on a view change).
   useEffect(() => {
     if (!joined) return;
-    // Preview the processed feed when the background processor is active.
     const preview = bg.current ? bg.current.stream() : localStream.current;
     if (localVideo.current && preview) { localVideo.current.srcObject = preview; localVideo.current.play?.().catch(() => {}); }
-    if (hostVideo.current && hostStream.current) { hostVideo.current.srcObject = hostStream.current; hostVideo.current.play?.().catch(() => {}); }
-  }, [joined]);
+  }, [joined, view]);
 
   // Leave the show: tear down the connection and return to the join screen.
   function leave() {
@@ -141,10 +160,12 @@ export default function GuestJoinPage() {
     bg.current = null;
     localStream.current?.getTracks().forEach((t) => t.stop());
     localStream.current = null;
-    hostStream.current = null;
+    remoteStreams.current = new Map();
+    nameBySession.current = new Map();
     subscribed.current = new Set();
+    setRemotes([]);
     setRoster([]);
-    setHostLive(false);
+    setView("everyone");
     setBgMode("off");
     setBgReady(false);
     setJoined(false);
@@ -164,8 +185,7 @@ export default function GuestJoinPage() {
     reader.readAsDataURL(file);
   }
 
-  // Toggle the local mic / camera by enabling/disabling the published track
-  // (keeps the connection and the track's slot; just stops sending media).
+  // Toggle the local mic / camera by enabling/disabling the published track.
   function toggleMic() {
     const track = localStream.current?.getAudioTracks()[0];
     if (!track) return;
@@ -184,7 +204,7 @@ export default function GuestJoinPage() {
       <div className="signin-wrap">
         <div className="signin-card" style={{ maxWidth: 460 }}>
           <h2 className="anton" style={{ fontSize: "2rem", textAlign: "center" }}>Join the show</h2>
-          <p className="st">You&apos;ve been invited onto Cane with a Camera. Pick how you want to come in.</p>
+          <p className="st">You&apos;ve been invited onto the show. Pick how you want to come in.</p>
           <div className="form-field"><label>Your name</label><input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" /></div>
           <div className="form-field">
             <label>Camera &amp; mic</label>
@@ -203,6 +223,20 @@ export default function GuestJoinPage() {
     );
   }
 
+  const selfTile = (
+    <div className="green-tile">
+      {hasCam ? (
+        <>
+          <video ref={localVideo} autoPlay playsInline muted style={{ display: camOn ? "block" : "none" }} />
+          {!camOn && <div className="green-self-off">Camera off</div>}
+        </>
+      ) : (
+        <div className="green-self-off">Camera off</div>
+      )}
+      <span className="green-self-tag">You</span>
+    </div>
+  );
+
   return (
     <div className="wrap" style={{ paddingTop: 40, paddingBottom: 60 }}>
       <div className="green-head">
@@ -215,21 +249,42 @@ export default function GuestJoinPage() {
 
       <div className="livegrid">
         <div>
-          {/* One stage: the host fills it; your own camera sits in the corner. */}
+          {/* Guest view toggle: watch the whole show, or just yourself. */}
+          <div className="filters" style={{ marginBottom: 12 }}>
+            <button type="button" className={`filter-btn${view === "everyone" ? " active" : ""}`} onClick={() => setView("everyone")}>See everyone</button>
+            <button type="button" className={`filter-btn${view === "me" ? " active" : ""}`} onClick={() => setView("me")}>Just me</button>
+          </div>
+
           <div className="green-stage">
-            <video ref={hostVideo} autoPlay playsInline className="green-host" />
-            {!hostLive && <div className="green-wait">Connecting to the host...</div>}
-            <div className="green-self">
-              {hasCam ? (
-                <>
-                  <video ref={localVideo} autoPlay playsInline muted style={{ display: camOn ? "block" : "none" }} />
-                  {!camOn && <div className="green-self-off">Camera off</div>}
-                </>
-              ) : (
-                <div className="green-self-off">Camera off</div>
-              )}
-              <span className="green-self-tag">You</span>
-            </div>
+            {view === "me" ? (
+              // Just me: your own camera fills the stage.
+              <>
+                {hasCam && camOn ? (
+                  <video ref={localVideo} autoPlay playsInline muted className="green-host" />
+                ) : (
+                  <div className="green-wait">Your camera is off</div>
+                )}
+                <span className="green-self-tag" style={{ left: 12, right: "auto" }}>You</span>
+              </>
+            ) : (
+              // Everyone: a grid of all participants (host + guests) plus you.
+              <div
+                style={{
+                  position: "absolute", inset: 0, display: "grid", gap: 8, padding: 8,
+                  gridTemplateColumns: `repeat(${Math.min(Math.max(remotes.length + 1, 1), 3)}, 1fr)`,
+                  alignContent: "center",
+                }}
+              >
+                {remotes.map((r) => (
+                  <RemoteTile key={r.sid} stream={remoteStreams.current.get(r.sid) as MediaStream} label={r.name} />
+                ))}
+                {selfTile}
+                {remotes.length === 0 && (
+                  <div className="green-wait" style={{ gridColumn: "1 / -1" }}>Waiting for the host and other guests...</div>
+                )}
+              </div>
+            )}
+
             {(hasMic || hasCam) && (
               <div className="green-controls">
                 {hasMic && <button type="button" className={`green-ctrl${micOn ? "" : " off"}`} onClick={toggleMic}>{micOn ? "Mute" : "Unmute"}</button>}
