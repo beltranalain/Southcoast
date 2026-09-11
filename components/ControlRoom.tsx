@@ -383,6 +383,18 @@ export default function ControlRoom() {
             )}
             <button className="btn btn-ghost btn-sm" type="button" onClick={() => setPip(true)}>Open live page</button>
           </div>
+
+          {/* Camera zoom - frame yourself, or zoom out to fit a second person. */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12 }}>
+            <span className="dest-meta" style={{ minWidth: 92 }}>Camera zoom</span>
+            <button className="btn btn-ghost btn-sm" type="button" onClick={() => { broadcast.setHostZoom(broadcast.hostZoom - 0.1); force(); }}>&minus;</button>
+            <input type="range" min={0.5} max={3} step={0.05} value={broadcast.hostZoom} onChange={(e) => { broadcast.setHostZoom(Number(e.target.value)); force(); }} style={{ flex: 1, maxWidth: 240 }} />
+            <button className="btn btn-ghost btn-sm" type="button" onClick={() => { broadcast.setHostZoom(broadcast.hostZoom + 0.1); force(); }}>+</button>
+            <span className="dest-meta" style={{ width: 46, textAlign: "right" }}>{Math.round(broadcast.hostZoom * 100)}%</span>
+            {broadcast.hostZoom !== 1 && <button className="btn btn-ghost btn-sm" type="button" onClick={() => { broadcast.setHostZoom(1); force(); }}>Reset</button>}
+          </div>
+          <p className="form-note" style={{ marginTop: 6 }}>Zoom out (below 100%) to fit a second person in frame; zoom in for a tighter shot.</p>
+
           {pip && <LivePipModal onClose={() => setPip(false)} />}
           {ingest === null && <div className="notice" style={{ marginTop: 14 }}><strong>Cloudflare Stream not connected.</strong> Preview works; Go Live turns on once the Stream keys are set.</div>}
           {broadcast.error && <p className="form-error" style={{ marginTop: 10 }}>{broadcast.error}</p>}

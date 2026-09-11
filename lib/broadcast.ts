@@ -56,6 +56,19 @@ function drawCoverRounded(ctx: CanvasRenderingContext2D, v: HTMLVideoElement, x:
 function drawContainRounded(ctx: CanvasRenderingContext2D, v: HTMLVideoElement, x: number, y: number, w: number, h: number, r = TILE_R) {
   ctx.save(); roundRectPath(ctx, x, y, w, h, r); ctx.clip(); drawContain(ctx, v, x, y, w, h); ctx.restore();
 }
+// Zoomable draw: zoom 1 == cover (fill). zoom < 1 zooms OUT (see more of the
+// frame - fits a second person, letterboxed); zoom > 1 zooms IN (tighter crop).
+function drawZoom(ctx: CanvasRenderingContext2D, v: HTMLVideoElement, x: number, y: number, w: number, h: number, zoom: number, rounded: boolean) {
+  ctx.save();
+  if (rounded) { roundRectPath(ctx, x, y, w, h, TILE_R); ctx.clip(); } else { ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip(); }
+  ctx.fillStyle = "#0E0C0B"; ctx.fillRect(x, y, w, h);
+  if (v.videoWidth) {
+    const scale = Math.max(w / v.videoWidth, h / v.videoHeight) * zoom;
+    const dw = v.videoWidth * scale, dh = v.videoHeight * scale;
+    ctx.drawImage(v, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+  }
+  ctx.restore();
+}
 
 // Cover-draw any source (image or video) into a box, cropping to fill.
 function coverDraw(ctx: CanvasRenderingContext2D, src: CanvasImageSource, sw: number, sh: number, x: number, y: number, w: number, h: number) {
@@ -154,6 +167,7 @@ class StudioEngine {
   private sceneLogo: HTMLImageElement | null = null;
   private brandLogo: HTMLImageElement | null = null; // shown on the "Camera off" card
   private brandAccent = "#F5A524"; // on-air graphics (banner, pinned comment) use the brand accent
+  hostZoom = 1; // host camera framing: 1 = fill, <1 zoom out (fit 2 people), >1 zoom in
   private keyCanvas: HTMLCanvasElement | null = null;
   private segmenter: any = null;
   private segReady = false;
@@ -280,6 +294,7 @@ class StudioEngine {
   // The brand logo to show on the "Camera off" card (from branding config).
   setBrandLogo(url: string) { this.brandLogo = url ? this.loadImg(url) : null; }
   setBrandAccent(color: string) { this.brandAccent = color || "#F5A524"; }
+  setHostZoom(z: number) { this.hostZoom = Math.max(0.5, Math.min(3, z)); this.emit(); }
 
   private startCompositing() {
     this.ctx2d = this.canvas!.getContext("2d");
@@ -408,7 +423,11 @@ class StudioEngine {
       ctx.restore();
       return;
     }
-    if (rounded) drawCoverRounded(ctx, t.video, x, y, w, h);
+    // The host tile honors the zoom control (1 = fill; <1 zooms out to fit a
+    // second person; >1 zooms in). Guests always fill.
+    const zoom = t.key === "host" ? this.hostZoom : 1;
+    if (zoom !== 1) drawZoom(ctx, t.video, x, y, w, h, zoom, rounded);
+    else if (rounded) drawCoverRounded(ctx, t.video, x, y, w, h);
     else drawCover(ctx, t.video, x, y, w, h);
   }
 
