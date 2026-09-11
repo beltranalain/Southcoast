@@ -403,12 +403,12 @@ export default function ControlRoom() {
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12 }}>
                 <span className="dest-meta" style={{ minWidth: 92 }}>Camera crop</span>
                 <button className="btn btn-ghost btn-sm" type="button" onClick={() => { broadcast.setHostZoom(broadcast.hostZoom - 0.1); force(); }}>&minus;</button>
-                <input type="range" min={0.5} max={3} step={0.05} value={broadcast.hostZoom} onChange={(e) => { broadcast.setHostZoom(Number(e.target.value)); force(); }} style={{ flex: 1, maxWidth: 220 }} />
+                <input type="range" min={1} max={3} step={0.05} value={broadcast.hostZoom} onChange={(e) => { broadcast.setHostZoom(Number(e.target.value)); force(); }} style={{ flex: 1, maxWidth: 220 }} />
                 <button className="btn btn-ghost btn-sm" type="button" onClick={() => { broadcast.setHostZoom(broadcast.hostZoom + 0.1); force(); }}>+</button>
                 <span className="dest-meta" style={{ width: 46, textAlign: "right" }}>{Math.round(broadcast.hostZoom * 100)}%</span>
                 {broadcast.hostZoom !== 1 && <button className="btn btn-ghost btn-sm" type="button" onClick={() => { broadcast.setHostZoom(1); force(); }}>Reset</button>}
               </div>
-              <p className="form-note" style={{ marginTop: 6 }}>This webcam has no lens zoom, so this only <strong>crops</strong> the existing view - it can&apos;t widen it. To fit more people, sit closer together or use a wide-angle webcam.</p>
+              <p className="form-note" style={{ marginTop: 6 }}>This webcam has no lens zoom, so this can only <strong>crop in</strong> (100%+) for a tighter shot - it can&apos;t widen the view. To fit more people, sit closer together, move the camera back, or use a wide-angle webcam.</p>
             </>
           )}
 

@@ -299,7 +299,7 @@ class StudioEngine {
   // The brand logo to show on the "Camera off" card (from branding config).
   setBrandLogo(url: string) { this.brandLogo = url ? this.loadImg(url) : null; }
   setBrandAccent(color: string) { this.brandAccent = color || "#F5A524"; }
-  setHostZoom(z: number) { this.hostZoom = Math.max(0.5, Math.min(3, z)); this.emit(); }
+  setHostZoom(z: number) { this.hostZoom = Math.max(1, Math.min(3, z)); this.emit(); }
 
   // Read the webcam's optical/digital zoom range (if any) so the UI can offer a
   // real wide/tight control. Not all webcams support it.
@@ -547,8 +547,8 @@ class StudioEngine {
     if (!name) return;
     // Scale the chip down when tiles get small (many guests on screen).
     const small = Math.min(w, h) < 260;
-    const fs = small ? 11 : 13;
-    const padX = small ? 7 : 9, padY = small ? 4 : 5, m = small ? 8 : 10;
+    const fs = small ? 16 : 22;
+    const padX = small ? 9 : 13, padY = small ? 5 : 7, m = small ? 8 : 12;
     ctx.save();
     ctx.font = `600 ${fs}px Inter, sans-serif`;
     ctx.textBaseline = "middle";
