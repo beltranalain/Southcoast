@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coach Hayes Football — Studio (Admin demo)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ================= TOKENS — matches the home page (light Apple-keynote look) ================= */
+:root{
+  --body:#F5F5F7;       /* page background */
+  --card:#FFFFFF;       /* cards / panels / sidebar */
+  --hover:#ECECF0;      /* nav hover */
+  --ink:#1D1D1F;        /* primary text */
+  --sub:#6E6E73;        /* secondary text */
+  --dim:#86868B;        /* tertiary text */
+  --hair:#D2D2D7;       /* hairline */
+  --accent:#0B6BFF;     /* blue accent */
+  --accent2:#2a80ff;    /* hover / gradient */
+  --live:#E8342A; --live-glow:rgba(232,52,42,.4);
+  --ok:#1a9e5f;
+  --tint:rgba(11,107,255,.10);
+  --shadow:0 1px 2px rgba(0,0,0,.05),0 1px 0 rgba(0,0,0,.02);
+  --radius:14px; --radius-lg:18px;
+  --font:"Inter",-apple-system,system-ui,sans-serif;
+  --display:"Inter Tight",-apple-system,system-ui,sans-serif;
+}
+:root[data-theme="dark"]{
+  --body:#0A0908;
+  --card:#16130F;
+  --hover:#1F1B16;
+  --ink:#F3EFE7;
+  --sub:#9A9287;
+  --dim:#6B6055;
+  --hair:rgba(243,239,231,.13);
+  --accent:#4C93FF;
+  --accent2:#6ea6ff;
+  --live:#FF5347; --live-glow:rgba(255,83,71,.45);
+  --ok:#5FD08A;
+  --tint:rgba(76,147,255,.14);
+  --shadow:0 1px 0 rgba(255,255,255,.03);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--body);color:var(--ink);font-family:var(--font);font-size:15px;line-height:1.5;letter-spacing:-.01em;-webkit-font-smoothing:antialiased;transition:background .3s,color .3s}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+svg{display:block}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.muted{color:var(--sub)}
+h1,h2,h3,h4{font-family:var(--display);font-weight:600;letter-spacing:-.025em}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+@keyframes ringpulse{0%{box-shadow:0 0 0 0 var(--live-glow)}70%{box-shadow:0 0 0 8px rgba(232,52,42,0)}100%{box-shadow:0 0 0 0 rgba(232,52,42,0)}}
+
+/* ================= BUTTONS (pill, like home) ================= */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--hair);border-radius:980px;padding:9px 18px;font-weight:500;font-size:14px;cursor:pointer;transition:all .15s;white-space:nowrap}
+.btn-sm{padding:7px 15px;font-size:13px}
+.btn-primary{background:var(--accent);color:#fff;border-color:transparent}
+.btn-primary:hover{background:var(--accent2)}
+.btn-ghost{background:transparent;color:var(--ink)}
+.btn-ghost:hover{border-color:var(--accent);color:var(--accent)}
+.btn-danger{background:var(--live);color:#fff;border-color:transparent}
+.btn-live{background:var(--live);color:#fff;border-color:transparent;box-shadow:0 0 0 0 var(--live-glow);animation:ringpulse 2.2s infinite}
+
+/* ================= SHELL ================= */
+.admin{display:grid;grid-template-columns:250px 1fr;min-height:100vh}
+.admin-side{background:var(--card);border-right:1px solid var(--hair);padding:20px 16px;position:sticky;top:0;height:100vh;display:flex;flex-direction:column;overflow-y:auto}
+.admin-brand{display:flex;align-items:center;gap:11px;padding:6px 8px 20px;border-bottom:1px solid var(--hair);margin-bottom:16px}
+.brand-mark{width:34px;height:34px;border-radius:9px;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:600;font-size:13px;flex-shrink:0;font-family:var(--display)}
+.brand-name{font-size:14px;line-height:1.15;font-weight:600;font-family:var(--display)}
+.brand-name span{display:block;font-size:9.5px;color:var(--sub);font-weight:500;letter-spacing:.16em;text-transform:uppercase;font-family:var(--font)}
+.admin-nav{list-style:none;display:flex;flex-direction:column;gap:2px}
+.admin-nav a{display:flex;align-items:center;gap:12px;padding:10px 13px;border-radius:9px;color:var(--sub);font-weight:500;font-size:13.5px;transition:background .15s,color .15s;cursor:pointer}
+.admin-nav a:hover{background:var(--hover);color:var(--ink)}
+.admin-nav a.active{background:var(--tint);color:var(--accent);font-weight:600}
+.admin-nav .ico{width:16px;height:16px;border-radius:5px;border:1.5px solid currentColor;flex-shrink:0;opacity:.7}
+.admin-side-foot{margin-top:auto;padding-top:16px;border-top:1px solid var(--hair);display:flex;flex-direction:column;gap:8px}
+.admin-main{padding:30px 38px 64px;overflow-x:hidden;max-width:1360px}
+
+/* notice / topbar */
+.notice{border:1px solid var(--hair);border-left:3px solid var(--accent);background:var(--tint);border-radius:12px;padding:14px 16px;font-size:13.5px;line-height:1.5}
+.admin-topbar{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:30px;gap:16px;flex-wrap:wrap}
+.admin-topbar h1{font-size:1.9rem;font-weight:600;letter-spacing:-.03em}
+.admin-topbar .sub{color:var(--sub);font-size:14.5px;margin-top:4px;max-width:70ch}
+.admin-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.live-pill{display:inline-flex;align-items:center;gap:8px;padding:7px 15px;border-radius:999px;font-size:11.5px;font-weight:600;letter-spacing:.03em;border:1px solid var(--hair);color:var(--sub)}
+.live-pill .dot{width:8px;height:8px;border-radius:50%;background:var(--sub)}
+.live-pill.is-live{color:var(--live);border-color:var(--live);background:rgba(232,52,42,.08)}
+.live-pill.is-live .dot{background:var(--live);animation:pulse 1.7s infinite}
+
+/* ================= CARDS / GRID ================= */
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+.stat-grid.g5{grid-template-columns:repeat(5,1fr)}
+.stat-grid.g6{grid-template-columns:repeat(6,1fr)}
+.stat-grid.g7{grid-template-columns:repeat(7,1fr)}
+.stat-card{background:var(--card);border:1px solid var(--hair);border-radius:16px;padding:20px;box-shadow:var(--shadow)}
+.stat-card .k{color:var(--sub);font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:500}
+.stat-card .v{font-family:var(--display);font-weight:600;font-size:2.1rem;margin-top:10px;letter-spacing:-.035em;line-height:1}
+.stat-card .d{font-size:12.5px;margin-top:8px;color:var(--ok);font-weight:500}
+.stat-card .d.flat{color:var(--sub);font-weight:400}
+.panel{background:var(--card);border:1px solid var(--hair);border-radius:var(--radius-lg);padding:24px 26px;margin-bottom:22px;box-shadow:var(--shadow)}
+.panel h3{font-size:1.15rem;font-weight:600;margin-bottom:4px}
+.panel .panel-sub{color:var(--sub);font-size:13.5px;margin-bottom:18px}
+.two-col{display:grid;grid-template-columns:1.4fr 1fr;gap:22px;align-items:start}
+.panel-split{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+.dest-row{display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--hair);gap:14px}
+.dest-row:last-child{border-bottom:0}
+.dest-row .dest-name{font-weight:500}
+.dest-row .dest-meta{color:var(--sub);font-size:12.5px}
+
+/* bar chart */
+.bars{display:flex;align-items:flex-end;gap:6px;height:150px;margin-top:6px}
+.bars .col{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:6px;min-width:0}
+.bars .bar{width:100%;max-width:26px;background:linear-gradient(180deg,var(--accent2),var(--accent));border-radius:6px 6px 0 0;min-height:3px}
+.bars .bar.alt{background:linear-gradient(180deg,#3ddc7f,#1a9e5f)}
+.bars .lab{font-size:10px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+
+/* tables */
+.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
+.tbl th{text-align:left;color:var(--sub);font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.07em;padding:0 14px 12px;border-bottom:1px solid var(--hair)}
+.tbl td{padding:14px;border-bottom:1px solid var(--hair);vertical-align:middle}
+.tbl tr:last-child td{border-bottom:0}
+.tbl tr:hover td{background:var(--body)}
+.tag{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;padding:4px 11px;border-radius:999px;border:1px solid var(--hair);color:var(--ink)}
+.tag.amber{background:var(--tint);border-color:transparent;color:var(--accent)}
+.tag.green{background:rgba(26,158,95,.12);border-color:transparent;color:var(--ok)}
+.tag.red{background:rgba(232,52,42,.12);border-color:transparent;color:var(--live)}
+.tag.blue{background:var(--tint);border-color:transparent;color:var(--accent)}
+.av{width:32px;height:32px;border-radius:50%;background:var(--tint);display:grid;place-items:center;font-weight:600;font-size:12.5px;color:var(--accent);flex-shrink:0}
+.urow{display:flex;align-items:center;gap:12px}
+
+/* forms */
+.form-field{margin-bottom:16px}
+.form-field label{display:block;font-size:12px;color:var(--sub);margin-bottom:7px;font-weight:500}
+.form-field input,.form-field textarea,.form-field select{width:100%;padding:11px 14px;border-radius:11px;background:var(--body);border:1px solid var(--hair);color:var(--ink);font-family:inherit;font-size:14px}
+.form-field input:focus,.form-field textarea:focus,.form-field select:focus{outline:none;border-color:var(--accent);background:var(--card)}
+.form-note{color:var(--sub);font-size:12px;margin-top:6px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+
+/* videos grid */
+.vgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.vcard{background:var(--card);border:1px solid var(--hair);border-radius:16px;overflow:hidden;box-shadow:var(--shadow)}
+.vthumb{aspect-ratio:16/9;background:#111 center/cover no-repeat;position:relative;display:grid;place-items:center;color:#fff}
+.vthumb .len{position:absolute;right:8px;bottom:8px;background:rgba(0,0,0,.72);color:#fff;font-size:11px;font-weight:600;padding:2px 7px;border-radius:6px}
+.vthumb .lbl{position:absolute;left:8px;top:8px;background:var(--accent);color:#fff;font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:3px 9px;border-radius:6px}
+.vmeta{padding:15px 16px}
+.vmeta b{display:block;font-size:14.5px;font-weight:600;line-height:1.3;margin-bottom:6px;font-family:var(--display);letter-spacing:-.01em}
+.vmeta span{color:var(--sub);font-size:12.5px}
+
+/* schedule */
+.sched li{display:flex;align-items:center;gap:18px;padding:16px 0;border-bottom:1px solid var(--hair)}
+.sched li:last-child{border-bottom:0}
+.sched .when{min-width:150px;color:var(--accent);font-weight:600;font-size:13.5px}
+.sched .what b{display:block;font-size:15px;font-weight:600}
+.sched .what span{color:var(--sub);font-size:13px}
+
+/* costs */
+.cost-total{font-family:var(--display);font-weight:600;font-size:44px;line-height:1;letter-spacing:-.04em;color:var(--accent)}
+.cost-total span{font-size:17px;color:var(--sub);font-weight:400;letter-spacing:-.01em}
+.budget-bar{margin-top:16px;height:10px;border-radius:999px;background:var(--body);border:1px solid var(--hair);overflow:hidden}
+.budget-fill{height:100%;background:var(--ok)}
+.budget-fill.warn{background:var(--accent)}
+.pricelist{list-style:none}
+.pricelist li{display:flex;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--hair);font-size:14px}
+.pricelist li:last-child{border-bottom:0}
+.pricelist li span{color:var(--sub)}
+.pricelist li b{font-weight:600}
+.callout{margin-top:16px;padding:13px 15px;border:1px solid var(--hair);border-left:3px solid var(--accent);border-radius:11px;background:var(--tint);font-size:13.5px;line-height:1.5}
+
+/* branding preview / swatches */
+.swatches{display:flex;gap:12px;flex-wrap:wrap}
+.sw{width:54px;height:54px;border-radius:12px;border:1px solid var(--hair);position:relative}
+.sw span{position:absolute;left:0;right:0;bottom:-20px;text-align:center;font-size:10px;color:var(--sub)}
+.brand-prev{border-radius:14px;overflow:hidden;border:1px solid var(--hair)}
+.brand-prev .top{background:var(--body);padding:20px;display:flex;align-items:center;gap:12px}
+.brand-prev .top b{font-family:var(--display)}
+.brand-prev .top .pillbtn{margin-left:auto;background:var(--accent);color:#fff;padding:9px 18px;border-radius:999px;font-size:12px;font-weight:500}
+
+/* studio / go-live */
+.studio-grid{display:grid;grid-template-columns:1fr 340px;gap:22px;align-items:start}
+.program{background:var(--card);border:1px solid var(--hair);border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+.prog-view{aspect-ratio:16/9;position:relative;background:#111 center/cover no-repeat url('https://images.pexels.com/photos/13868714/pexels-photo-13868714.jpeg?auto=compress&cs=tinysrgb&w=1400')}
+.prog-view::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 55%,rgba(0,0,0,.6))}
+.prog-badge{position:absolute;left:14px;top:14px;z-index:2;display:inline-flex;align-items:center;gap:7px;background:var(--live);color:#fff;font-size:11px;font-weight:600;letter-spacing:.04em;padding:6px 13px;border-radius:999px}
+.prog-badge i{width:6px;height:6px;border-radius:50%;background:#fff;animation:pulse 1.5s infinite}
+.prog-timer{position:absolute;right:14px;top:14px;z-index:2;background:rgba(0,0,0,.6);color:#fff;font-size:12px;font-weight:600;padding:6px 13px;border-radius:999px;font-variant-numeric:tabular-nums}
+.prog-l3{position:absolute;left:14px;bottom:14px;z-index:2}
+.prog-l3 b{display:block;background:var(--accent);color:#fff;font-family:var(--display);font-size:19px;font-weight:600;letter-spacing:-.01em;padding:7px 15px;line-height:1;border-radius:8px 8px 0 0}
+.prog-l3 span{display:block;background:rgba(0,0,0,.72);color:#fff;font-size:12px;padding:6px 15px;border-radius:0 0 8px 8px}
+.prog-tiles{display:flex;gap:10px;padding:12px;border-top:1px solid var(--hair);background:var(--card)}
+.ptile{flex:1;aspect-ratio:16/9;border-radius:9px;border:1px solid var(--hair);background:#111 center/cover no-repeat;position:relative;display:grid;place-items:center;font-size:11px;color:var(--sub);cursor:pointer}
+.ptile.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.ptile .t{position:absolute;left:6px;bottom:5px;font-size:10px;color:#fff;background:rgba(0,0,0,.6);padding:1px 6px;border-radius:5px}
+.studio-side{display:flex;flex-direction:column;gap:16px}
+.chat{background:var(--card);border:1px solid var(--hair);border-radius:18px;display:flex;flex-direction:column;height:340px;box-shadow:var(--shadow)}
+.chat-h{padding:13px 16px;border-bottom:1px solid var(--hair);font-weight:600;font-size:13px;display:flex;align-items:center;justify-content:space-between}
+.chat-b{flex:1;overflow-y:auto;padding:13px 16px;display:flex;flex-direction:column;gap:12px;font-size:13px}
+.msg b{color:var(--ink);font-weight:600;margin-right:6px}
+.msg.host b{color:var(--accent)}
+.msg .src{font-size:9px;color:var(--dim);border:1px solid var(--hair);border-radius:5px;padding:0 4px;margin-left:6px;text-transform:uppercase;letter-spacing:.04em}
+.chat-f{display:flex;gap:8px;padding:12px;border-top:1px solid var(--hair)}
+.chat-f input{flex:1;background:var(--body);border:1px solid var(--hair);color:var(--ink);border-radius:999px;padding:9px 14px;font:inherit;font-size:13px}
+.chat-f button{border-radius:999px;background:var(--accent);color:#fff;padding:9px 17px;font-size:13px;font-weight:500}
+
+/* help / sop */
+.step-list{counter-reset:s;list-style:none}
+.step-list li{position:relative;padding:14px 0 14px 46px;border-bottom:1px solid var(--hair)}
+.step-list li:last-child{border-bottom:0}
+.step-list li::before{counter-increment:s;content:counter(s);position:absolute;left:0;top:12px;width:30px;height:30px;border-radius:50%;background:var(--tint);color:var(--accent);font-weight:600;display:grid;place-items:center;font-size:14px;font-family:var(--display)}
+.step-list b{display:block;font-size:14.5px;font-weight:600}
+.step-list span{color:var(--sub);font-size:13px}
+.role-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.role-card{border:1px solid var(--hair);border-radius:14px;padding:17px;background:var(--body)}
+.role-card h4{font-size:14px;margin-bottom:6px;color:var(--accent);font-weight:600}
+.role-card p{font-size:12.5px;color:var(--sub)}
+
+/* pages toggle */
+.page{display:none}
+.page.active{display:block}
+
+@media (max-width:1080px){
+  .stat-grid,.stat-grid.g5,.stat-grid.g6,.stat-grid.g7{grid-template-columns:repeat(3,1fr)}
+  .studio-grid{grid-template-columns:1fr}
+  .role-grid{grid-template-columns:repeat(2,1fr)}
+  .vgrid{grid-template-columns:repeat(2,1fr)}
+}
+@media (max-width:820px){
+  .admin{grid-template-columns:1fr}
+  .admin-side{position:static;height:auto;flex-direction:row;flex-wrap:wrap;align-items:center;gap:6px}
+  .admin-brand{border:0;margin:0;padding:6px 8px;width:100%}
+  .admin-nav{flex-direction:row;flex-wrap:wrap}
+  .admin-side-foot{margin:0 0 0 auto;border:0;padding:0;flex-direction:row}
+  .two-col,.panel-split,.row2{grid-template-columns:1fr}
+  .admin-main{padding:20px}
+  .vgrid{grid-template-columns:1fr}
+  .stat-grid,.stat-grid.g5,.stat-grid.g6,.stat-grid.g7{grid-template-columns:repeat(2,1fr)}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="admin">
+  <!-- ========== SIDEBAR ========== -->
+  <aside class="admin-side">
+    <div class="admin-brand">
+      <span class="brand-mark">CH</span>
+      <span class="brand-name">Coach Hayes Football<span>Studio</span></span>
+    </div>
+    <ul class="admin-nav" id="nav">
+      <li><a data-page="overview" class="active"><span class="ico"></span>Overview</a></li>
+      <li><a data-page="golive"><span class="ico"></span>Go Live</a></li>
+      <li><a data-page="videos"><span class="ico"></span>Videos</a></li>
+      <li><a data-page="schedule"><span class="ico"></span>Schedule</a></li>
+      <li><a data-page="content"><span class="ico"></span>Content</a></li>
+      <li><a data-page="branding"><span class="ico"></span>Branding</a></li>
+      <li><a data-page="users"><span class="ico"></span>Users</a></li>
+      <li><a data-page="tips"><span class="ico"></span>Tips</a></li>
+      <li><a data-page="costs"><span class="ico"></span>Costs</a></li>
+      <li><a data-page="analytics"><span class="ico"></span>Analytics</a></li>
+      <li><a data-page="settings"><span class="ico"></span>Settings</a></li>
+      <li><a data-page="team"><span class="ico"></span>Team</a></li>
+      <li><a data-page="help"><span class="ico"></span>Help &amp; SOP</a></li>
+    </ul>
+    <div class="admin-side-foot">
+      <button class="btn btn-ghost btn-sm" id="themeToggle">Toggle theme</button>
+      <a class="btn btn-ghost btn-sm" href="home.html" style="justify-content:center">View public site</a>
+      <button class="btn btn-ghost btn-sm">Sign out</button>
+    </div>
+  </aside>
+
+  <!-- ========== MAIN ========== -->
+  <main class="admin-main">
+    <div class="notice" style="margin-bottom:22px">
+      <strong>Demo mode.</strong> This is an interactive mock of the Coach Hayes Football Studio with sample data — click through every page in the sidebar. Connect Firebase, Cloudflare Stream and YouTube to make it live.
+    </div>
+
+    <!-- ============ OVERVIEW ============ -->
+    <section class="page active" id="page-overview">
+      <div class="admin-topbar">
+        <div><h1>Overview</h1><div class="sub">Real numbers from your site and connected channels.</div></div>
+        <div class="admin-actions">
+          <span class="live-pill is-live"><span class="dot"></span><span>Live now</span></span>
+          <a class="btn btn-primary btn-sm" data-page="golive">Go Live</a>
+        </div>
+      </div>
+      <div class="stat-grid g7">
+        <div class="stat-card"><div class="k">Users</div><div class="v">24,180</div><div class="d">+612 this week</div></div>
+        <div class="stat-card"><div class="k">Subscribers</div><div class="v">410K</div><div class="d flat">YouTube, all channels</div></div>
+        <div class="stat-card"><div class="k">Total views</div><div class="v">58.4M</div><div class="d flat">All-time</div></div>
+        <div class="stat-card"><div class="k">Videos</div><div class="v">1,306</div><div class="d flat">Published on YouTube</div></div>
+        <div class="stat-card"><div class="k">Revenue</div><div class="v">$18,940</div><div class="d">$2,410 this week</div></div>
+        <div class="stat-card"><div class="k">Est. cost / show</div><div class="v">$6</div><div class="d flat">~8,400 viewers x 95 min</div></div>
+        <div class="stat-card"><div class="k">Live status</div><div class="v">On air</div><div class="d flat">8,412 watching</div></div>
+      </div>
+      <div class="two-col">
+        <div class="panel">
+          <h3>Revenue</h3><div class="panel-sub">Tips over the last 14 days — $18,940 total.</div>
+          <div class="bars" id="chart-rev"></div>
+        </div>
+        <div class="panel">
+          <h3>New users</h3><div class="panel-sub">People who signed up on the site, last 14 days.</div>
+          <div class="bars" id="chart-users"></div>
+        </div>
+      </div>
+      <div class="two-col">
+        <div class="panel">
+          <h3>Subscribers by channel</h3><div class="panel-sub">Live from the YouTube Data API.</div>
+          <div class="bars" id="chart-subs"></div>
+        </div>
+        <div class="panel">
+          <h3>Views by channel</h3><div class="panel-sub">All-time views per channel.</div>
+          <div class="bars" id="chart-views"></div>
+        </div>
+      </div>
+      <div class="two-col">
+        <div class="panel">
+          <h3>Channels</h3><div class="panel-sub">Connected via the YouTube Data API.</div>
+          <div class="dest-row"><div><div class="dest-name">Canes Talk Live</div><div class="dest-meta">youtube.com/@canestalklive</div></div><a class="btn btn-ghost btn-sm">Open</a></div>
+          <div class="dest-row"><div><div class="dest-name">Prime Time Talk</div><div class="dest-meta">youtube.com/@primetimetalk</div></div><a class="btn btn-ghost btn-sm">Open</a></div>
+          <div class="dest-row"><div><div class="dest-name">Knight Life</div><div class="dest-meta">youtube.com/@knightlife</div></div><a class="btn btn-ghost btn-sm">Open</a></div>
+          <div class="dest-row"><div><div class="dest-name">Hayes Street</div><div class="dest-meta">youtube.com/@hayesstreet</div></div><a class="btn btn-ghost btn-sm">Open</a></div>
+        </div>
+        <div class="panel">
+          <h3>Recent activity</h3><div class="panel-sub">Broadcast and upload events.</div>
+          <div class="dest-row"><div><div class="dest-name">Went live — Canes Talk Live</div><div class="dest-meta">Today, 8:02 PM · 3 destinations</div></div><span class="tag red"><i style="width:6px;height:6px;border-radius:50%;background:currentColor"></i>Live</span></div>
+          <div class="dest-row"><div><div class="dest-name">VOD saved — Knight Life ep. 214</div><div class="dest-meta">Yesterday · 1h 12m</div></div><span class="tag green">Saved</span></div>
+          <div class="dest-row"><div><div class="dest-name">Upload — Prime Time Talk</div><div class="dest-meta">Yesterday · Published to YouTube</div></div><span class="tag">Upload</span></div>
+          <div class="dest-row"><div><div class="dest-name">$50 tip from mia_dad_07</div><div class="dest-meta">2 days ago · during Hayes Street</div></div><span class="tag amber">Tip</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ GO LIVE / STUDIO ============ -->
+    <section class="page" id="page-golive">
+      <div class="admin-topbar">
+        <div><h1>Go Live</h1><div class="sub">The browser studio. Camera, guests and graphics — then push to every destination at once.</div></div>
+        <div class="admin-actions">
+          <span class="live-pill is-live"><span class="dot"></span><span>On air · 8,412</span></span>
+          <button class="btn btn-danger btn-sm">End broadcast</button>
+        </div>
+      </div>
+      <div class="studio-grid">
+        <div>
+          <div class="program">
+            <div class="prog-view">
+              <span class="prog-badge"><i></i>ON AIR</span>
+              <span class="prog-timer" id="studioTimer">01:12:44</span>
+              <div class="prog-l3"><b>Canes Talk Live</b><span>Miami vs Stanford — the film</span></div>
+            </div>
+            <div class="prog-tiles">
+              <div class="ptile on" style="background-image:url('https://images.pexels.com/photos/13868714/pexels-photo-13868714.jpeg?auto=compress&cs=tinysrgb&w=400')"><span class="t">Program</span></div>
+              <div class="ptile" style="background-image:url('https://images.pexels.com/photos/1181690/pexels-photo-1181690.jpeg?auto=compress&cs=tinysrgb&w=400')"><span class="t">Coach cam</span></div>
+              <div class="ptile" style="background-image:url('https://images.pexels.com/photos/3184405/pexels-photo-3184405.jpeg?auto=compress&cs=tinysrgb&w=400')"><span class="t">Guest</span></div>
+              <div class="ptile" style="background:var(--body)"><span>+ Add scene</span></div>
+            </div>
+          </div>
+          <div class="panel" style="margin-top:22px">
+            <h3>Destinations</h3><div class="panel-sub">This show routes to three places automatically. Toggle any off before you go live.</div>
+            <div class="dest-row"><div><div class="dest-name">This site</div><div class="dest-meta">coachhayesfootball.com/live</div></div><span class="tag green">Streaming</span></div>
+            <div class="dest-row"><div><div class="dest-name">YouTube — Canes Talk Live</div><div class="dest-meta">@canestalklive · 1080p</div></div><span class="tag green">Streaming</span></div>
+            <div class="dest-row"><div><div class="dest-name">Facebook — Coach Hayes Football</div><div class="dest-meta">Page live</div></div><span class="tag green">Streaming</span></div>
+            <div class="dest-row"><div><div class="dest-name">YouTube — Buffs channel</div><div class="dest-meta">@primetimetalk · off for this show</div></div><span class="tag">Off</span></div>
+          </div>
+          <div class="panel">
+            <h3>On-air graphics</h3><div class="panel-sub">Push a lower-third or pin a comment live.</div>
+            <div class="admin-actions">
+              <button class="btn btn-ghost btn-sm">Lower-third</button>
+              <button class="btn btn-ghost btn-sm">Pin comment</button>
+              <button class="btn btn-ghost btn-sm">Branded scene</button>
+              <button class="btn btn-ghost btn-sm">Virtual background</button>
+              <button class="btn btn-ghost btn-sm">Share screen</button>
+            </div>
+          </div>
+        </div>
+        <div class="studio-side">
+          <div class="panel" style="margin:0">
+            <h3>Guests</h3><div class="panel-sub">Green room — admit to bring on air.</div>
+            <div class="dest-row"><div class="urow"><span class="av">JR</span><div><div class="dest-name">Jared R.</div><div class="dest-meta">In green room</div></div></div><button class="btn btn-primary btn-sm">Admit</button></div>
+            <div class="dest-row"><div class="urow"><span class="av">TM</span><div><div class="dest-name">Coach Tim M.</div><div class="dest-meta">On air</div></div></div><button class="btn btn-ghost btn-sm">Remove</button></div>
+          </div>
+          <div class="chat">
+            <div class="chat-h"><span>Live chat</span><span class="muted" style="font-size:11px">merged · 3 platforms</span></div>
+            <div class="chat-b">
+              <div class="msg"><b>mia_dad_07</b><span class="src">yt</span>that safety was cooked on the wheel route</div>
+              <div class="msg host"><b>Coach Hayes</b><span class="src">site</span>watch the leverage — he's a step late every time</div>
+              <div class="msg"><b>buffsdown</b><span class="src">fb</span>run it back one more time coach</div>
+              <div class="msg"><b>knight_film</b><span class="src">yt</span>UCF ran the same look last week</div>
+              <div class="msg"><b>tallahassee</b><span class="src">site</span>this is the best breakdown channel period</div>
+            </div>
+            <div class="chat-f"><input placeholder="Message as Coach Hayes..."><button>Send</button></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ VIDEOS ============ -->
+    <section class="page" id="page-videos">
+      <div class="admin-topbar">
+        <div><h1>Videos</h1><div class="sub">Saved broadcasts from Cloudflare Stream and uploads from your YouTube channels.</div></div>
+        <div class="admin-actions"><button class="btn btn-ghost btn-sm">Filter</button><button class="btn btn-primary btn-sm">Upload</button></div>
+      </div>
+      <div class="vgrid">
+        <div class="vcard"><div class="vthumb" style="background-image:url('https://images.pexels.com/photos/13868714/pexels-photo-13868714.jpeg?auto=compress&cs=tinysrgb&w=600')"><span class="lbl">VOD</span><span class="len">1:12:44</span></div><div class="vmeta"><b>Canes Talk Live — Miami vs Stanford, the film</b><span>184,204 views · 2 days ago</span></div></div>
+        <div class="vcard"><div class="vthumb" style="background-image:url('https://images.pexels.com/photos/200986/pexels-photo-200986.jpeg?auto=compress&cs=tinysrgb&w=600')"><span class="lbl">VOD</span><span class="len">58:20</span></div><div class="vmeta"><b>Knight Life ep. 214 — UCF at Baylor recap</b><span>72,918 views · 3 days ago</span></div></div>
+        <div class="vcard"><div class="vthumb" style="background-image:url('https://images.pexels.com/photos/128457/pexels-photo-128457.jpeg?auto=compress&cs=tinysrgb&w=600')"><span class="lbl">YouTube</span><span class="len">44:10</span></div><div class="vmeta"><b>Prime Time Talk — Buffs bounce-back plan</b><span>140,552 views · 5 days ago</span></div></div>
+        <div class="vcard"><div class="vthumb" style="background-image:url('https://images.pexels.com/photos/33923596/pexels-photo-33923596.jpeg?auto=compress&cs=tinysrgb&w=600')"><span class="lbl">YouTube</span><span class="len">22:05</span></div><div class="vmeta"><b>Hayes Street — Friday mailbag</b><span>39,410 views · 6 days ago</span></div></div>
+        <div class="vcard"><div class="vthumb" style="background-image:url('https://images.pexels.com/photos/4394343/pexels-photo-4394343.jpeg?auto=compress&cs=tinysrgb&w=600')"><span class="lbl">Series</span><span class="len">11:38</span></div><div class="vmeta"><b>W.R.E. Breakdown — 2027 WR, release &amp; leverage</b><span>96,730 views · 1 week ago</span></div></div>
+        <div class="vcard"><div class="vthumb" style="background-image:url('https://images.pexels.com/photos/159698/basketball-dunk-blue-game-159698.jpeg?auto=compress&cs=tinysrgb&w=600')"><span class="lbl">VOD</span><span class="len">1:04:12</span></div><div class="vmeta"><b>Canes Talk Live — recruiting weekend special</b><span>121,004 views · 1 week ago</span></div></div>
+      </div>
+    </section>
+
+    <!-- ============ SCHEDULE ============ -->
+    <section class="page" id="page-schedule">
+      <div class="admin-topbar">
+        <div><h1>Schedule</h1><div class="sub">Add your broadcasts. These publish to the Home + Live page with a countdown and go-live alerts.</div></div>
+      </div>
+      <div class="two-col">
+        <div class="panel">
+          <h3>Upcoming broadcasts</h3><div class="panel-sub" style="margin-bottom:8px">Saved automatically as you add them. Soonest first.</div>
+          <ul class="sched">
+            <li><span class="when">Tonight · 8:00 PM</span><div class="what"><b>Canes Talk Live</b><span>Miami · Site + YouTube + Facebook</span></div><span class="tag red">Live</span></li>
+            <li><span class="when">Tomorrow · 7:00 PM</span><div class="what"><b>Hayes Street</b><span>Daily · Site + Main YouTube</span></div><span class="tag amber">Scheduled</span></li>
+            <li><span class="when">Tue · 8:00 PM</span><div class="what"><b>Prime Time Talk</b><span>Colorado · Site + Buffs YouTube</span></div><span class="tag amber">Scheduled</span></li>
+            <li><span class="when">Wed · 8:00 PM</span><div class="what"><b>Canes Talk Live</b><span>Miami · 3 destinations</span></div><span class="tag amber">Scheduled</span></li>
+            <li><span class="when">Thu · 7:30 PM</span><div class="what"><b>Knight Life</b><span>UCF · Site + UCF YouTube</span></div><span class="tag amber">Scheduled</span></li>
+            <li><span class="when">Sat · 11:00 AM</span><div class="what"><b>Gameday Pre-Show</b><span>Miami vs FSU · 3 destinations</span></div><span class="tag amber">Scheduled</span></li>
+          </ul>
+        </div>
+        <div class="panel">
+          <h3>Add a broadcast</h3><div class="panel-sub">Date, time and timezone — viewers see a live countdown.</div>
+          <div class="form-field"><label>Show</label><select><option>Canes Talk Live</option><option>Prime Time Talk</option><option>Knight Life</option><option>Hayes Street</option><option>Gameday Special</option></select></div>
+          <div class="form-field"><label>Title</label><input value="Miami vs FSU — the preview"></div>
+          <div class="row2"><div class="form-field"><label>Date</label><input type="date" value="2026-09-19"></div><div class="form-field"><label>Time</label><input type="time" value="20:00"></div></div>
+          <div class="form-field"><label>Destinations</label><select><option>Site + YouTube + Facebook</option><option>Site + YouTube</option><option>Site only</option></select></div>
+          <button class="btn btn-primary" style="width:100%">Add to schedule</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ CONTENT ============ -->
+    <section class="page" id="page-content">
+      <div class="admin-topbar">
+        <div><h1>Content</h1><div class="sub">Edit the words and sections viewers see. No code required.</div></div>
+        <div class="admin-actions"><button class="btn btn-primary btn-sm">Save changes</button></div>
+      </div>
+      <div class="two-col">
+        <div>
+          <div class="panel">
+            <h3>About page</h3><div class="panel-sub">The story text on the About page. Blank lines start a new paragraph.</div>
+            <div class="form-field"><textarea rows="5">Coach Hayes Football is a five-show college football network covering Miami, Colorado and UCF — film-first, coach's-perspective breakdowns you can't get anywhere else.
+
+Live on this site and simulcast to YouTube and Facebook, five nights a week.</textarea></div>
+          </div>
+          <div class="panel">
+            <h3>Contact details</h3><div class="panel-sub">Shown on the Contact page and footer.</div>
+            <div class="row2"><div class="form-field"><label>Email</label><input value="team@coachhayesfootball.com"></div><div class="form-field"><label>Booking</label><input value="press@coachhayesfootball.com"></div></div>
+          </div>
+        </div>
+        <div>
+          <div class="panel">
+            <h3>Series</h3><div class="panel-sub">The shows that appear across the site.</div>
+            <div class="dest-row"><div><div class="dest-name">Canes Talk Live</div><div class="dest-meta">Wednesdays · Miami</div></div><button class="btn btn-ghost btn-sm">Edit</button></div>
+            <div class="dest-row"><div><div class="dest-name">Prime Time Talk</div><div class="dest-meta">Tuesdays · Colorado</div></div><button class="btn btn-ghost btn-sm">Edit</button></div>
+            <div class="dest-row"><div><div class="dest-name">Knight Life</div><div class="dest-meta">Thursdays · UCF</div></div><button class="btn btn-ghost btn-sm">Edit</button></div>
+            <div class="dest-row"><div><div class="dest-name">Hayes Street</div><div class="dest-meta">Weekdays · Daily</div></div><button class="btn btn-ghost btn-sm">Edit</button></div>
+            <div class="dest-row"><div><div class="dest-name">W.R.E. Breakdowns</div><div class="dest-meta">Series · Player film</div></div><button class="btn btn-ghost btn-sm">Edit</button></div>
+          </div>
+          <div class="panel">
+            <h3>Connected YouTube channels</h3><div class="panel-sub">Used to pull real videos into the library.</div>
+            <div class="dest-row"><div class="dest-name">@canestalklive</div><span class="tag green">Connected</span></div>
+            <div class="dest-row"><div class="dest-name">@primetimetalk</div><span class="tag green">Connected</span></div>
+            <div class="dest-row"><div class="dest-name">@knightlife</div><span class="tag green">Connected</span></div>
+            <div class="dest-row"><div class="dest-name">@hayesstreet</div><span class="tag green">Connected</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ BRANDING ============ -->
+    <section class="page" id="page-branding">
+      <div class="admin-topbar">
+        <div><h1>Branding</h1><div class="sub">Logo, colors and identity across the whole platform.</div></div>
+        <div class="admin-actions"><button class="btn btn-primary btn-sm">Save branding</button></div>
+      </div>
+      <div class="two-col">
+        <div>
+          <div class="panel">
+            <h3>Identity</h3><div class="panel-sub">Name and tagline used site-wide.</div>
+            <div class="form-field"><label>Site name</label><input value="Coach Hayes Football"></div>
+            <div class="form-field"><label>Tagline</label><input value="Football, read the way a coach reads it."></div>
+            <div class="form-field"><label>Live-player show bug</label><input value="CANES TALK LIVE"></div>
+          </div>
+          <div class="panel">
+            <h3>Colors</h3><div class="panel-sub">The accent drives buttons, links and highlights.</div>
+            <div class="swatches" style="margin-bottom:22px">
+              <div class="sw" style="background:#1D1D1F"><span>Base</span></div>
+              <div class="sw" style="background:#0B6BFF"><span>Accent</span></div>
+              <div class="sw" style="background:#F5F5F7"><span>Surface</span></div>
+              <div class="sw" style="background:#E8342A"><span>Live</span></div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="panel">
+            <h3>Logo</h3><div class="panel-sub">Shown in the site header and admin. Images are resized and stored with your branding.</div>
+            <div style="border:1.5px dashed var(--hair);border-radius:12px;padding:34px;text-align:center;color:var(--sub);font-size:13px">Drop a PNG or SVG here, or click to upload</div>
+          </div>
+          <div class="panel">
+            <h3>Preview</h3><div class="panel-sub">How the brand reads together.</div>
+            <div class="brand-prev">
+              <div class="top"><span class="brand-mark">CH</span><b>Coach Hayes Football</b><span class="pillbtn">Watch live</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ USERS ============ -->
+    <section class="page" id="page-users">
+      <div class="admin-topbar">
+        <div><h1>Users</h1><div class="sub">Everyone who signed up to chat, and how they signed in.</div></div>
+        <div class="admin-actions"><input class="btn btn-ghost btn-sm" placeholder="Search users..." style="min-width:200px"><button class="btn btn-ghost btn-sm">Export</button></div>
+      </div>
+      <div class="stat-grid">
+        <div class="stat-card"><div class="k">Total users</div><div class="v">24,180</div><div class="d">+612 this week</div></div>
+        <div class="stat-card"><div class="k">Locker Room members</div><div class="v">3,942</div><div class="d">+88 this week</div></div>
+        <div class="stat-card"><div class="k">Google sign-in</div><div class="v">68%</div><div class="d flat">of accounts</div></div>
+        <div class="stat-card"><div class="k">Banned</div><div class="v">14</div><div class="d flat">by moderators</div></div>
+      </div>
+      <div class="panel">
+        <table class="tbl">
+          <thead><tr><th>User</th><th>Email</th><th>Sign-in</th><th>Joined</th><th>Plan</th><th></th></tr></thead>
+          <tbody>
+            <tr><td><div class="urow"><span class="av">MD</span><b>mia_dad_07</b></div></td><td class="muted">m.diaz@gmail.com</td><td><span class="tag blue">Google</span></td><td class="muted">Sep 2, 2026</td><td><span class="tag amber">Locker Room</span></td><td><button class="btn btn-ghost btn-sm">Manage</button></td></tr>
+            <tr><td><div class="urow"><span class="av">BD</span><b>buffsdown</b></div></td><td class="muted">jordan.k@outlook.com</td><td><span class="tag">Email</span></td><td class="muted">Sep 1, 2026</td><td><span class="tag">Free</span></td><td><button class="btn btn-ghost btn-sm">Manage</button></td></tr>
+            <tr><td><div class="urow"><span class="av">KF</span><b>knight_film</b></div></td><td class="muted">t.nguyen@gmail.com</td><td><span class="tag blue">Google</span></td><td class="muted">Aug 30, 2026</td><td><span class="tag amber">Locker Room</span></td><td><button class="btn btn-ghost btn-sm">Manage</button></td></tr>
+            <tr><td><div class="urow"><span class="av">TL</span><b>tallahassee</b></div></td><td class="muted">rileyp@gmail.com</td><td><span class="tag blue">Google</span></td><td class="muted">Aug 28, 2026</td><td><span class="tag">Free</span></td><td><button class="btn btn-ghost btn-sm">Manage</button></td></tr>
+            <tr><td><div class="urow"><span class="av">CS</span><b>canesspecial</b></div></td><td class="muted">a.rivera@icloud.com</td><td><span class="tag">Apple</span></td><td class="muted">Aug 26, 2026</td><td><span class="tag amber">Locker Room</span></td><td><button class="btn btn-ghost btn-sm">Manage</button></td></tr>
+            <tr><td><div class="urow"><span class="av">GD</span><b>gamedaygrant</b></div></td><td class="muted">grant88@gmail.com</td><td><span class="tag blue">Google</span></td><td class="muted">Aug 24, 2026</td><td><span class="tag">Free</span></td><td><button class="btn btn-ghost btn-sm">Manage</button></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============ TIPS ============ -->
+    <section class="page" id="page-tips">
+      <div class="admin-topbar">
+        <div><h1>Tips</h1><div class="sub">Money viewers have sent during your shows. Payouts land in your Stripe account.</div></div>
+      </div>
+      <div class="stat-grid">
+        <div class="stat-card"><div class="k">All-time tips</div><div class="v">$18,940</div><div class="d">$2,410 this week</div></div>
+        <div class="stat-card"><div class="k">This month</div><div class="v">$6,120</div><div class="d">+22% vs last</div></div>
+        <div class="stat-card"><div class="k">Avg. tip</div><div class="v">$14</div><div class="d flat">1,353 tips all-time</div></div>
+        <div class="stat-card"><div class="k">Platform cut</div><div class="v">$0</div><div class="d flat">You keep it all</div></div>
+      </div>
+      <div class="panel">
+        <h3>Recent tips</h3><div class="panel-sub">Straight to you — no platform cut, minus Stripe processing.</div>
+        <table class="tbl">
+          <thead><tr><th>From</th><th>Amount</th><th>Show</th><th>Message</th><th>When</th></tr></thead>
+          <tbody>
+            <tr><td><b>mia_dad_07</b></td><td><span class="tag amber">$50</span></td><td class="muted">Canes Talk Live</td><td class="muted">Best breakdown on the internet</td><td class="muted">2h ago</td></tr>
+            <tr><td><b>buffsdown</b></td><td><span class="tag amber">$20</span></td><td class="muted">Prime Time Talk</td><td class="muted">Buffs til I die</td><td class="muted">Today</td></tr>
+            <tr><td><b>knight_film</b></td><td><span class="tag amber">$10</span></td><td class="muted">Knight Life</td><td class="muted">—</td><td class="muted">Yesterday</td></tr>
+            <tr><td><b>tallahassee</b></td><td><span class="tag amber">$25</span></td><td class="muted">Canes Talk Live</td><td class="muted">Even as a Nole, respect</td><td class="muted">Yesterday</td></tr>
+            <tr><td><b>gamedaygrant</b></td><td><span class="tag amber">$5</span></td><td class="muted">Hayes Street</td><td class="muted">Mailbag me</td><td class="muted">2 days ago</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============ COSTS ============ -->
+    <section class="page" id="page-costs">
+      <div class="admin-topbar">
+        <div><h1>Costs</h1><div class="sub">Estimated monthly spend across your services. Set a budget to get an alert.</div></div>
+      </div>
+      <div class="two-col">
+        <div>
+          <div class="panel">
+            <h3>This month so far</h3><div class="panel-sub">Only on-site viewers cost money. YouTube and Facebook viewers are free.</div>
+            <div class="cost-total">$212 <span>/ est. $340 by month end</span></div>
+            <div class="budget-bar"><div class="budget-fill warn" style="width:62%"></div></div>
+            <div class="panel-sub" style="margin-top:10px">62% of your $340 budget. You'll get a warning at 80%.</div>
+          </div>
+          <div class="panel">
+            <h3>Breakdown</h3><div class="panel-sub">Cloudflare Stream is the only usage-based cost at your scale.</div>
+            <ul class="pricelist">
+              <li><span>Cloudflare Stream — live delivery</span><b>$176</b></li>
+              <li><span>Cloudflare Stream — VOD storage</span><b>$28</b></li>
+              <li><span>Simulcast relay (Fly.io)</span><b>$8</b></li>
+              <li><span>Firebase / Vercel / Realtime</span><b>Free tier</b></li>
+              <li><span>YouTube + Facebook simulcast</span><b>$0</b></li>
+            </ul>
+          </div>
+        </div>
+        <div>
+          <div class="panel">
+            <h3>You vs StreamYard</h3><div class="panel-sub">Your actual spend this month vs a flat StreamYard Pro plan.</div>
+            <div style="display:flex;gap:16px">
+              <div style="flex:1;border:1px solid var(--hair);border-radius:12px;padding:16px"><span class="muted" style="font-size:12px">You</span><div class="cost-total" style="font-size:32px">$212</div></div>
+              <div style="flex:1;border:1px solid var(--hair);border-radius:12px;padding:16px"><span class="muted" style="font-size:12px">StreamYard Pro</span><div class="cost-total" style="font-size:32px;color:var(--sub)">$588</div></div>
+            </div>
+            <div class="callout">At this scale you're saving ~$376/mo running your own stack — and you own the code.</div>
+          </div>
+          <div class="panel">
+            <h3>Per-show cost estimator</h3><div class="panel-sub">A what-if calculator — not your bill. Only on-site viewers cost money.</div>
+            <div class="row2"><div class="form-field"><label>On-site viewers</label><input value="8400"></div><div class="form-field"><label>Show length (min)</label><input value="95"></div></div>
+            <div class="callout" style="border-left-color:var(--ok)">Estimated <b>$6.05</b> per show · 8,400 viewers × 95 min. YouTube/Facebook viewers add $0.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ ANALYTICS ============ -->
+    <section class="page" id="page-analytics">
+      <div class="admin-topbar">
+        <div><h1>Analytics</h1><div class="sub">Pulled live from YouTube across all four channels.</div></div>
+      </div>
+      <div class="stat-grid">
+        <div class="stat-card"><div class="k">Watch time (30d)</div><div class="v">1.9M hrs</div><div class="d">+11%</div></div>
+        <div class="stat-card"><div class="k">Avg. concurrent</div><div class="v">7.2K</div><div class="d">+6%</div></div>
+        <div class="stat-card"><div class="k">New subs (30d)</div><div class="v">+18.4K</div><div class="d">+14%</div></div>
+        <div class="stat-card"><div class="k">Peak viewers</div><div class="v">31.6K</div><div class="d flat">Miami vs Clemson</div></div>
+      </div>
+      <div class="two-col">
+        <div class="panel">
+          <h3>Views — last 14 days</h3><div class="panel-sub">All channels combined.</div>
+          <div class="bars" id="chart-analytics"></div>
+        </div>
+        <div class="panel">
+          <h3>Recent uploads</h3><div class="panel-sub">Latest across your channels.</div>
+          <div class="dest-row"><div><div class="dest-name">Miami vs Stanford — the film</div><div class="dest-meta">Canes Talk Live · 184K views</div></div><span class="tag green">+12%</span></div>
+          <div class="dest-row"><div><div class="dest-name">Buffs bounce-back plan</div><div class="dest-meta">Prime Time Talk · 140K views</div></div><span class="tag green">+8%</span></div>
+          <div class="dest-row"><div><div class="dest-name">UCF at Baylor recap</div><div class="dest-meta">Knight Life · 72K views</div></div><span class="tag amber">+3%</span></div>
+          <div class="dest-row"><div><div class="dest-name">Friday mailbag</div><div class="dest-meta">Hayes Street · 39K views</div></div><span class="tag green">+15%</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SETTINGS ============ -->
+    <section class="page" id="page-settings">
+      <div class="admin-topbar">
+        <div><h1>Settings</h1><div class="sub">Connections and platform basics.</div></div>
+        <div class="admin-actions"><button class="btn btn-primary btn-sm">Save</button></div>
+      </div>
+      <div class="two-col">
+        <div>
+          <div class="panel">
+            <h3>Integrations</h3><div class="panel-sub">The services that power your network.</div>
+            <div class="dest-row"><div><div class="dest-name">Cloudflare Stream</div><div class="dest-meta">Live delivery + VOD</div></div><span class="tag green">Connected</span></div>
+            <div class="dest-row"><div><div class="dest-name">Firebase</div><div class="dest-meta">Auth + Realtime chat</div></div><span class="tag green">Connected</span></div>
+            <div class="dest-row"><div><div class="dest-name">YouTube Data API</div><div class="dest-meta">4 channels</div></div><span class="tag green">Connected</span></div>
+            <div class="dest-row"><div><div class="dest-name">Facebook Live</div><div class="dest-meta">Page simulcast</div></div><span class="tag green">Connected</span></div>
+            <div class="dest-row"><div><div class="dest-name">Stripe</div><div class="dest-meta">Tips + memberships</div></div><span class="tag green">Connected</span></div>
+            <div class="dest-row"><div><div class="dest-name">Simulcast relay</div><div class="dest-meta">Fly.io · ffmpeg</div></div><span class="tag green">Deployed</span></div>
+          </div>
+        </div>
+        <div>
+          <div class="panel">
+            <h3>Live defaults</h3><div class="panel-sub">Applied to every new broadcast.</div>
+            <div class="form-field"><label>Default destinations</label><select><option>Site + YouTube + Facebook</option><option>Site + YouTube</option><option>Site only</option></select></div>
+            <div class="form-field"><label>Ingest quality</label><select><option>1080p · CBR · 2s GOP</option><option>720p</option></select></div>
+            <div class="form-field"><label>Go-live alerts</label><select><option>Push + email members</option><option>Push only</option><option>Off</option></select></div>
+          </div>
+          <div class="panel">
+            <h3>Appearance</h3><div class="panel-sub">Studio theme on this device.</div>
+            <button class="btn btn-ghost btn-sm" onclick="toggleTheme()">Switch dark / light</button>
+          </div>
+          <div class="panel">
+            <h3>Account</h3><div class="panel-sub">Your Studio sign-in.</div>
+            <div class="dest-row"><div><div class="dest-name">coach@coachhayesfootball.com</div><div class="dest-meta">Owner</div></div><button class="btn btn-ghost btn-sm">Sign out</button></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ TEAM ============ -->
+    <section class="page" id="page-team">
+      <div class="admin-topbar">
+        <div><h1>Team</h1><div class="sub">Add staff and control what each person can see. Access is enforced everywhere.</div></div>
+        <div class="admin-actions"><button class="btn btn-primary btn-sm">Invite member</button></div>
+      </div>
+      <div class="panel">
+        <h3>Team members</h3><div class="panel-sub">Roles decide which Studio pages each person can open.</div>
+        <table class="tbl">
+          <thead><tr><th>Member</th><th>Email</th><th>Role</th><th></th></tr></thead>
+          <tbody>
+            <tr><td><div class="urow"><span class="av">CH</span><b>Coach Hayes</b></div></td><td class="muted">coach@coachhayesfootball.com</td><td><span class="tag amber">Owner</span></td><td class="muted">You</td></tr>
+            <tr><td><div class="urow"><span class="av">DM</span><b>Dana M.</b></div></td><td class="muted">dana@coachhayesfootball.com</td><td><span class="tag blue">Manager</span></td><td><button class="btn btn-ghost btn-sm">Edit</button></td></tr>
+            <tr><td><div class="urow"><span class="av">JR</span><b>Jared R.</b></div></td><td class="muted">jared@coachhayesfootball.com</td><td><span class="tag">Host</span></td><td><button class="btn btn-ghost btn-sm">Edit</button></td></tr>
+            <tr><td><div class="urow"><span class="av">SP</span><b>Sam P.</b></div></td><td class="muted">sam@coachhayesfootball.com</td><td><span class="tag">Moderator</span></td><td><button class="btn btn-ghost btn-sm">Edit</button></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel">
+        <h3>What each role can do</h3><div class="panel-sub">The single source of truth for who can reach what.</div>
+        <div class="role-grid">
+          <div class="role-card"><h4>Owner</h4><p>Everything, including Team and billing.</p></div>
+          <div class="role-card"><h4>Manager</h4><p>Everything except Team.</p></div>
+          <div class="role-card"><h4>Host</h4><p>Go Live, Videos, Schedule — runs the shows.</p></div>
+          <div class="role-card"><h4>Moderator</h4><p>Go Live + Users — chat &amp; user moderation.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ HELP ============ -->
+    <section class="page" id="page-help">
+      <div class="admin-topbar">
+        <div><h1>Help &amp; SOP</h1><div class="sub">How the Studio works — what each page is for, how to use it, and what to avoid.</div></div>
+      </div>
+      <div class="panel">
+        <h3>First broadcast, step by step</h3><div class="panel-sub">From cold start to on air in a few minutes.</div>
+        <ol class="step-list">
+          <li><b>Set the show and destinations</b><span>Schedule → pick the show → choose Site + YouTube + Facebook. Routing is remembered per show.</span></li>
+          <li><b>Open Go Live</b><span>Allow camera + mic. Add guests to the green room and admit them when ready.</span></li>
+          <li><b>Add your graphics</b><span>Lower-third for the topic, a branded scene, pin the best comment.</span></li>
+          <li><b>Push live</b><span>One button streams to every destination at once. The merged chat lights up.</span></li>
+          <li><b>End &amp; save</b><span>End broadcast — the show saves to Videos as a VOD automatically.</span></li>
+        </ol>
+      </div>
+      <div class="panel">
+        <h3>Roles — who can see what</h3><div class="panel-sub">Set roles under Team. A limited role literally cannot open the pages it's not allowed to.</div>
+        <div class="role-grid">
+          <div class="role-card"><h4>Owner / Manager</h4><p>Full Studio. Manager can't touch Team.</p></div>
+          <div class="role-card"><h4>Host</h4><p>Runs and schedules shows.</p></div>
+          <div class="role-card"><h4>Moderator</h4><p>Chat + user moderation during live.</p></div>
+          <div class="role-card"><h4>Viewer</h4><p>No Studio access — public site only.</p></div>
+        </div>
+      </div>
+      <div class="panel">
+        <h3>Quick troubleshooting</h3><div class="panel-sub">The usual first checks.</div>
+        <div class="dest-row"><div><div class="dest-name">YouTube not showing the stream?</div><div class="dest-meta">Check the channel is connected under Content and the key hasn't rotated.</div></div></div>
+        <div class="dest-row"><div><div class="dest-name">Chat empty?</div><div class="dest-meta">Firebase Realtime must be connected — see Settings → Integrations.</div></div></div>
+        <div class="dest-row"><div><div class="dest-name">Cost warning?</div><div class="dest-meta">Only on-site viewers bill. Push more traffic to YouTube to lower cost.</div></div></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+/* ---------- theme ---------- */
+var root = document.documentElement, tkey = "chf-studio-theme";
+try{ var s = localStorage.getItem(tkey); if(s) root.setAttribute("data-theme", s); }catch(e){}
+function toggleTheme(){
+  var next = root.getAttribute("data-theme") === "light" ? "dark" : "light";
+  root.setAttribute("data-theme", next);
+  try{ localStorage.setItem(tkey, next); }catch(e){}
+}
+document.getElementById("themeToggle").addEventListener("click", toggleTheme);
+
+/* ---------- router ---------- */
+function showPage(name){
+  document.querySelectorAll(".page").forEach(function(p){ p.classList.toggle("active", p.id === "page-"+name); });
+  document.querySelectorAll("#nav a").forEach(function(a){ a.classList.toggle("active", a.dataset.page === name); });
+  window.scrollTo(0,0);
+}
+document.addEventListener("click", function(e){
+  var t = e.target.closest("[data-page]");
+  if(t){ e.preventDefault(); showPage(t.dataset.page); }
+});
+
+/* ---------- charts ---------- */
+function bars(id, data, alt){
+  var el = document.getElementById(id); if(!el) return;
+  var max = Math.max.apply(null, data.map(function(d){return d.v;}));
+  el.innerHTML = data.map(function(d){
+    var h = max ? Math.round((d.v/max)*130)+3 : 3;
+    return '<div class="col"><div class="bar'+(alt?" alt":"")+'" style="height:'+h+'px"></div><div class="lab">'+d.l+'</div></div>';
+  }).join("");
+}
+function days(vals){
+  return vals.map(function(v,i){ return {l:String(6+i>28?6+i-28:6+i), v:v}; });
+}
+bars("chart-rev", days([120,180,90,260,340,210,180,300,410,220,190,360,280,410]));
+bars("chart-users", days([22,31,18,44,52,30,25,38,61,40,28,55,42,61]), true);
+bars("chart-analytics", days([310,420,280,510,640,380,420,560,720,440,390,610,480,710]), true);
+bars("chart-subs", [{l:"Canes",v:210},{l:"Prime Time",v:96},{l:"Knight Life",v:44},{l:"Hayes St",v:60}]);
+bars("chart-views", [{l:"Canes",v:28},{l:"Prime Time",v:14},{l:"Knight Life",v:7},{l:"Hayes St",v:9}], true);
+
+/* ---------- fake studio timer ---------- */
+(function(){
+  var el = document.getElementById("studioTimer"); if(!el) return;
+  var s = 1*3600 + 12*60 + 44;
+  setInterval(function(){
+    s++;
+    var h=Math.floor(s/3600), m=Math.floor((s%3600)/60), ss=s%60;
+    function p(n){return (n<10?"0":"")+n;}
+    el.textContent = p(h)+":"+p(m)+":"+p(ss);
+  }, 1000);
+})();
+</script>
+</body>
+</html>

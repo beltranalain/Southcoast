@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coach Hayes Football — Live film network</title>
+<meta name="description" content="A five-show college football network. Live on this site and simulcast to YouTube and Facebook — every show routed to its own channel, run from one studio.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ===== THEME TOKENS ===== */
+:root{
+  --white:#FFFFFF;      /* card / raised surfaces */
+  --body:#FFFFFF;       /* page background */
+  --paper:#F5F5F7;      /* tinted section background */
+  --ink:#1D1D1F;        /* primary text */
+  --sub:#6E6E73;        /* secondary text */
+  --hair:#D2D2D7;       /* hairline */
+  --blue:#0B6BFF;       /* accent */
+  --live:#E8342A;
+  --black:#000;         /* full-bleed dark sections */
+  --nav:rgba(255,255,255,.72);
+  --card-shadow:0 1px 0 rgba(0,0,0,.04);
+  --max:1024px;--wide:1280px;
+}
+:root[data-theme="dark"]{
+  --white:#16130F;      /* card / raised surfaces */
+  --body:#0A0908;       /* page background */
+  --paper:#100D0B;      /* tinted section background */
+  --ink:#F3EFE7;        /* primary text */
+  --sub:#9A9287;        /* secondary text */
+  --hair:rgba(243,239,231,.13);
+  --blue:#4C93FF;       /* accent, brightened for dark */
+  --live:#FF5347;
+  --black:#050403;      /* full-bleed dark sections */
+  --nav:rgba(12,10,9,.72);
+  --card-shadow:0 1px 0 rgba(255,255,255,.03);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{background:var(--body);color:var(--ink);font-family:"Inter",-apple-system,system-ui,sans-serif;
+  font-size:17px;line-height:1.47;letter-spacing:-.01em;-webkit-font-smoothing:antialiased;
+  transition:background .35s ease,color .35s ease}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+svg{display:block}
+:focus-visible{outline:2px solid var(--blue);outline-offset:4px}
+h1,h2,h3,h4{font-family:"Inter Tight",-apple-system,system-ui,sans-serif;font-weight:600;letter-spacing:-.028em;line-height:1.06}
+.wrap{max-width:var(--max);margin:0 auto;padding:0 22px}
+.wide{max-width:var(--wide);margin:0 auto;padding:0 22px}
+.sec{padding:110px 0}
+.center{text-align:center}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+
+/* nav */
+nav{position:sticky;top:0;z-index:90;height:48px;background:var(--nav);
+  backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);
+  border-bottom:1px solid var(--hair);transition:background .35s ease,border-color .35s ease}
+.nv{max-width:var(--wide);margin:0 auto;padding:0 22px;height:48px;display:flex;align-items:center;gap:34px}
+.nv .brand{font-family:"Inter Tight";font-weight:600;font-size:15px;letter-spacing:-.02em}
+.nv .links{display:flex;gap:30px;margin:0 auto;font-size:12.5px;color:var(--sub)}
+.nv .links a:hover{color:var(--ink)}
+.nv .right{display:flex;align-items:center;gap:18px;font-size:12.5px}
+.nv .onair{display:inline-flex;align-items:center;gap:6px;color:var(--live);font-weight:500}
+.nv .onair i{width:6px;height:6px;border-radius:50%;background:var(--live);animation:pulse 2s infinite}
+/* theme toggle */
+.tgl{width:34px;height:34px;border-radius:50%;border:1px solid var(--hair);display:grid;place-items:center;
+  color:var(--ink);transition:border-color .2s,background .2s}
+.tgl:hover{border-color:var(--blue);color:var(--blue)}
+.tgl svg{width:16px;height:16px}
+.tgl .moon{display:none}
+:root[data-theme="dark"] .tgl .sun{display:none}
+:root[data-theme="dark"] .tgl .moon{display:block}
+
+/* buttons */
+.pill{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:var(--blue);
+  color:#fff;border-radius:980px;padding:12px 23px;font-size:17px;font-weight:400;letter-spacing:-.01em}
+.pill:hover{filter:brightness(1.08)}
+.pill.dark{background:var(--ink);color:var(--body)}
+.pill.dark:hover{filter:brightness(1.1)}
+.pill.ghost{background:transparent;color:var(--blue);border:1px solid var(--blue)}
+.pill.white{background:#fff;color:#1D1D1F}
+.link{color:var(--blue);font-size:17px;display:inline-flex;align-items:center;gap:4px}
+.link:hover{text-decoration:underline}
+.link::after{content:"›";font-size:19px;line-height:1;transform:translateY(-1px)}
+
+/* hero */
+.hero{padding:78px 0 0;background:var(--body);transition:background .35s ease}
+.eyebrow{font-size:19px;color:var(--sub);margin-bottom:10px;letter-spacing:-.01em}
+.hero h1{font-size:clamp(42px,7.4vw,88px);margin-bottom:18px}
+.hero .tagline{font-size:clamp(19px,2.2vw,26px);color:var(--sub);max-width:30ch;margin:0 auto 24px;font-weight:400;letter-spacing:-.015em}
+.herolinks{display:flex;gap:28px;justify-content:center;flex-wrap:wrap;margin-bottom:52px}
+.shot{max-width:var(--wide);margin:0 auto;padding:0 22px}
+.shot .frame{border-radius:28px;overflow:hidden;position:relative;aspect-ratio:16/9;
+  background:#111 center/cover no-repeat url('https://images.pexels.com/photos/13868714/pexels-photo-13868714.jpeg?auto=compress&cs=tinysrgb&w=1800')}
+.shot .frame::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.3) 0 22%,transparent 48%,rgba(0,0,0,.55))}
+.shot .frame>*{position:relative;z-index:3}
+.badge{position:absolute;left:22px;top:22px;display:inline-flex;align-items:center;gap:7px;
+  background:rgba(0,0,0,.55);backdrop-filter:blur(14px);color:#fff;border-radius:980px;
+  padding:7px 15px;font-size:12.5px;font-weight:500}
+.badge i{width:6px;height:6px;border-radius:50%;background:var(--live);animation:pulse 1.6s infinite}
+/* simulcast destination chips on the hero frame */
+.dests{position:absolute;right:22px;top:22px;display:flex;gap:8px}
+.dest{display:inline-flex;align-items:center;gap:6px;background:rgba(0,0,0,.5);backdrop-filter:blur(14px);
+  color:#fff;border-radius:980px;padding:6px 13px;font-size:12px;font-weight:500}
+.dest i{width:6px;height:6px;border-radius:50%;background:#3ad07a}
+.playnow{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:74px;height:74px;
+  border-radius:50%;background:rgba(255,255,255,.22);backdrop-filter:blur(14px);
+  border:1px solid rgba(255,255,255,.4);display:grid;place-items:center;color:#fff}
+.playnow:hover{background:rgba(255,255,255,.32)}
+.shotcap{position:absolute;left:24px;bottom:22px;right:24px;color:#fff}
+.shotcap b{display:block;font-family:"Inter Tight";font-weight:600;font-size:clamp(18px,2.2vw,26px);letter-spacing:-.02em;margin-bottom:4px}
+.shotcap span{font-size:14px;color:rgba(255,255,255,.75)}
+
+/* stats */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:40px;padding:70px 0 0}
+.stat b{display:block;font-family:"Inter Tight";font-weight:600;font-size:clamp(34px,4.4vw,54px);letter-spacing:-.035em;line-height:1}
+.stat span{display:block;font-size:14px;color:var(--sub);margin-top:8px}
+
+/* alt sections */
+.tone{background:var(--paper);transition:background .35s ease}
+.tone-dark{background:var(--black);color:#F5F5F7}
+.tone-dark h2,.tone-dark h3{color:#F5F5F7}
+.tone-dark .sub{color:#86868B}
+.secHead{max-width:760px;margin:0 auto 54px}
+.secHead h2{font-size:clamp(32px,5vw,56px);margin-bottom:16px}
+.secHead p{font-size:clamp(17px,1.9vw,21px);color:var(--sub);letter-spacing:-.012em}
+
+/* show cards */
+.shows{display:grid;grid-template-columns:repeat(2,1fr);gap:20px}
+.show{background:var(--white);border-radius:22px;overflow:hidden;position:relative;
+  min-height:380px;display:flex;flex-direction:column;justify-content:flex-end;padding:34px;
+  color:#fff;text-align:left}
+.show::before{content:"";position:absolute;inset:0;background-size:cover;background-position:center;z-index:0}
+.show::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.18) 0 40%,rgba(0,0,0,.78));z-index:1}
+.show>*{position:relative;z-index:2}
+.show .k{font-size:13px;font-weight:500;letter-spacing:.01em;color:rgba(255,255,255,.78);margin-bottom:10px}
+.show h3{font-size:clamp(24px,3vw,34px);margin-bottom:10px;color:#fff}
+.show p{font-size:15px;color:rgba(255,255,255,.78);max-width:34ch}
+.show.big{grid-column:span 2;min-height:440px}
+.s1::before{background-image:url('https://images.pexels.com/photos/13868714/pexels-photo-13868714.jpeg?auto=compress&cs=tinysrgb&w=1400')}
+.s2::before{background-image:url('https://images.pexels.com/photos/200986/pexels-photo-200986.jpeg?auto=compress&cs=tinysrgb&w=1000')}
+.s3::before{background-image:url('https://images.pexels.com/photos/128457/pexels-photo-128457.jpeg?auto=compress&cs=tinysrgb&w=1000')}
+.s4::before{background-image:url('https://images.pexels.com/photos/33923596/pexels-photo-33923596.jpeg?auto=compress&cs=tinysrgb&w=1000')}
+.s5::before{background-image:url('https://images.pexels.com/photos/4394343/pexels-photo-4394343.jpeg?auto=compress&cs=tinysrgb&w=1000')}
+.badge-live{position:absolute;left:22px;top:22px;z-index:2;display:inline-flex;align-items:center;gap:6px;
+  background:var(--live);color:#fff;border-radius:980px;padding:5px 12px;font-size:11px;font-weight:600;letter-spacing:.02em}
+.badge-live i{width:6px;height:6px;border-radius:50%;background:#fff;animation:pulse 1.6s infinite}
+
+/* feature split */
+.split{display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:center}
+.split h2{font-size:clamp(30px,4.2vw,48px);margin-bottom:18px}
+.split p{font-size:19px;color:var(--sub);margin-bottom:22px;letter-spacing:-.012em}
+.tone-dark .split p{color:#86868B}
+.media{border-radius:24px;overflow:hidden;aspect-ratio:4/3;background:#111 center/cover no-repeat}
+
+/* routing diagram */
+.route{display:flex;flex-direction:column;gap:12px}
+.route-row{display:flex;align-items:center;gap:14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);
+  border-radius:16px;padding:16px 20px}
+.route-row .from{font-weight:600;font-size:15px;min-width:150px}
+.route-row .arrow{color:#86868B;flex-shrink:0}
+.route-row .to{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.route-row .to span{font-size:12px;color:#F5F5F7;border:1px solid rgba(255,255,255,.2);border-radius:980px;padding:4px 12px;white-space:nowrap}
+
+/* rank list */
+.ranks{background:rgba(255,255,255,.06);border-radius:22px;overflow:hidden}
+.rk{display:flex;align-items:center;gap:18px;padding:18px 24px;border-bottom:1px solid rgba(255,255,255,.1)}
+.rk:last-child{border-bottom:none}
+.rk .n{font-family:"Inter Tight";font-weight:600;font-size:22px;letter-spacing:-.03em;width:30px;color:#86868B}
+.rk .w b{display:block;font-size:16px;font-weight:500}
+.rk .w span{font-size:13.5px;color:#86868B}
+.rk .g{margin-left:auto;font-size:13px;color:#86868B;border:1px solid rgba(255,255,255,.2);
+  border-radius:980px;padding:4px 12px}
+
+/* week */
+.week{border-top:1px solid var(--hair)}
+.wk{display:grid;grid-template-columns:180px 1fr auto;gap:24px;align-items:center;
+  padding:26px 0;border-bottom:1px solid var(--hair)}
+.wk .d{font-size:15px;color:var(--sub)}
+.wk h3{font-size:22px;margin-bottom:3px}
+.wk p{font-size:15px;color:var(--sub)}
+
+/* cards row */
+.tri{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.card{background:var(--white);border-radius:22px;padding:38px 34px;min-height:300px;display:flex;flex-direction:column;
+  border:1px solid var(--hair);box-shadow:var(--card-shadow)}
+.card h3{font-size:26px;margin-bottom:12px}
+.card p{font-size:15.5px;color:var(--sub);margin-bottom:22px}
+.card .link{margin-top:auto;font-size:16px}
+.price{font-family:"Inter Tight";font-weight:600;font-size:44px;letter-spacing:-.035em;margin-bottom:6px}
+.price small{font-size:15px;font-weight:400;color:var(--sub);letter-spacing:-.01em}
+.card ul{list-style:none;display:flex;flex-direction:column;gap:10px;margin-bottom:24px}
+.card li{font-size:15px;color:var(--sub);padding-left:22px;position:relative}
+.card li::before{content:"";position:absolute;left:0;top:9px;width:11px;height:2px;background:var(--blue);border-radius:2px}
+
+/* feature grid */
+.fgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.fcell{background:var(--white);border:1px solid var(--hair);border-radius:20px;padding:30px 28px;box-shadow:var(--card-shadow)}
+.fcell .ic{width:40px;height:40px;border-radius:11px;background:rgba(11,107,255,.12);color:var(--blue);
+  display:grid;place-items:center;margin-bottom:18px}
+.fcell .ic svg{width:20px;height:20px}
+.fcell h3{font-size:19px;margin-bottom:8px}
+.fcell p{font-size:14.5px;color:var(--sub)}
+
+/* footer */
+footer{background:var(--paper);font-size:12px;color:var(--sub);padding:38px 0 46px;border-top:1px solid var(--hair);transition:background .35s ease}
+.fnote{max-width:var(--wide);margin:0 auto;padding:0 22px}
+.fg{display:grid;grid-template-columns:repeat(4,1fr);gap:30px;padding:26px 0;border-top:1px solid var(--hair);margin-top:20px}
+.fg h4{font-size:12px;font-weight:600;color:var(--ink);margin-bottom:12px}
+.fg a{display:block;margin-bottom:9px}
+.fg a:hover{text-decoration:underline}
+.fbot{padding-top:20px;border-top:1px solid var(--hair);display:flex;gap:20px;flex-wrap:wrap;justify-content:space-between}
+
+@media (max-width:900px){
+  .sec{padding:80px 0}
+  .stats{grid-template-columns:repeat(2,1fr);gap:30px}
+  .shows{grid-template-columns:1fr}
+  .show.big{grid-column:span 1}
+  .split{grid-template-columns:1fr;gap:34px}
+  .tri{grid-template-columns:1fr}
+  .fgrid{grid-template-columns:1fr}
+  .wk{grid-template-columns:1fr;gap:8px}
+  .nv .links{display:none}
+  .dests{display:none}
+  .fg{grid-template-columns:1fr 1fr}
+  .route-row .from{min-width:0}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nv">
+    <a class="brand" href="#">Coach Hayes Football</a>
+    <div class="links">
+      <a href="#shows">Shows</a><a href="#network">Network</a><a href="#features">The studio</a>
+      <a href="#week">Schedule</a><a href="#join">Membership</a>
+    </div>
+    <div class="right">
+      <span class="onair"><i></i>On air</span>
+      <button class="tgl" id="themeToggle" aria-label="Toggle dark mode" title="Toggle dark / light">
+        <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.5M12 19.5V22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M2 12h2.5M19.5 12H22M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></svg>
+        <svg class="moon" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+      </button>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<header class="hero center">
+  <div class="wrap">
+    <p class="eyebrow">The Coach Hayes Football Network</p>
+    <h1>Five shows a week. One network. Live everywhere at once.</h1>
+    <p class="tagline">Film that explains the game — streamed live on this site and simulcast to YouTube and Facebook.</p>
+    <div class="herolinks">
+      <a class="pill" href="#">Watch live</a>
+      <a class="link" href="#shows">See the shows</a>
+    </div>
+  </div>
+
+  <div class="shot">
+    <div class="frame">
+      <span class="badge"><i></i>Live now · 8,412 watching</span>
+      <div class="dests">
+        <span class="dest"><i></i>Site</span>
+        <span class="dest"><i></i>YouTube</span>
+        <span class="dest"><i></i>Facebook</span>
+      </div>
+      <button class="playnow" aria-label="Watch live"><svg width="22" height="25" viewBox="0 0 13 15" fill="currentColor"><path d="M0 0l13 7.5L0 15z"/></svg></button>
+      <div class="shotcap">
+        <b>Canes Talk Live — Miami vs Stanford, the film</b>
+        <span>Streaming to the site, YouTube and Facebook simultaneously</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="wide">
+    <div class="stats">
+      <div class="stat"><b>5</b><span>Shows every week</span></div>
+      <div class="stat"><b>410K</b><span>Subscribers across the network</span></div>
+      <div class="stat"><b>640+</b><span>Breakdowns archived</span></div>
+      <div class="stat"><b>3</b><span>Simulcast destinations</span></div>
+    </div>
+  </div>
+</header>
+
+<!-- SHOWS -->
+<section class="sec tone" id="shows">
+  <div class="wide">
+    <div class="secHead center">
+      <h2>A show for every night of the week.</h2>
+      <p>Each one has its own page, its own schedule and its own reminder list. Follow the ones you actually watch.</p>
+    </div>
+    <div class="shows">
+      <a class="show big s1" href="#">
+        <span class="badge-live"><i></i>Live now</span>
+        <span class="k">Wednesdays · Flagship</span>
+        <h3>Canes Talk Live</h3>
+        <p>Everything Miami, with the film pulled up on screen while the chat argues about it.</p>
+      </a>
+      <a class="show s2" href="#"><span class="k">Tuesdays</span><h3>Prime Time Talk</h3><p>Colorado, all season.</p></a>
+      <a class="show s3" href="#"><span class="k">Thursdays</span><h3>Knight Life</h3><p>UCF, week to week.</p></a>
+      <a class="show s4" href="#"><span class="k">Weekdays</span><h3>Hayes Street</h3><p>The daily. Whatever the sport gave us.</p></a>
+      <a class="show s5" href="#"><span class="k">Series</span><h3>W.R.E. Breakdowns</h3><p>Player film, graded on tape.</p></a>
+    </div>
+  </div>
+</section>
+
+<!-- NETWORK / ROUTING -->
+<section class="sec tone-dark" id="network">
+  <div class="wide">
+    <div class="split">
+      <div>
+        <h2>One studio.<br>Every show routed automatically.</h2>
+        <p>Go live once and the network sends each show where it belongs — the football show never lands on the everyday-life channel. Site, YouTube and Facebook at the same time, no restream juggling.</p>
+        <a class="link" href="#features">See how the studio works</a>
+      </div>
+      <div class="route">
+        <div class="route-row"><span class="from">Canes Talk Live</span><span class="arrow">→</span><span class="to"><span>Site</span><span>Canes YouTube</span><span>Facebook</span></span></div>
+        <div class="route-row"><span class="from">Prime Time Talk</span><span class="arrow">→</span><span class="to"><span>Site</span><span>Buffs YouTube</span></span></div>
+        <div class="route-row"><span class="from">Knight Life</span><span class="arrow">→</span><span class="to"><span>Site</span><span>UCF YouTube</span></span></div>
+        <div class="route-row"><span class="from">Hayes Street</span><span class="arrow">→</span><span class="to"><span>Site</span><span>Main YouTube</span><span>Facebook</span></span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="sec" id="features">
+  <div class="wide">
+    <div class="secHead center">
+      <h2>A full broadcast studio, in the browser.</h2>
+      <p>No OBS, no restream service, no production truck. Everything the network runs on, in one tab.</p>
+    </div>
+    <div class="fgrid">
+      <div class="fcell">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3z"/></svg></div>
+        <h3>Browser studio</h3><p>Camera, guests and graphics from one screen. Go live in a click.</p>
+      </div>
+      <div class="fcell">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg></div>
+        <h3>Simulcast everywhere</h3><p>Site + YouTube + Facebook at once, each show to its own channel.</p>
+      </div>
+      <div class="fcell">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg></div>
+        <h3>Merged live chat</h3><p>Real accounts across every platform in one moderated feed.</p>
+      </div>
+      <div class="fcell">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 11a4 4 0 1 0-8 0M4 20a8 8 0 0 1 16 0"/></svg></div>
+        <h3>Guest green room</h3><p>Guests join by link over the web; the host admits them on air.</p>
+      </div>
+      <div class="fcell">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 15l5-4 4 3 3-2 6 5"/></svg></div>
+        <h3>On-air graphics</h3><p>Lower-thirds, pinned comments, branded scenes and virtual backgrounds.</p>
+      </div>
+      <div class="fcell">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v10m0 0l-3.5-3.5M12 13l3.5-3.5M5 17v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2"/></svg></div>
+        <h3>Recording & VOD</h3><p>Every show saved to the library the moment you end the stream.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- WRE -->
+<section class="sec tone-dark" id="wre">
+  <div class="wide">
+    <div class="split">
+      <div>
+        <h2>Grades built on film.<br>Not on stars.</h2>
+        <p>The W.R.E. chip system rates players on what the tape shows — release, footwork, leverage, finish. Every player gets a page, the grade, and the breakdown that produced it.</p>
+        <a class="link" href="#">Open the player index</a>
+      </div>
+      <div class="ranks">
+        <div class="rk"><span class="n">1</span><span class="w"><b data-ph="Sample">Player name</b><span>WR · Class of 2027</span></span><span class="g">Blue chip</span></div>
+        <div class="rk"><span class="n">2</span><span class="w"><b data-ph="Sample">Player name</b><span>QB · Class of 2027</span></span><span class="g">Blue chip</span></div>
+        <div class="rk"><span class="n">3</span><span class="w"><b data-ph="Sample">Player name</b><span>DB · Class of 2026</span></span><span class="g">Red chip</span></div>
+        <div class="rk"><span class="n">4</span><span class="w"><b data-ph="Sample">Player name</b><span>RB · Class of 2028</span></span><span class="g">Red chip</span></div>
+        <div class="rk"><span class="n">5</span><span class="w"><b data-ph="Sample">Player name</b><span>OL · Class of 2027</span></span><span class="g">White chip</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TEAMS -->
+<section class="sec" id="teams">
+  <div class="wide">
+    <div class="secHead center">
+      <h2>Three programs. One place.</h2>
+      <p>Every show, breakdown and player grade for a team, collected on one page.</p>
+    </div>
+    <div class="tri">
+      <a class="card" href="#"><h3>Miami</h3><p>Canes Talk Live every Wednesday, plus film after every game.</p><span class="link">86 breakdowns</span></a>
+      <a class="card" href="#"><h3>Colorado</h3><p>Prime Time Talk on Tuesdays. Everything Buffs, all season.</p><span class="link">52 breakdowns</span></a>
+      <a class="card" href="#"><h3>UCF</h3><p>Knight Life on Thursdays, week to week through the schedule.</p><span class="link">44 breakdowns</span></a>
+    </div>
+  </div>
+</section>
+
+<!-- WEEK -->
+<section class="sec tone" id="week">
+  <div class="wrap">
+    <div class="secHead">
+      <h2>The week.</h2>
+      <p>Set a reminder on the shows you follow. One note an hour before each goes live — on the site and on your phone.</p>
+    </div>
+    <div class="week">
+      <div class="wk"><span class="d">Monday – Friday</span><div><h3>Hayes Street</h3><p>The daily.</p></div><a class="link" href="#">Remind me</a></div>
+      <div class="wk"><span class="d">Tuesday</span><div><h3>Prime Time Talk</h3><p>Colorado.</p></div><a class="link" href="#">Remind me</a></div>
+      <div class="wk"><span class="d">Wednesday</span><div><h3>Canes Talk Live</h3><p>Miami. On air right now.</p></div><a class="link" href="#">Watch</a></div>
+      <div class="wk"><span class="d">Thursday</span><div><h3>Knight Life</h3><p>UCF.</p></div><a class="link" href="#">Remind me</a></div>
+      <div class="wk"><span class="d">Gamedays</span><div><h3>Pre &amp; Post Shows</h3><p>Before kickoff and after the whistle.</p></div><a class="link" href="#">Remind me</a></div>
+    </div>
+  </div>
+</section>
+
+<!-- FILM SUBMIT -->
+<section class="sec">
+  <div class="wide">
+    <div class="split">
+      <div class="media" style="background-image:url('https://images.pexels.com/photos/4394343/pexels-photo-4394343.jpeg?auto=compress&cs=tinysrgb&w=1200')"></div>
+      <div>
+        <h2>Send your film.<br>Get an answer.</h2>
+        <p>Upload once and it lands in the review queue with everything Coach needs to grade it. Members go to the front. Every submission gets a yes or a no.</p>
+        <a class="pill dark" href="#">Submit film</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- JOIN -->
+<section class="sec tone" id="join">
+  <div class="wide">
+    <div class="secHead center">
+      <h2>Join the Locker Room.</h2>
+      <p>The membership, run on this site rather than through a platform that takes a cut.</p>
+    </div>
+    <div class="tri">
+      <div class="card">
+        <h3>Free</h3>
+        <div class="price">$0</div>
+        <ul><li>Every live show</li><li>The full archive</li><li>Chat during the broadcast</li><li>Show reminders</li></ul>
+        <a class="link" href="#">Create an account</a>
+      </div>
+      <div class="card" style="outline:2px solid var(--blue);outline-offset:-2px">
+        <h3>Locker Room</h3>
+        <div class="price" data-ph="Confirm price">$9 <small>/ month</small></div>
+        <ul><li>Early and exclusive video</li><li>Priority call-ins</li><li>The postgame room</li><li>Discord access</li><li>Monthly giveaways</li></ul>
+        <a class="pill" href="#" style="width:100%">Join</a>
+      </div>
+      <div class="card">
+        <h3>Support</h3>
+        <div class="price">Any amount</div>
+        <ul><li>Straight to Coach</li><li>No platform cut</li><li>Tip during any show</li><li>Cards, Apple Pay, Cash App</li></ul>
+        <a class="link" href="#">Send a tip</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- APPS -->
+<section class="sec tone-dark center">
+  <div class="wrap">
+    <div class="secHead center" style="margin-bottom:34px">
+      <h2>Now on iPhone and Android.</h2>
+      <p class="sub" style="color:#86868B;font-size:21px">Get a push the second a show starts. No algorithm in between.</p>
+    </div>
+    <div class="herolinks" style="margin-bottom:0">
+      <a class="pill white" href="#">Download for iPhone</a>
+      <a class="pill white" href="#">Get it on Android</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="fnote">
+    <p>Coach Hayes Football, LLC. Film analysis and opinion. Not affiliated with or endorsed by any university or athletic program.</p>
+    <div class="fg">
+      <div><h4>Watch</h4><a href="#">Live</a><a href="#shows">Shows</a><a href="#week">Schedule</a><a href="#">Archive</a></div>
+      <div><h4>Teams</h4><a href="#">Miami</a><a href="#">Colorado</a><a href="#">UCF</a><a href="#">All CFB</a></div>
+      <div><h4>Players</h4><a href="#wre">Rankings</a><a href="#">Submit film</a><a href="#">Chip system</a></div>
+      <div><h4>More</h4><a href="#join">Membership</a><a href="#">Merch</a><a href="#">Contact</a></div>
+    </div>
+    <div class="fbot">
+      <span>Copyright © 2026 Coach Hayes Football, LLC. All rights reserved.</span>
+      <span>Powered by Showrunner</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function(){
+  var root = document.documentElement;
+  var key = "chf-theme";
+  // Initial theme: saved preference, else OS preference, else light.
+  var saved = null;
+  try { saved = localStorage.getItem(key); } catch(e){}
+  if (!saved) {
+    saved = (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light";
+  }
+  root.setAttribute("data-theme", saved);
+  var btn = document.getElementById("themeToggle");
+  btn.addEventListener("click", function(){
+    var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    try { localStorage.setItem(key, next); } catch(e){}
+  });
+})();
+</script>
+</body>
+</html>

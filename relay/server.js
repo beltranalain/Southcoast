@@ -117,7 +117,13 @@ async function mtxVideoCodec() {
 // `onfail=ignore` keeps a bad YouTube key from killing Facebook and, more
 // importantly, from killing the copy that feeds our own site.
 function teeTarget(dests) {
-  return dests.map((d) => `[f=flv:onfail=ignore]${d.target}`).join("|");
+  // SRT destinations (Cloudflare input B) carry MPEG-TS; RTMP destinations
+  // (YouTube/Facebook) carry FLV. onfail=ignore so one bad destination can't
+  // take down the others.
+  return dests.map((d) => {
+    const fmt = d.target.startsWith("srt://") ? "mpegts" : "flv";
+    return `[f=${fmt}:onfail=ignore]${d.target}`;
+  }).join("|");
 }
 
 function spawnPipeline() {
@@ -141,7 +147,8 @@ function spawnPipeline() {
     "-x264-params", "nal-hrd=cbr:force-cfr=1",
     "-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-ac", "2",
     "-max_muxing_queue_size", "1024",
-    "-flags", "+global_header",
+    // No global_header: flv writes its AVC sequence header from extradata
+    // anyway, and mpegts (SRT/input B) needs in-band SPS/PPS to segment cleanly.
     "-f", "tee", teeTarget(dests),
   ];
   const proc = spawn("ffmpeg", args, { stdio: ["ignore", "ignore", "pipe"] });

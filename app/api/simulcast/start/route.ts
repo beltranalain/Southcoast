@@ -28,8 +28,9 @@ export async function POST(request: Request) {
   const dests = userDests.map((d) => ({ id: d.id, url: d.url, key: d.key }));
 
   // Input B first: the site player matters more than any external platform.
+  // playback.url is a complete push URL (SRT, secret embedded), so no separate key.
   if (playback) {
-    dests.unshift({ id: "cf-playback", url: playback.rtmpsUrl, key: playback.streamKey });
+    dests.unshift({ id: "cf-playback", url: playback.url, key: "" });
   }
 
   if (dests.length === 0) {

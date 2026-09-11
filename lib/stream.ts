@@ -76,9 +76,12 @@ export function playbackInputUid(): string {
   return PLAYBACK_INPUT_UID || LIVE_INPUT_UID;
 }
 
-export type PlaybackIngest = { uid: string; rtmpsUrl: string; streamKey: string };
+export type PlaybackIngest = { uid: string; url: string };
 
-// RTMPS ingest details for input B, so the relay can push a copy into it.
+// Ingest URL for input B, so the relay can push a copy into it. We prefer SRT:
+// this ffmpeg build cannot complete an RTMPS/TLS handshake to Cloudflare (it
+// resets every time), but SRT ingests cleanly. Falls back to RTMPS if SRT is
+// somehow absent. Returns a single ready-to-push URL (secret embedded).
 export async function getPlaybackIngest(): Promise<PlaybackIngest | null> {
   if (!streamConfigured || !PLAYBACK_INPUT_UID) return null;
   try {
@@ -88,10 +91,17 @@ export async function getPlaybackIngest(): Promise<PlaybackIngest | null> {
     });
     if (!res.ok) return null;
     const r = (await res.json()).result ?? {};
+    const srt = r.srt ?? {};
+    if (srt.url && srt.streamId && srt.passphrase) {
+      const url = `${srt.url}?streamid=${srt.streamId}&passphrase=${srt.passphrase}&pkt_size=1316`;
+      return { uid: PLAYBACK_INPUT_UID, url };
+    }
     const rtmpsUrl = r.rtmps?.url ?? "";
     const streamKey = r.rtmps?.streamKey ?? "";
-    if (!rtmpsUrl || !streamKey) return null;
-    return { uid: PLAYBACK_INPUT_UID, rtmpsUrl, streamKey };
+    if (rtmpsUrl && streamKey) {
+      return { uid: PLAYBACK_INPUT_UID, url: `${rtmpsUrl.replace(/\/+$/, "")}/${streamKey}` };
+    }
+    return null;
   } catch {
     return null;
   }
