@@ -44,12 +44,14 @@ export default function GuestJoinPage() {
   const [hasCam, setHasCam] = useState(false);
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
+  const [sharing, setSharing] = useState(false);
   // Guest-side background (blur / virtual background), processed on this device.
   const [bgMode, setBgMode] = useState<BgMode>("off");
   const [bgReady, setBgReady] = useState(false);
 
   const localVideo = useRef<HTMLVideoElement | null>(null);
   const localStream = useRef<MediaStream | null>(null);
+  const screenStream = useRef<MediaStream | null>(null);
   const remoteStreams = useRef<Map<string, MediaStream>>(new Map());
   const nameBySession = useRef<Map<string, string>>(new Map());
   const bg = useRef<GuestBackground | null>(null);
@@ -149,9 +151,11 @@ export default function GuestJoinPage() {
   // switches views (the <video> element remounts on a view change).
   useEffect(() => {
     if (!joined) return;
-    const preview = bg.current ? bg.current.stream() : localStream.current;
+    const preview = sharing && screenStream.current
+      ? screenStream.current
+      : (bg.current ? bg.current.stream() : localStream.current);
     if (localVideo.current && preview) { localVideo.current.srcObject = preview; localVideo.current.play?.().catch(() => {}); }
-  }, [joined, view]);
+  }, [joined, view, sharing]);
 
   // Leave the show: tear down the connection and return to the join screen.
   function leave() {
@@ -161,6 +165,9 @@ export default function GuestJoinPage() {
     bg.current = null;
     localStream.current?.getTracks().forEach((t) => t.stop());
     localStream.current = null;
+    screenStream.current?.getTracks().forEach((t) => t.stop());
+    screenStream.current = null;
+    setSharing(false);
     remoteStreams.current = new Map();
     nameBySession.current = new Map();
     subscribed.current = new Set();
@@ -198,6 +205,33 @@ export default function GuestJoinPage() {
     if (!track) return;
     track.enabled = !track.enabled;
     setCamOn(track.enabled);
+  }
+
+  // Share the guest's screen: swap the published video track for the screen
+  // capture (no renegotiation needed - replaceTrack keeps the same sender).
+  function videoSender() {
+    return rtc.current?.pc.getSenders().find((s) => s.track && s.track.kind === "video") || null;
+  }
+  async function shareScreen() {
+    const sender = videoSender();
+    if (!sender) { setStatus("Turn your camera on before sharing your screen."); return; }
+    try {
+      const s = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 30 }, audio: false } as MediaStreamConstraints);
+      const track = s.getVideoTracks()[0];
+      if (!track) return;
+      screenStream.current = s;
+      await sender.replaceTrack(track);
+      if (localVideo.current) { localVideo.current.srcObject = s; localVideo.current.play?.().catch(() => {}); }
+      track.onended = () => { stopScreen(); }; // user hit the browser's "Stop sharing"
+      setSharing(true);
+    } catch { /* user cancelled the picker */ }
+  }
+  async function stopScreen() {
+    screenStream.current?.getTracks().forEach((t) => t.stop());
+    screenStream.current = null;
+    const camTrack = (bg.current ? bg.current.stream() : localStream.current)?.getVideoTracks()[0] || null;
+    await videoSender()?.replaceTrack(camTrack);
+    setSharing(false);
   }
 
   if (!joined) {
@@ -290,6 +324,7 @@ export default function GuestJoinPage() {
               <div className="green-controls">
                 {hasMic && <button type="button" className={`green-ctrl${micOn ? "" : " off"}`} onClick={toggleMic}>{micOn ? "Mute" : "Unmute"}</button>}
                 {hasCam && <button type="button" className={`green-ctrl${camOn ? "" : " off"}`} onClick={toggleCam}>{camOn ? "Camera off" : "Camera on"}</button>}
+                {hasCam && <button type="button" className={`green-ctrl${sharing ? " off" : ""}`} onClick={sharing ? stopScreen : shareScreen}>{sharing ? "Stop sharing" : "Share screen"}</button>}
               </div>
             )}
           </div>
