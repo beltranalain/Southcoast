@@ -5,6 +5,7 @@ import { broadcast } from "@/lib/broadcast";
 import { getIdToken } from "@/lib/firebase";
 import SimulcastManager from "@/components/SimulcastManager";
 import LivePipModal from "@/components/LivePipModal";
+import { PRIMARY_CHANNEL } from "@/lib/channels";
 
 const WS_BASE = process.env.NEXT_PUBLIC_CHAT_WS_URL || "";
 type Tab = "onair" | "chat" | "guests" | "sources" | "scene" | "intro" | "sounds" | "audio";
@@ -473,6 +474,16 @@ export default function ControlRoom() {
               ? "Your live page shows YouTube's player - unlimited viewers cost $0. Best for large audiences (you keep the branded site; YouTube pays the bandwidth)."
               : "Your live page uses your own low-latency player - you pay ~$0.001 per on-site viewer-minute. Best for smaller/loyal audiences + tips."}
           </p>
+
+          {/* Quick "watch it live" links so the host can confirm the stream is
+              actually going out - one opens the branded site, one opens YouTube. */}
+          <div className="deliver-row" style={{ marginTop: 12 }}>
+            <span className="deliver-label">See the stream</span>
+            <div className="filters" style={{ margin: 0 }}>
+              <a className="filter-btn" href="/live" target="_blank" rel="noreferrer">Watch on website</a>
+              <a className="filter-btn" href={`https://www.youtube.com/channel/${PRIMARY_CHANNEL.channelId}/live`} target="_blank" rel="noreferrer">Watch on YouTube</a>
+            </div>
+          </div>
         </div>
 
         {/* ---- Show controls ---- */}
