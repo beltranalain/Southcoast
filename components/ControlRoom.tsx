@@ -7,7 +7,7 @@ import SimulcastManager from "@/components/SimulcastManager";
 import LivePipModal from "@/components/LivePipModal";
 
 const WS_BASE = process.env.NEXT_PUBLIC_CHAT_WS_URL || "";
-type Tab = "onair" | "chat" | "guests" | "sources" | "scene" | "intro" | "sounds";
+type Tab = "onair" | "chat" | "guests" | "sources" | "scene" | "intro" | "sounds" | "audio";
 type ChatMessage = { id: string; name: string; text: string; uid?: string; tip?: number };
 type SceneCfg = { enabled: boolean; mode: "none" | "chroma" | "ml"; chroma: string; background: string; frame: string; logo: string; tickerOn: boolean; tickerLabel: string; ticker: string };
 type BumperCfg = { enabled: boolean; mode: "card" | "video"; headline: string; subtext: string; background: string; videoUrl: string; startsAt: number };
@@ -91,6 +91,7 @@ export default function ControlRoom() {
       .then((r) => r.json())
       .then((d) => {
         if (d?.branding?.logo) broadcast.setBrandLogo(d.branding.logo);
+        if (d?.branding?.accent) broadcast.setBrandAccent(d.branding.accent);
         if (d?.branding?.liveDelivery) setLiveDelivery(d.branding.liveDelivery);
         if (d?.scene) { const sc = { tickerOn: false, tickerLabel: "", ticker: "", ...d.scene }; setScene(sc); broadcast.setScene(sc); }
         if (d?.bumper) { const bm = { enabled: false, mode: "card", headline: "Starting soon", subtext: "", background: "", videoUrl: "", startsAt: 0, ...d.bumper } as BumperCfg; setBumper(bm); broadcast.setBumper(bm); }
@@ -409,7 +410,7 @@ export default function ControlRoom() {
         {/* ---- Show controls ---- */}
         <div>
           <div className="filters" style={{ marginBottom: 16 }}>
-            {([["onair", "On air"], ["chat", "Chat"], ["guests", "Guests"], ["scene", "Scene"], ["intro", "Intro"], ["sounds", "Sounds"], ["sources", "Sources"]] as [Tab, string][]).map(([k, label]) => (
+            {([["onair", "On air"], ["chat", "Chat"], ["guests", "Guests"], ["audio", "Audio"], ["scene", "Scene"], ["intro", "Intro"], ["sounds", "Sounds"], ["sources", "Sources"]] as [Tab, string][]).map(([k, label]) => (
               <button key={k} className={`filter-btn${tab === k ? " active" : ""}`} type="button" onClick={() => setTab(k)}>{label}</button>
             ))}
           </div>
@@ -550,6 +551,36 @@ export default function ControlRoom() {
               {!broadcast.realtimeReady && (
                 <p className="notice" style={{ marginTop: 14 }}><strong>Connecting to Cloudflare Realtime...</strong> Guests can join now; once the studio connection is up you can admit them to the program.</p>
               )}
+            </div>
+          )}
+
+          {tab === "audio" && (
+            <div className="panel">
+              <h3>Audio levels</h3>
+              <div className="panel-sub">Set what viewers hear - the host mic and each guest in the broadcast mix.</div>
+              <div className="dest-row" style={{ alignItems: "center", gap: 12 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="dest-name">Host mic{!broadcast.micOn && <span className="pill draft" style={{ marginLeft: 6 }}>Off</span>}</div>
+                  <div className="dest-meta">Your microphone</div>
+                </div>
+                <input type="range" min={0} max={1.5} step={0.05} value={broadcast.hostLevel} onChange={(e) => { broadcast.setHostLevel(Number(e.target.value)); force(); }} style={{ width: 150 }} />
+                <span className="dest-meta" style={{ width: 42, textAlign: "right" }}>{Math.round(broadcast.hostLevel * 100)}%</span>
+              </div>
+              {(() => {
+                const guests = broadcast.roster.filter((p) => p.sessionId && broadcast.admitted.has(p.sessionId) && p.hasAudio);
+                if (guests.length === 0) return <p className="muted" style={{ fontSize: "13px", marginTop: 10 }}>No guests on air. Admit a guest (Guests tab) to set their level.</p>;
+                return guests.map((p) => (
+                  <div className="dest-row" key={p.id} style={{ alignItems: "center", gap: 12 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="dest-name">{p.name}{broadcast.isGuestMuted(p.sessionId!) && <span className="pill draft" style={{ marginLeft: 6 }}>Muted</span>}</div>
+                      <div className="dest-meta">guest</div>
+                    </div>
+                    <input type="range" min={0} max={1.5} step={0.05} value={broadcast.getGuestLevel(p.sessionId!)} disabled={broadcast.isGuestMuted(p.sessionId!)} onChange={(e) => { broadcast.setGuestLevel(p.sessionId!, Number(e.target.value)); force(); }} style={{ width: 150 }} />
+                    <span className="dest-meta" style={{ width: 42, textAlign: "right" }}>{Math.round(broadcast.getGuestLevel(p.sessionId!) * 100)}%</span>
+                  </div>
+                ));
+              })()}
+              <p className="form-note" style={{ marginTop: 12 }}>100% is normal. Boost a quiet source above 100%, or lower one that&apos;s too loud. Muting is on the Guests tab.</p>
             </div>
           )}
 

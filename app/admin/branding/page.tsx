@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { DEFAULT_BRANDING, type SiteBranding } from "@/lib/siteData";
 import { saveSection, loadConfig } from "@/lib/saveSection";
+import PreviewSiteModal from "@/components/PreviewSiteModal";
 
 // Draw the picked image onto a square canvas at `size` px (contain, transparent
 // padding) and return a compact PNG data URL. Keeps the stored value small
@@ -51,6 +52,7 @@ export default function AdminBranding() {
   const [form, setForm] = useState<SiteBranding>(DEFAULT_BRANDING);
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "demo" | "error">("idle");
   const [message, setMessage] = useState("");
+  const [preview, setPreview] = useState(false);
   const logoInput = useRef<HTMLInputElement>(null);
   const faviconInput = useRef<HTMLInputElement>(null);
 
@@ -110,11 +112,14 @@ export default function AdminBranding() {
           <div className="sub">Logo, colors, and identity across the whole platform.</div>
         </div>
         <div className="admin-actions">
+          <button className="btn btn-ghost btn-sm" type="button" onClick={() => setPreview(true)}>Preview site</button>
           <button className="btn btn-primary btn-sm" type="button" onClick={save} disabled={status === "saving"}>
             {status === "saving" ? "Saving..." : "Save changes"}
           </button>
         </div>
       </div>
+
+      {preview && <PreviewSiteModal onClose={() => setPreview(false)} />}
 
       {message && (
         <div className={status === "error" ? "form-error" : "form-ok"} style={{ marginBottom: 18 }}>

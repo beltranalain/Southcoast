@@ -14,6 +14,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Cloudflare Stream is not connected." }, { status: 400 });
   }
   const upload = await createDirectUpload();
-  if (!upload) return NextResponse.json({ error: "Could not start the upload." }, { status: 502 });
+  if (!upload.uploadURL) {
+    return NextResponse.json({ error: upload.error || "Could not start the upload." }, { status: 502 });
+  }
   return NextResponse.json(upload);
 }

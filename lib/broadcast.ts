@@ -128,6 +128,7 @@ class StudioEngine {
   private guestAudio = new Map<string, MediaStreamAudioSourceNode>();
   // Per-guest gain node (host mute control) + the set of muted guests.
   private guestGain = new Map<string, GainNode>();
+  private guestLevels = new Map<string, number>(); // per-guest volume (0-1.5), 1 = normal
   mutedGuests = new Set<string>();
   // Active-speaker detection: one AnalyserNode per source (key "host" or sessionId),
   // tapped off the existing audio graph without disturbing the mix routing.
@@ -152,6 +153,7 @@ class StudioEngine {
   private sceneFrame: HTMLImageElement | null = null;
   private sceneLogo: HTMLImageElement | null = null;
   private brandLogo: HTMLImageElement | null = null; // shown on the "Camera off" card
+  private brandAccent = "#F5A524"; // on-air graphics (banner, pinned comment) use the brand accent
   private keyCanvas: HTMLCanvasElement | null = null;
   private segmenter: any = null;
   private segReady = false;
@@ -161,6 +163,8 @@ class StudioEngine {
   private audioCtx: AudioContext | null = null;
   private audioDest: MediaStreamAudioDestinationNode | null = null;
   private hostAudioSrc: MediaStreamAudioSourceNode | null = null;
+  private hostGain: GainNode | null = null;
+  hostLevel = 1; // host mic volume in the program mix (0-1.5), 1 = normal
   // Soundboard: decoded effect buffers (by pad id) + currently-playing sources.
   private soundBuffers = new Map<string, AudioBuffer>();
   private soundSources = new Set<AudioBufferSourceNode>();
@@ -211,7 +215,8 @@ class StudioEngine {
         this.analysers.delete("host");
         if (next.getAudioTracks().length) {
           this.hostAudioSrc = this.audioCtx.createMediaStreamSource(next);
-          this.hostAudioSrc.connect(this.audioDest);
+          if (!this.hostGain) { this.hostGain = this.audioCtx.createGain(); this.hostGain.gain.value = this.hostLevel; this.hostGain.connect(this.audioDest); }
+          this.hostAudioSrc.connect(this.hostGain);
           this.attachAnalyser("host", this.hostAudioSrc);
         }
       }
@@ -263,7 +268,8 @@ class StudioEngine {
           try { this.analysers.get("host")?.disconnect(); } catch {}
           this.analysers.delete("host");
           this.hostAudioSrc = this.audioCtx.createMediaStreamSource(new MediaStream([track]));
-          this.hostAudioSrc.connect(this.audioDest);
+          if (!this.hostGain) { this.hostGain = this.audioCtx.createGain(); this.hostGain.gain.value = this.hostLevel; this.hostGain.connect(this.audioDest); }
+          this.hostAudioSrc.connect(this.hostGain);
           this.attachAnalyser("host", this.hostAudioSrc);
         }
       }
@@ -273,6 +279,7 @@ class StudioEngine {
 
   // The brand logo to show on the "Camera off" card (from branding config).
   setBrandLogo(url: string) { this.brandLogo = url ? this.loadImg(url) : null; }
+  setBrandAccent(color: string) { this.brandAccent = color || "#F5A524"; }
 
   private startCompositing() {
     this.ctx2d = this.canvas!.getContext("2d");
@@ -485,7 +492,7 @@ class StudioEngine {
       ctx.save();
       const inset = 1.5;
       roundRectPath(ctx, x + inset, y + inset, w - inset * 2, h - inset * 2, Math.max(0, r - inset));
-      ctx.lineWidth = 3; ctx.strokeStyle = "#F5A524"; ctx.stroke();
+      ctx.lineWidth = 3; ctx.strokeStyle = this.brandAccent; ctx.stroke();
       ctx.restore();
     }
     if (!name) return;
@@ -528,14 +535,14 @@ class StudioEngine {
     ctx.textBaseline = "middle";
     // Bar background + amber top accent line.
     ctx.fillStyle = "rgba(10,9,8,.92)"; ctx.fillRect(0, y, W, h);
-    ctx.fillStyle = "#F5A524"; ctx.fillRect(0, y, W, 2);
+    ctx.fillStyle = this.brandAccent; ctx.fillRect(0, y, W, 2);
 
     // Left label box.
     let textStart = 0;
     if (this.tickerLabel) {
       ctx.font = "700 22px Anton, sans-serif";
       const lw = ctx.measureText(this.tickerLabel.toUpperCase()).width + 40;
-      ctx.fillStyle = "#F5A524"; ctx.fillRect(0, y, lw, h);
+      ctx.fillStyle = this.brandAccent; ctx.fillRect(0, y, lw, h);
       ctx.fillStyle = "#151107"; ctx.fillText(this.tickerLabel.toUpperCase(), 20, y + h / 2 + 1);
       textStart = lw;
     }
@@ -568,8 +575,8 @@ class StudioEngine {
       // Pill-shaped lower-third (rounded capsule) with an amber outline.
       roundRectPath(ctx, x, y, w, h, h / 2);
       ctx.fillStyle = "rgba(10,9,8,.9)"; ctx.fill();
-      ctx.lineWidth = 2; ctx.strokeStyle = "#F5A524"; ctx.stroke();
-      ctx.fillStyle = "#F5A524"; ctx.font = "700 20px Inter, sans-serif"; ctx.fillText(this.pinned.name.toUpperCase(), x + 34, y + 30);
+      ctx.lineWidth = 2; ctx.strokeStyle = this.brandAccent; ctx.stroke();
+      ctx.fillStyle = this.brandAccent; ctx.font = "700 20px Inter, sans-serif"; ctx.fillText(this.pinned.name.toUpperCase(), x + 34, y + 30);
       ctx.fillStyle = "#F3EFE7"; ctx.font = "400 22px Inter, sans-serif";
       ctx.fillText(this.pinned.text.slice(0, 46), x + 34, y + 62);
     }
@@ -578,7 +585,7 @@ class StudioEngine {
       const bw = 620, bh = message ? 128 : 92, x = (W - bw) / 2, y = 40;
       ctx.save();
       roundRectPath(ctx, x, y, bw, bh, 18);
-      ctx.fillStyle = "#F5A524"; ctx.fill();
+      ctx.fillStyle = this.brandAccent; ctx.fill();
       ctx.textAlign = "center";
       ctx.fillStyle = "#151107"; ctx.font = "700 40px Anton, sans-serif";
       ctx.fillText(`${name} tipped $${amount.toFixed(2)}`, W / 2, y + 42);
@@ -589,7 +596,7 @@ class StudioEngine {
       const { x, y } = this.bannerPos, ph = 56;
       ctx.font = "400 34px Anton, sans-serif";
       const tw = ctx.measureText(this.banner.title.toUpperCase()).width + 44;
-      ctx.fillStyle = "#F5A524"; ctx.fillRect(x, y, tw, ph);
+      ctx.fillStyle = this.brandAccent; ctx.fillRect(x, y, tw, ph);
       ctx.fillStyle = "#151107"; ctx.fillText(this.banner.title.toUpperCase(), x + 22, y + ph / 2 + 2);
       let total = tw;
       if (this.banner.subtitle) {
@@ -817,7 +824,7 @@ class StudioEngine {
       const remaining = this.bumperStartsAt - Date.now();
       if (remaining > 0) {
         ctx.font = "600 30px Inter, sans-serif";
-        ctx.fillStyle = "#F5A524";
+        ctx.fillStyle = this.brandAccent;
         ctx.fillText(this.formatCountdown(remaining), W / 2, topY + 10);
       }
     }
@@ -1076,7 +1083,7 @@ class StudioEngine {
       try {
         const src = this.audioCtx.createMediaStreamSource(new MediaStream([track]));
         const gain = this.audioCtx.createGain();
-        gain.gain.value = this.mutedGuests.has(sid) ? 0 : 1;
+        gain.gain.value = this.mutedGuests.has(sid) ? 0 : (this.guestLevels.get(sid) ?? 1);
         src.connect(gain); gain.connect(this.audioDest);
         this.guestAudio.set(sid, src);
         this.guestGain.set(sid, gain);
@@ -1128,7 +1135,22 @@ class StudioEngine {
   }
   unmuteGuest(sessionId: string) {
     this.mutedGuests.delete(sessionId);
-    const g = this.guestGain.get(sessionId); if (g) g.gain.value = 1;
+    const g = this.guestGain.get(sessionId); if (g) g.gain.value = this.guestLevels.get(sessionId) ?? 1;
+    this.emit();
+  }
+
+  // ---- Audio levels (program mix) ----
+  setHostLevel(v: number) {
+    this.hostLevel = v;
+    if (this.hostGain) this.hostGain.gain.value = v;
+    this.emit();
+  }
+  getGuestLevel(sessionId: string) { return this.guestLevels.get(sessionId) ?? 1; }
+  setGuestLevel(sessionId: string, v: number) {
+    this.guestLevels.set(sessionId, v);
+    if (!this.mutedGuests.has(sessionId)) {
+      const g = this.guestGain.get(sessionId); if (g) g.gain.value = v;
+    }
     this.emit();
   }
   toggleGuestMute(sessionId: string) {

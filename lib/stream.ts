@@ -193,19 +193,22 @@ export async function setRecordingMode(enabled: boolean): Promise<boolean> {
 
 // Create a one-time direct-upload URL so the browser can upload a video file
 // straight to Cloudflare Stream (no file passes through our server).
-export async function createDirectUpload(maxDurationSeconds = 21600): Promise<{ uploadURL: string; uid: string } | null> {
-  if (!streamConfigured) return null;
+export async function createDirectUpload(maxDurationSeconds = 21600): Promise<{ uploadURL?: string; uid?: string; error?: string }> {
+  if (!streamConfigured) return { error: "Cloudflare Stream is not connected." };
   try {
     const res = await fetch(`${BASE}/direct_upload`, {
       method: "POST",
       headers: headers(),
       body: JSON.stringify({ maxDurationSeconds }),
     });
-    const d = await res.json();
-    if (!d.success || !d.result?.uploadURL) return null;
+    const d = await res.json().catch(() => ({}));
+    if (!d.success || !d.result?.uploadURL) {
+      // Surface Cloudflare's real reason (token scope, plan/subscription, etc.)
+      return { error: d?.errors?.[0]?.message || `Cloudflare returned ${res.status}.` };
+    }
     return { uploadURL: d.result.uploadURL, uid: d.result.uid };
-  } catch {
-    return null;
+  } catch (e: any) {
+    return { error: e?.message || "Could not reach Cloudflare." };
   }
 }
 
