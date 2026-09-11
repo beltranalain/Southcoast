@@ -121,10 +121,11 @@ export default function GuestJoinPage() {
           // can watch the whole show. Skip ourselves.
           const ownSid = rtc.current?.sessionId;
           (d.participants as Participant[]).forEach((p) => {
-            if (!p.sessionId || p.sessionId === ownSid || subscribed.current.has(p.sessionId) || !rtc.current) return;
-            subscribed.current.add(p.sessionId);
-            nameBySession.current.set(p.sessionId, p.name + (p.role === "host" ? " (host)" : ""));
-            rtc.current.pull(p.sessionId, ["video", "audio"]).catch(() => subscribed.current.delete(p.sessionId));
+            const sid = p.sessionId;
+            if (!sid || sid === ownSid || subscribed.current.has(sid) || !rtc.current) return;
+            subscribed.current.add(sid);
+            nameBySession.current.set(sid, p.name + (p.role === "host" ? " (host)" : ""));
+            rtc.current.pull(sid, ["video", "audio"]).catch(() => subscribed.current.delete(sid));
           });
           // Keep tile labels fresh if names arrived after the tracks.
           setRemotes((prev) => prev.map((r) => ({ ...r, name: nameBySession.current.get(r.sid) || r.name })));
