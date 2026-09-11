@@ -5,6 +5,7 @@ import { getSiteConfig } from "@/lib/siteConfig";
 import { getLiveInfo } from "@/lib/youtube";
 import LiveChat from "@/components/LiveChat";
 import LivePlayer from "@/components/LivePlayer";
+import LivePinnedOverlay from "@/components/LivePinnedOverlay";
 import AirStatus from "@/components/AirStatus";
 import Countdown from "@/components/Countdown";
 
@@ -63,6 +64,7 @@ export default async function LivePage() {
               ) : (
                 <LivePlayer src={playerSrc} logo={branding.logo} />
               )}
+              <LivePinnedOverlay />
               {channelBug && (
                 <div className="lower3">
                   <span className="l3b" style={{ background: "rgba(10,9,8,.82)" }}>{channelBug}</span>
