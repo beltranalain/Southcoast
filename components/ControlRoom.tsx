@@ -384,16 +384,33 @@ export default function ControlRoom() {
             <button className="btn btn-ghost btn-sm" type="button" onClick={() => setPip(true)}>Open live page</button>
           </div>
 
-          {/* Camera zoom - frame yourself, or zoom out to fit a second person. */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12 }}>
-            <span className="dest-meta" style={{ minWidth: 92 }}>Camera zoom</span>
-            <button className="btn btn-ghost btn-sm" type="button" onClick={() => { broadcast.setHostZoom(broadcast.hostZoom - 0.1); force(); }}>&minus;</button>
-            <input type="range" min={0.5} max={3} step={0.05} value={broadcast.hostZoom} onChange={(e) => { broadcast.setHostZoom(Number(e.target.value)); force(); }} style={{ flex: 1, maxWidth: 240 }} />
-            <button className="btn btn-ghost btn-sm" type="button" onClick={() => { broadcast.setHostZoom(broadcast.hostZoom + 0.1); force(); }}>+</button>
-            <span className="dest-meta" style={{ width: 46, textAlign: "right" }}>{Math.round(broadcast.hostZoom * 100)}%</span>
-            {broadcast.hostZoom !== 1 && <button className="btn btn-ghost btn-sm" type="button" onClick={() => { broadcast.setHostZoom(1); force(); }}>Reset</button>}
-          </div>
-          <p className="form-note" style={{ marginTop: 6 }}>Zoom out (below 100%) to fit a second person in frame; zoom in for a tighter shot.</p>
+          {/* Camera zoom. If the webcam exposes a real lens zoom, use it (this
+              actually widens the field of view for a 2nd person). Otherwise fall
+              back to a software crop and say so plainly. */}
+          {broadcast.camZoom.supported ? (
+            <>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12 }}>
+                <span className="dest-meta" style={{ minWidth: 92 }}>Camera zoom</span>
+                <span className="dest-meta">Wide</span>
+                <input type="range" min={broadcast.camZoom.min} max={broadcast.camZoom.max} step={broadcast.camZoom.step} value={broadcast.camZoom.value} onChange={(e) => { broadcast.setCameraZoomHw(Number(e.target.value)); force(); }} style={{ flex: 1, maxWidth: 240 }} />
+                <span className="dest-meta">Tight</span>
+                <button className="btn btn-ghost btn-sm" type="button" onClick={() => { broadcast.setCameraZoomHw(broadcast.camZoom.min); force(); }}>Widest</button>
+              </div>
+              <p className="form-note" style={{ marginTop: 6 }}>Controls your webcam&apos;s lens - slide toward <strong>Wide</strong> to fit a second person.</p>
+            </>
+          ) : (
+            <>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12 }}>
+                <span className="dest-meta" style={{ minWidth: 92 }}>Camera crop</span>
+                <button className="btn btn-ghost btn-sm" type="button" onClick={() => { broadcast.setHostZoom(broadcast.hostZoom - 0.1); force(); }}>&minus;</button>
+                <input type="range" min={0.5} max={3} step={0.05} value={broadcast.hostZoom} onChange={(e) => { broadcast.setHostZoom(Number(e.target.value)); force(); }} style={{ flex: 1, maxWidth: 220 }} />
+                <button className="btn btn-ghost btn-sm" type="button" onClick={() => { broadcast.setHostZoom(broadcast.hostZoom + 0.1); force(); }}>+</button>
+                <span className="dest-meta" style={{ width: 46, textAlign: "right" }}>{Math.round(broadcast.hostZoom * 100)}%</span>
+                {broadcast.hostZoom !== 1 && <button className="btn btn-ghost btn-sm" type="button" onClick={() => { broadcast.setHostZoom(1); force(); }}>Reset</button>}
+              </div>
+              <p className="form-note" style={{ marginTop: 6 }}>This webcam has no lens zoom, so this only <strong>crops</strong> the existing view - it can&apos;t widen it. To fit more people, sit closer together or use a wide-angle webcam.</p>
+            </>
+          )}
 
           {pip && <LivePipModal onClose={() => setPip(false)} />}
           {ingest === null && <div className="notice" style={{ marginTop: 14 }}><strong>Cloudflare Stream not connected.</strong> Preview works; Go Live turns on once the Stream keys are set.</div>}

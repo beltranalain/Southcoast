@@ -167,7 +167,10 @@ class StudioEngine {
   private sceneLogo: HTMLImageElement | null = null;
   private brandLogo: HTMLImageElement | null = null; // shown on the "Camera off" card
   private brandAccent = "#F5A524"; // on-air graphics (banner, pinned comment) use the brand accent
-  hostZoom = 1; // host camera framing: 1 = fill, <1 zoom out (fit 2 people), >1 zoom in
+  hostZoom = 1; // host camera framing (software crop): 1 = fill, <1 zoom out, >1 zoom in
+  // Hardware/lens zoom, if the webcam exposes it. Lowering this genuinely WIDENS
+  // the field of view (fits more people) - software can't do that.
+  camZoom: { supported: boolean; min: number; max: number; step: number; value: number } = { supported: false, min: 1, max: 1, step: 1, value: 1 };
   private keyCanvas: HTMLCanvasElement | null = null;
   private segmenter: any = null;
   private segReady = false;
@@ -221,6 +224,7 @@ class StudioEngine {
       }
       this.hostStream?.getTracks().forEach((t) => t.stop());
       this.hostStream = next;
+      this.readCamZoom(next.getVideoTracks()[0]);
       if (this.hostVideo) { this.hostVideo.srcObject = next; this.hostVideo.play().catch(() => {}); }
       // (re)wire host audio into the mix
       if (this.audioCtx && this.audioDest) {
@@ -256,6 +260,7 @@ class StudioEngine {
       const track = cam.getVideoTracks()[0];
       if (track && this.hostStream) {
         this.hostStream.addTrack(track);
+        this.readCamZoom(track);
         if (this.hostVideo) { this.hostVideo.srcObject = this.hostStream; this.hostVideo.play().catch(() => {}); }
       }
       this.error = ""; this.emit();
@@ -295,6 +300,31 @@ class StudioEngine {
   setBrandLogo(url: string) { this.brandLogo = url ? this.loadImg(url) : null; }
   setBrandAccent(color: string) { this.brandAccent = color || "#F5A524"; }
   setHostZoom(z: number) { this.hostZoom = Math.max(0.5, Math.min(3, z)); this.emit(); }
+
+  // Read the webcam's optical/digital zoom range (if any) so the UI can offer a
+  // real wide/tight control. Not all webcams support it.
+  private readCamZoom(track?: MediaStreamTrack) {
+    try {
+      const caps = track?.getCapabilities?.() as any;
+      const set = track?.getSettings?.() as any;
+      if (caps && caps.zoom && typeof caps.zoom.max === "number" && caps.zoom.max > (caps.zoom.min ?? 1)) {
+        this.camZoom = { supported: true, min: caps.zoom.min ?? 1, max: caps.zoom.max, step: caps.zoom.step || 0.1, value: set?.zoom ?? caps.zoom.min ?? 1 };
+      } else {
+        this.camZoom = { supported: false, min: 1, max: 1, step: 1, value: 1 };
+      }
+    } catch { this.camZoom = { supported: false, min: 1, max: 1, step: 1, value: 1 }; }
+    this.emit();
+  }
+  // Set the webcam's lens zoom (lower = wider field of view = fits more people).
+  async setCameraZoomHw(v: number) {
+    const track = this.hostStream?.getVideoTracks()[0];
+    if (!track) return;
+    try {
+      await (track as any).applyConstraints({ advanced: [{ zoom: v }] });
+      this.camZoom = { ...this.camZoom, value: v };
+      this.emit();
+    } catch { /* not supported */ }
+  }
 
   private startCompositing() {
     this.ctx2d = this.canvas!.getContext("2d");
