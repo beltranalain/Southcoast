@@ -48,6 +48,8 @@ export default function ControlRoom() {
   const [sceneMsg, setSceneMsg] = useState("");
   const [bumper, setBumper] = useState<BumperCfg>({ enabled: false, mode: "card", headline: "Starting soon", subtext: "", background: "", videoUrl: "", startsAt: 0 });
   const [bumperMsg, setBumperMsg] = useState("");
+  const [introBusy, setIntroBusy] = useState(false);
+  const [introPct, setIntroPct] = useState(0);
   const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
   const [sounds, setSounds] = useState<SoundPad[]>([]);
   const [soundLabel, setSoundLabel] = useState("");
@@ -139,6 +141,7 @@ export default function ControlRoom() {
   const sceneLogoInput = useRef<HTMLInputElement | null>(null);
   const soundInput = useRef<HTMLInputElement | null>(null);
   const bumperBgInput = useRef<HTMLInputElement | null>(null);
+  const introVideoInput = useRef<HTMLInputElement | null>(null);
 
   // Load the saved scene + sounds and apply them to the engine.
   useEffect(() => {
@@ -242,6 +245,42 @@ export default function ControlRoom() {
     if (!file) return;
     try { updateBumper({ background: await resizeScene(file, 1280, 720, true, false) }); }
     catch { setBumperMsg("Could not read that image."); }
+  }
+  // Upload an intro clip: send it to Cloudflare Stream, then enable a CORS MP4
+  // download and poll until it's ready - that URL plays in the broadcast. The
+  // host never has to find or paste a URL.
+  async function pickIntroVideo(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; e.target.value = "";
+    if (!file) return;
+    setBumperMsg(""); setIntroBusy(true); setIntroPct(0);
+    try {
+      const token = await getIdToken();
+      const auth: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+      const up = await (await fetch("/api/stream/upload", { method: "POST", headers: auth })).json();
+      if (!up?.uploadURL || !up?.uid) throw new Error(up?.error || "Upload could not start.");
+      await new Promise<void>((resolve, reject) => {
+        const form = new FormData(); form.append("file", file);
+        const xhr = new XMLHttpRequest(); xhr.open("POST", up.uploadURL);
+        xhr.upload.onprogress = (ev) => { if (ev.lengthComputable) setIntroPct(Math.round((ev.loaded / ev.total) * 100)); };
+        xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`Upload failed (${xhr.status})`)));
+        xhr.onerror = () => reject(new Error("Upload failed."));
+        xhr.send(form);
+      });
+      setBumperMsg("Uploaded. Preparing a playable copy (up to a minute)...");
+      let url = "";
+      for (let i = 0; i < 40; i++) {
+        const r = await (await fetch("/api/stream/downloads", { method: "POST", headers: { "Content-Type": "application/json", ...auth }, body: JSON.stringify({ uid: up.uid }) })).json();
+        if (r?.ready && r?.url) { url = r.url; break; }
+        await new Promise((res) => setTimeout(res, 3000));
+      }
+      if (!url) throw new Error("Still processing - try again in a minute, or paste a URL manually.");
+      updateBumper({ mode: "video", videoUrl: url });
+      setBumperMsg("Intro video ready. Click Save intro.");
+    } catch (err: any) {
+      setBumperMsg(err?.message || "Upload failed.");
+    } finally {
+      setIntroBusy(false);
+    }
   }
   // Tie the countdown to the soonest future scheduled show (or clear it).
   function toggleCountdown(on: boolean) {
@@ -719,9 +758,19 @@ export default function ControlRoom() {
 
               {bumper.mode === "video" && (
                 <div className="form-field">
-                  <label>Intro video URL</label>
-                  <input type="text" value={bumper.videoUrl} maxLength={500} placeholder="https://..." onChange={(e) => updateBumper({ videoUrl: e.target.value })} />
-                  <p className="form-note" style={{ marginTop: 6 }}>Paste a CORS-enabled MP4 URL (e.g. a Cloudflare Stream download link). Other URLs may not play in the broadcast. The card look shows while the video buffers.</p>
+                  <label>Intro video</label>
+                  <input ref={introVideoInput} type="file" accept="video/*" hidden onChange={pickIntroVideo} />
+                  <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                    <button className="btn btn-primary btn-sm" type="button" disabled={introBusy} onClick={() => introVideoInput.current?.click()}>
+                      {introBusy ? `Uploading... ${introPct}%` : bumper.videoUrl ? "Replace video" : "Upload video"}
+                    </button>
+                    {bumper.videoUrl && !introBusy && <span className="form-ok" style={{ margin: 0, fontSize: "13px" }}>Video set.</span>}
+                  </div>
+                  <p className="form-note" style={{ marginTop: 8 }}>Upload an MP4 - it goes to Cloudflare Stream and we prepare a playable copy automatically. No URL to find.</p>
+                  <details style={{ marginTop: 8 }}>
+                    <summary className="form-note" style={{ cursor: "pointer" }}>Advanced: paste a URL instead</summary>
+                    <input type="text" value={bumper.videoUrl} maxLength={500} placeholder="https://... (CORS-enabled MP4)" onChange={(e) => updateBumper({ videoUrl: e.target.value })} style={{ marginTop: 8 }} />
+                  </details>
                 </div>
               )}
 

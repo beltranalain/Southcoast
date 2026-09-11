@@ -158,7 +158,7 @@ function spawnPipeline() {
     const text = b.toString();
     for (const line of text.split("\n")) { const t = line.trim(); if (t) log(`ffmpeg ${t}`); }
     const last = text.trim().split("\n").pop();
-    if (last) session.lastError = last.slice(0, 300);
+    if (last && session) session.lastError = last.slice(0, 300);
   });
   proc.on("exit", (code, signal) => {
     session && (session.alive = false, session.proc = null);
@@ -261,6 +261,11 @@ const server = http.createServer(async (req, res) => {
 
   return send(res, 404, { error: "Not found" });
 });
+
+// Never let a stray error take the whole relay down mid-broadcast. Log and
+// keep serving; the ffmpeg auto-restart handles pipeline recovery.
+process.on("uncaughtException", (e) => log("uncaughtException:", e?.message || e));
+process.on("unhandledRejection", (e) => log("unhandledRejection:", (e && e.message) || e));
 
 startMediaMtx();
 server.listen(PORT, () => log(`simulcast relay listening on :${PORT}`));

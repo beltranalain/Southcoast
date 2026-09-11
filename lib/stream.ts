@@ -285,6 +285,24 @@ export async function createDirectUpload(maxDurationSeconds = 21600): Promise<{ 
   }
 }
 
+export type Mp4Download = { url: string; ready: boolean; percent: number };
+
+// Enable (or read) a CORS-enabled MP4 download for a Stream video. This is what
+// makes an uploaded clip playable in a <video> element / the intro bumper.
+// Returns null while the video is still processing (can't create a download yet).
+export async function enableMp4Download(uid: string): Promise<Mp4Download | null> {
+  if (!streamConfigured || !uid) return null;
+  try {
+    const res = await fetch(`${BASE}/${uid}/downloads`, { method: "POST", headers: headers() });
+    const d = await res.json();
+    const def = d?.result?.default;
+    if (!def) return null;
+    return { url: def.url || "", ready: def.status === "ready", percent: Number(def.percentComplete) || 0 };
+  } catch {
+    return null;
+  }
+}
+
 // List recorded VOD videos from Stream (past broadcasts + uploads).
 export async function listStreamVideos(): Promise<any[]> {
   if (!streamConfigured) return [];
