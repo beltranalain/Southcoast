@@ -135,9 +135,13 @@ function externalArgs(dests) {
   const tee = dests.map((d) => `[f=flv:onfail=ignore]${d.target}`).join("|");
   return [...IN_ARGS, ...ENCODE_V, ...AUDIO_ARGS, "-f", "tee", tee];
 }
-function playbackArgs(target, vcodec) {
-  const video = vcodec === "h264" ? ["-c:v", "copy"] : ENCODE_V;
-  return [...IN_ARGS, ...video, ...AUDIO_ARGS, "-f", "mpegts", target];
+function playbackArgs(target /* , vcodec */) {
+  // Always re-encode for input B. Copying the WHEP H.264 into MPEG-TS drops the
+  // in-band SPS/PPS ("non-existing PPS 0 referenced"), so Cloudflare gets an
+  // undecodable stream. Encoding emits clean parameter sets (the path that
+  // connected in testing). Cloudflare's HLS doesn't need the strict CBR/GOP,
+  // but reusing it is fine and keeps one code path.
+  return [...IN_ARGS, ...ENCODE_V, ...AUDIO_ARGS, "-f", "mpegts", target];
 }
 
 function spawnPipe(pipe) {

@@ -32,11 +32,11 @@ primary_region = "iad"
     path = "/health"
 
 [[vm]]
-  # The relay re-encodes once (CBR, 2s GOP) and tees the result to every
-  # destination. That is a real x264 workload, and a shared slice gets throttled
-  # mid-show, which shows up as dropped frames and mush on YouTube.
-  #   720p30  @ 4500k -> performance-1x is enough
-  #   1080p30 @ 6000k -> performance-2x
+  # Two independent x264 encodes run at once (YouTube tee + Cloudflare input B
+  # over SRT), so give it 2 dedicated cores. A shared slice gets throttled
+  # mid-show, which looks exactly like the reported quality problem.
+  #   720p30 x2  -> performance-2x
+  #   1080p30    -> performance-4x
   # Override the profile with OUT_WIDTH / OUT_HEIGHT / OUT_FPS / OUT_BITRATE_KBPS.
-  size = "performance-1x"
-  memory = "2048mb"
+  size = "performance-2x"
+  memory = "4096mb"
