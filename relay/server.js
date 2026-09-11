@@ -113,86 +113,89 @@ async function mtxVideoCodec() {
   return "vp8";
 }
 
-// ---- ffmpeg: one encode, tee'd to every destination -------------------------
-// `onfail=ignore` keeps a bad YouTube key from killing Facebook and, more
-// importantly, from killing the copy that feeds our own site.
-function teeTarget(dests) {
-  // SRT destinations (Cloudflare input B) carry MPEG-TS; RTMP destinations
-  // (YouTube/Facebook) carry FLV. onfail=ignore so one bad destination can't
-  // take down the others.
-  return dests.map((d) => {
-    const fmt = d.target.startsWith("srt://") ? "mpegts" : "flv";
-    return `[f=${fmt}:onfail=ignore]${d.target}`;
-  }).join("|");
+// ---- ffmpeg pipelines -------------------------------------------------------
+// Two independent pipelines share the one WHEP source:
+//  - "external": one CBR / 2s-GOP encode tee'd to YouTube/Facebook (RTMP/FLV).
+//    That fixed GOP is what makes YouTube serve full resolution.
+//  - "cf-playback": Cloudflare input B over SRT (its own process - SRT cannot
+//    ride inside ffmpeg's tee muxer). H.264 is copied through (Cloudflare's HLS
+//    tolerates the WebRTC GOP), transcoded only if the source is VP8.
+const SCALE_VF = `scale=${OUT_W}:${OUT_H}:force_original_aspect_ratio=decrease,pad=${OUT_W}:${OUT_H}:(ow-iw)/2:(oh-ih)/2,format=yuv420p`;
+const ENCODE_V = [
+  "-c:v", "libx264", "-preset", "veryfast", "-profile:v", "high", "-pix_fmt", "yuv420p",
+  "-vf", SCALE_VF, "-r", String(OUT_FPS),
+  "-g", String(GOP), "-keyint_min", String(GOP), "-sc_threshold", "0",
+  "-b:v", `${OUT_KBPS}k`, "-minrate", `${OUT_KBPS}k`, "-maxrate", `${OUT_KBPS}k`, "-bufsize", `${OUT_KBPS * 2}k`,
+  "-x264-params", "nal-hrd=cbr:force-cfr=1",
+];
+const IN_ARGS = ["-hide_banner", "-loglevel", "warning", "-rtsp_transport", "tcp", "-fflags", "+genpts", "-i", RTSP_URL, "-map", "0:v:0", "-map", "0:a:0?"];
+const AUDIO_ARGS = ["-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-ac", "2", "-max_muxing_queue_size", "1024"];
+
+function externalArgs(dests) {
+  const tee = dests.map((d) => `[f=flv:onfail=ignore]${d.target}`).join("|");
+  return [...IN_ARGS, ...ENCODE_V, ...AUDIO_ARGS, "-f", "tee", tee];
+}
+function playbackArgs(target, vcodec) {
+  const video = vcodec === "h264" ? ["-c:v", "copy"] : ENCODE_V;
+  return [...IN_ARGS, ...video, ...AUDIO_ARGS, "-f", "mpegts", target];
 }
 
-function spawnPipeline() {
-  if (!session || session.dests.size === 0) return;
-  const dests = [...session.dests.values()];
-  const args = [
-    "-hide_banner", "-loglevel", "warning",
-    "-rtsp_transport", "tcp",
-    "-fflags", "+genpts",
-    "-i", RTSP_URL,
-    "-map", "0:v:0", "-map", "0:a:0?",
-    // Video: CBR, fixed 2s closed GOP, constant frame rate. This is the part
-    // that makes YouTube serve full resolution instead of a low rendition.
-    "-c:v", "libx264", "-preset", "veryfast", "-profile:v", "high",
-    "-pix_fmt", "yuv420p",
-    "-vf", `scale=${OUT_W}:${OUT_H}:force_original_aspect_ratio=decrease,pad=${OUT_W}:${OUT_H}:(ow-iw)/2:(oh-ih)/2,format=yuv420p`,
-    "-r", String(OUT_FPS),
-    "-g", String(GOP), "-keyint_min", String(GOP), "-sc_threshold", "0",
-    "-b:v", `${OUT_KBPS}k`, "-minrate", `${OUT_KBPS}k`, "-maxrate", `${OUT_KBPS}k`,
-    "-bufsize", `${OUT_KBPS * 2}k`,
-    "-x264-params", "nal-hrd=cbr:force-cfr=1",
-    "-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-ac", "2",
-    "-max_muxing_queue_size", "1024",
-    // No global_header: flv writes its AVC sequence header from extradata
-    // anyway, and mpegts (SRT/input B) needs in-band SPS/PPS to segment cleanly.
-    "-f", "tee", teeTarget(dests),
-  ];
-  const proc = spawn("ffmpeg", args, { stdio: ["ignore", "ignore", "pipe"] });
-  session.proc = proc;
-  session.alive = true;
+function spawnPipe(pipe) {
+  const proc = spawn("ffmpeg", pipe.args, { stdio: ["ignore", "ignore", "pipe"] });
+  pipe.proc = proc; pipe.alive = true;
   proc.stderr.on("data", (b) => {
     const text = b.toString();
-    for (const line of text.split("\n")) { const t = line.trim(); if (t) log(`ffmpeg ${t}`); }
+    for (const line of text.split("\n")) { const t = line.trim(); if (t) log(`ffmpeg[${pipe.id}] ${t}`); }
     const last = text.trim().split("\n").pop();
-    if (last && session) session.lastError = last.slice(0, 300);
+    if (last) pipe.lastError = last.slice(0, 300);
   });
   proc.on("exit", (code, signal) => {
-    session && (session.alive = false, session.proc = null);
-    if (!session || session.stopping) return;
-    session.restarts += 1;
-    session.backoff = Math.min(MAX_RESTART_DELAY_MS, (session.backoff || RESTART_DELAY_MS) * 1.5);
-    log(`ffmpeg exited (${signal || code}) - retry #${session.restarts} in ${Math.round(session.backoff)}ms`);
-    session.timer = setTimeout(() => { if (session && !session.stopping) spawnPipeline(); }, session.backoff);
+    pipe.alive = false; pipe.proc = null;
+    if (pipe.stopping || !session) return;
+    pipe.restarts += 1;
+    pipe.backoff = Math.min(MAX_RESTART_DELAY_MS, (pipe.backoff || RESTART_DELAY_MS) * 1.5);
+    log(`ffmpeg[${pipe.id}] exited (${signal || code}) - retry #${pipe.restarts} in ${Math.round(pipe.backoff)}ms`);
+    pipe.timer = setTimeout(() => { if (!pipe.stopping && session) spawnPipe(pipe); }, pipe.backoff);
   });
-  log(`ffmpeg started: ${OUT_W}x${OUT_H}@${OUT_FPS} ${OUT_KBPS}k CBR, GOP ${GOP} -> ${dests.length} destination(s)`);
+  log(`ffmpeg[${pipe.id}] started`);
 }
 
 async function startSession(whepUrl, destinations) {
   await stopSession();
   await mtxAddSource(whepUrl);
-  session = { whep: whepUrl, dests: new Map(), vcodec: "vp8", proc: null, alive: false, restarts: 0, backoff: RESTART_DELAY_MS, lastError: "", timer: null, stopping: false };
-  // Still probed, purely so the studio can warn when the browser failed to
-  // negotiate H.264 (a VP8 source means an extra decode on the way in).
+  session = { whep: whepUrl, vcodec: "vp8", pipes: new Map() };
   session.vcodec = await mtxVideoCodec();
   log(`source video codec: ${session.vcodec}`);
+
+  const external = [], playback = [];
   for (const d of destinations) {
     const target = joinUrlKey(d.url, d.key);
     if (!target) continue;
-    session.dests.set(String(d.id || target), { id: String(d.id || target), target });
+    if (d.id === "cf-playback" || target.startsWith("srt://")) playback.push({ id: String(d.id || target), target });
+    else external.push({ id: String(d.id || target), target });
   }
-  spawnPipeline();
-  log(`session started -> ${session.dests.size} destination(s)`);
+
+  function mkPipe(id, args, extra) {
+    return { id, args, proc: null, alive: false, restarts: 0, backoff: RESTART_DELAY_MS, lastError: "", timer: null, stopping: false, ...extra };
+  }
+  if (external.length) {
+    const pipe = mkPipe("external", externalArgs(external), { dests: external });
+    session.pipes.set("external", pipe); spawnPipe(pipe);
+  }
+  for (const p of playback) {
+    const pipe = mkPipe(p.id, playbackArgs(p.target, session.vcodec), { target: p.target });
+    session.pipes.set(p.id, pipe); spawnPipe(pipe);
+  }
+  log(`session started -> ${external.length} external + ${playback.length} playback`);
 }
 
 async function stopSession() {
   if (session) {
-    session.stopping = true;
-    if (session.timer) clearTimeout(session.timer);
-    if (session.proc) { try { session.proc.kill("SIGTERM"); } catch { /* gone */ } }
+    for (const p of session.pipes.values()) {
+      p.stopping = true;
+      if (p.timer) clearTimeout(p.timer);
+      if (p.proc) { try { p.proc.kill("SIGTERM"); } catch { /* gone */ } }
+    }
     session = null;
     log("session stopped");
   }
@@ -201,22 +204,18 @@ async function stopSession() {
 
 function statusPayload() {
   if (!session) return { live: false, mtxReady, destinations: [] };
+  const destinations = [];
+  for (const p of session.pipes.values()) {
+    if (p.dests) {
+      for (const d of p.dests) destinations.push({ id: d.id, target: redact(d.target), alive: p.alive, restarts: p.restarts, lastError: p.lastError || undefined });
+    } else {
+      destinations.push({ id: p.id, target: redact(p.target), alive: p.alive, restarts: p.restarts, lastError: p.lastError || undefined });
+    }
+  }
   return {
-    live: true,
-    mtxReady,
-    whep: session.whep,
-    vcodec: session.vcodec,
+    live: true, mtxReady, whep: session.whep, vcodec: session.vcodec,
     encode: `${OUT_W}x${OUT_H}@${OUT_FPS} ${OUT_KBPS}k CBR gop${GOP}`,
-    restarts: session.restarts,
-    // One pipeline feeds every destination, so they share liveness. tee's
-    // onfail=ignore means one bad key does not take the others down.
-    destinations: [...session.dests.values()].map((d) => ({
-      id: d.id,
-      target: redact(d.target),
-      alive: session.alive,
-      restarts: session.restarts,
-      lastError: session.lastError || undefined,
-    })),
+    destinations,
   };
 }
 
