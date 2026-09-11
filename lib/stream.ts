@@ -99,6 +99,18 @@ export async function getLiveInput(): Promise<StreamIngest | null> {
   }
 }
 
+// WebRTC (WHEP) playback URL for the live broadcast. The browser studio ingests
+// over WebRTC (no HLS), so the simulcast relay pulls THIS and pushes it to
+// YouTube. Returns null if it can't be resolved.
+export async function liveWhepUrl(): Promise<string | null> {
+  const input = await getLiveInput();
+  if (input?.whepUrl) return input.whepUrl;
+  if (!CF_CUSTOMER_CODE) return null;
+  const uid = await resolveInputUid();
+  if (!uid) return null;
+  return `https://customer-${CF_CUSTOMER_CODE}.cloudflarestream.com/${uid}/webRTC/play`;
+}
+
 // ---- Simulcast (Live) Outputs: fan the input out to YouTube etc. ----
 export async function listOutputs(): Promise<any[]> {
   if (!streamConfigured) return [];

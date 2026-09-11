@@ -1,0 +1,14 @@
+{
+  "name": "simulcast-relay",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Forwards a Cloudflare Stream HLS broadcast out to YouTube/Facebook/Twitch over RTMP, so the browser studio can simulcast without OBS.",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

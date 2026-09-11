@@ -1,0 +1,42 @@
+# Fly.io deploy config for the simulcast relay.
+# Deploy with:  fly launch --copy-config --now   (first time)
+#          or:  fly deploy                        (updates)
+#
+# Set the shared secret once:  fly secrets set RELAY_SECRET=<same-value-as-vercel>
+# Then in Vercel set:  RELAY_URL=https://<app-name>.fly.dev  and the same RELAY_SECRET.
+
+app = "cane-simulcast-relay"
+primary_region = "iad"
+
+[build]
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # Scale to zero: the machine sleeps when idle (cost ~= $0) and auto-starts on
+  # the /start call when you go live. The studio sends a heartbeat every 60s
+  # while broadcasting so it stays awake for the whole show, then sleeps again.
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+  # The studio POSTs /api/simulcast/warm when the page mounts (wakes the machine
+  # and waits for MediaMTX), then polls /status every 5s for the whole broadcast,
+  # which keeps it awake. Without the warm call the first Go Live races the cold
+  # start and /start returns 503.
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/health"
+
+[[vm]]
+  # Two independent x264 encodes run at once (YouTube tee + Cloudflare input B
+  # over SRT), so give it 2 dedicated cores. A shared slice gets throttled
+  # mid-show, which looks exactly like the reported quality problem.
+  #   720p30 x2  -> performance-2x
+  #   1080p30    -> performance-4x
+  # Override the profile with OUT_WIDTH / OUT_HEIGHT / OUT_FPS / OUT_BITRATE_KBPS.
+  size = "performance-2x"
+  memory = "4096mb"

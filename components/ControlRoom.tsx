@@ -76,6 +76,45 @@ export default function ControlRoom() {
   }
   const [pressed, setPressed] = useState<string | null>(null);
 
+  // Go Live also starts the simulcast relay (forwards the browser broadcast to
+  // YouTube/etc). The relay scales to zero, so the first call may need a few
+  // tries while it cold-boots. Never blocks going live - best-effort.
+  async function goLive() {
+    await broadcast.goLive();
+    const token = await getIdToken().catch(() => null);
+    const hdr: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+    for (let i = 0; i < 10; i++) {
+      if (!broadcast.live) break;
+      try {
+        const r = await fetch("/api/simulcast/start", { method: "POST", headers: hdr });
+        const d = await r.json().catch(() => ({}));
+        if (r.ok && (d.ok || d.forwarded > 0 || d.note)) break;
+      } catch { /* retry */ }
+      await new Promise((res) => setTimeout(res, 4000));
+    }
+  }
+  async function endBroadcast() {
+    broadcast.stop();
+    try {
+      const token = await getIdToken();
+      await fetch("/api/simulcast/stop", { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    } catch { /* best-effort */ }
+  }
+  // Warm the relay on mount (so Go Live doesn't race its cold start); stop on
+  // unmount so a closed tab never strands a relay session. While live, a 60s
+  // heartbeat keeps the scale-to-zero machine awake.
+  useEffect(() => {
+    getIdToken().then((t) => fetch("/api/simulcast/warm", { method: "POST", headers: t ? { Authorization: `Bearer ${t}` } : {} }).catch(() => {})).catch(() => {});
+    const beat = setInterval(() => {
+      if (!broadcast.live) return;
+      getIdToken().then((t) => fetch("/api/simulcast/status", { headers: t ? { Authorization: `Bearer ${t}` } : {}, cache: "no-store" }).catch(() => {})).catch(() => {});
+    }, 60000);
+    return () => {
+      clearInterval(beat);
+      getIdToken().then((t) => fetch("/api/simulcast/stop", { method: "POST", headers: t ? { Authorization: `Bearer ${t}` } : {}, keepalive: true }).catch(() => {})).catch(() => {});
+    };
+  }, []);
+
   const stageRef = useRef<HTMLDivElement | null>(null);
   const overlayWs = useRef<WebSocket | null>(null);
   const chatWs = useRef<WebSocket | null>(null);
@@ -351,11 +390,11 @@ export default function ControlRoom() {
           </div>
           <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
             {!live ? (
-              <button className="btn btn-live" type="button" onClick={() => broadcast.goLive()} disabled={broadcast.connecting || ingest === null}>
+              <button className="btn btn-live" type="button" onClick={goLive} disabled={broadcast.connecting || ingest === null}>
                 {broadcast.connecting ? "Connecting..." : "Go Live"}
               </button>
             ) : (
-              <button className="btn btn-ghost" type="button" onClick={() => broadcast.stop()}>Stop broadcast</button>
+              <button className="btn btn-ghost" type="button" onClick={endBroadcast}>Stop broadcast</button>
             )}
             {broadcast.screenSharing ? (
               <div className="filters" style={{ margin: 0 }}>
