@@ -1039,10 +1039,19 @@ class StudioEngine {
 
     // Signaling: announce host, receive roster, subscribe to guests.
     if (!WS_BASE) return;
+    // Never stack a second host socket (defensive - the singleton persists).
+    try { this.ws?.close(); } catch { /* none */ }
     const sock = new WebSocket(`${WS_BASE}/room/${SIGNAL_ROOM}/ws`);
     this.ws = sock;
     const me: Participant = { id: "host", name: "South Coast Cane", role: "host", sessionId: this.rtc?.sessionId, hasVideo: true, hasAudio: true };
     sock.onopen = () => sock.send(JSON.stringify({ type: "studio", action: "join", participant: me }));
+    // On reload/close, tell the room the host left so no stale "host" lingers
+    // (a ghost host session is one thing that makes a guest's video freeze).
+    if (typeof window !== "undefined") {
+      window.addEventListener("pagehide", () => {
+        try { sock.send(JSON.stringify({ type: "studio", action: "leave" })); sock.close(); } catch { /* gone */ }
+      }, { once: true });
+    }
     sock.onmessage = (e) => {
       let d: any; try { d = JSON.parse(e.data); } catch { return; }
       if (d.type === "studio" && d.action === "roster") {
