@@ -20,14 +20,13 @@ export default async function LivePage() {
   const next = upcoming[0];
   const channelBug = branding.showChannelBug ? (branding.channelBug || branding.siteName) : "";
 
-  // Prefer our own Cloudflare Stream player when configured; else YouTube embed.
+  // Play the studio's own live input (input A) through Cloudflare's iframe
+  // player - it handles WebRTC (WHIP) playback directly, which is exactly what
+  // the home page backdrop uses and it works. (We tried a second RTMPS "input B"
+  // for HLS, but Cloudflare won't run a 2nd live input while the studio input is
+  // receiving, so it stayed black. Input A's iframe is the reliable path.)
   const cfCode = process.env.NEXT_PUBLIC_CF_STREAM_CUSTOMER_CODE;
-  // Play input B (RTMPS, fed by the relay). The studio's WHIP input produces no
-  // HLS, so pointing the iframe at it shows a black player during every
-  // browser-studio broadcast. Falls back to the old input if B isn't set yet.
-  const cfInput =
-    process.env.NEXT_PUBLIC_CF_STREAM_PLAYBACK_INPUT_UID ||
-    process.env.NEXT_PUBLIC_CF_STREAM_LIVE_INPUT_UID;
+  const cfInput = process.env.NEXT_PUBLIC_CF_STREAM_LIVE_INPUT_UID;
   const onOwnPlatform = Boolean(cfCode && cfInput);
   const playerSrc = onOwnPlatform
     ? `https://customer-${cfCode}.cloudflarestream.com/${cfInput}/iframe`

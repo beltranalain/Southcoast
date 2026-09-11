@@ -1,46 +1,26 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/requireAdmin";
-import { liveWhepUrl, getPlaybackIngest } from "@/lib/stream";
+import { liveWhepUrl } from "@/lib/stream";
 import { activeDestinations } from "@/lib/simulcast";
 import { relayStart, relayConfigured } from "@/lib/relay";
 
-// Called by the studio right after Go Live.
-//
-// Two jobs:
-//  1. Forward the WebRTC program to every enabled destination (YouTube, etc).
-//  2. ALWAYS forward a copy into Cloudflare input B over RTMPS. That is what
-//     gives the public site an HLS player and an automatic recording — a WHIP
-//     input produces neither.
-//
-// Job 2 runs even with zero user destinations, because the site player and the
-// archive depend on it.
+// Called by the studio right after Go Live. Forwards the WebRTC program to every
+// enabled external destination (YouTube/Facebook/Twitch). The site player plays
+// the studio's own Cloudflare input directly, so it needs nothing here.
 
 export async function POST(request: Request) {
   if (!(await requireAdmin(request))) {
     return NextResponse.json({ error: "Not authorized." }, { status: 401 });
   }
 
-  const [userDests, playback] = await Promise.all([
-    activeDestinations(),
-    getPlaybackIngest(),
-  ]);
-
+  // The site player plays the studio's own live input (input A) via Cloudflare's
+  // iframe (WebRTC) - no relay push needed for it. So the relay only forwards to
+  // external platforms (YouTube/Facebook/Twitch).
+  const userDests = await activeDestinations();
   const dests = userDests.map((d) => ({ id: d.id, url: d.url, key: d.key }));
 
-  // Input B first: the site player matters more than any external platform.
-  // playback.url is a complete push URL (SRT, secret embedded), so no separate key.
-  if (playback) {
-    dests.unshift({ id: "cf-playback", url: playback.url, key: "" });
-  }
-
   if (dests.length === 0) {
-    return NextResponse.json({
-      ok: true,
-      forwarded: 0,
-      warning:
-        "No destinations and no playback input. The broadcast is live over WebRTC only — " +
-        "the site player and the recording will not work. Set CLOUDFLARE_STREAM_PLAYBACK_INPUT_UID.",
-    });
+    return NextResponse.json({ ok: true, forwarded: 0, note: "No external simulcast destinations enabled." });
   }
 
   if (!relayConfigured) {
@@ -71,10 +51,5 @@ export async function POST(request: Request) {
   }
 
   const r = await relayStart(whep, dests);
-  return NextResponse.json({
-    ...r,
-    forwarded: r.ok ? dests.length : 0,
-    playback: Boolean(playback),
-    external: userDests.length,
-  });
+  return NextResponse.json({ ...r, forwarded: r.ok ? dests.length : 0, external: userDests.length });
 }
