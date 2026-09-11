@@ -24,12 +24,36 @@ export default function AdminSettings() {
   const [checking, setChecking] = useState(true);
   const [recording, setRecording] = useState<boolean | null>(null);
   const [tips, setTips] = useState<boolean | null>(null);
+  const [ytChannel, setYtChannel] = useState("");
+  const [ytSaving, setYtSaving] = useState(false);
+  const [ytMsg, setYtMsg] = useState("");
 
   useEffect(() => {
     loadConfig()
-      .then((cfg) => setTips(cfg?.branding?.tipsEnabled !== false))
+      .then((cfg) => {
+        setTips(cfg?.branding?.tipsEnabled !== false);
+        setYtChannel(cfg?.branding?.youtubeChannelId || "");
+      })
       .catch(() => {});
   }, []);
+
+  async function saveYtChannel() {
+    const id = ytChannel.trim();
+    if (id && !/^UC[\w-]{20,}$/.test(id)) {
+      setYtMsg("That doesn't look like a channel ID (starts with \"UC...\").");
+      return;
+    }
+    setYtSaving(true);
+    setYtMsg("");
+    try {
+      await saveSection("branding", { youtubeChannelId: id });
+      setYtMsg("Saved.");
+    } catch {
+      setYtMsg("Could not save.");
+    } finally {
+      setYtSaving(false);
+    }
+  }
 
   async function toggleTips(v: boolean) {
     setTips(v);
@@ -112,6 +136,29 @@ export default function AdminSettings() {
             <div className="panel-split">
               <div className="form-field"><label>Site name</label><input type="text" defaultValue="South Coast Cane" readOnly /></div>
               <div className="form-field"><label>Domain</label><input type="text" defaultValue="southcoastcane.com" readOnly /></div>
+            </div>
+          </div>
+          <div className="panel">
+            <h3>YouTube channel</h3>
+            <div className="panel-sub">
+              The channel your live page embeds and the &quot;Watch on YouTube&quot; buttons open.
+              Paste your <strong>channel ID</strong> (starts with &quot;UC&quot;). Find it in YouTube
+              Studio &rarr; Settings &rarr; Channel &rarr; Advanced settings.
+            </div>
+            <div className="form-field">
+              <label>Channel ID</label>
+              <input
+                type="text"
+                value={ytChannel}
+                placeholder="UCxxxxxxxxxxxxxxxxxxxxxx"
+                onChange={(e) => { setYtChannel(e.target.value); setYtMsg(""); }}
+              />
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <button className="btn btn-primary btn-sm" type="button" onClick={saveYtChannel} disabled={ytSaving}>
+                {ytSaving ? "Saving..." : "Save channel"}
+              </button>
+              {ytMsg && <span className="dest-meta">{ytMsg}</span>}
             </div>
           </div>
         </div>

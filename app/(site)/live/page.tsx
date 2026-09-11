@@ -13,7 +13,9 @@ export const metadata: Metadata = { title: "Live" };
 
 export default async function LivePage() {
   const { schedule, branding } = await getSiteConfig();
-  const live = await getLiveInfo(PRIMARY_CHANNEL.channelId);
+  // The client's own channel if they've set one; otherwise the app default.
+  const channelId = branding.youtubeChannelId || PRIMARY_CHANNEL.channelId;
+  const live = await getLiveInfo(channelId);
   // Only broadcasts whose start time is still in the future, soonest first.
   const upcoming = [...schedule]
     .sort((a, b) => (a.startsAt ?? 0) - (b.startsAt ?? 0))
@@ -27,7 +29,7 @@ export default async function LivePage() {
   const onOwnPlatform = Boolean(cfCode && cfInput);
   const playerSrc = onOwnPlatform
     ? `https://customer-${cfCode}.cloudflarestream.com/${cfInput}/iframe`
-    : `https://www.youtube.com/embed/live_stream?channel=${PRIMARY_CHANNEL.channelId}`;
+    : `https://www.youtube.com/embed/live_stream?channel=${channelId}`;
 
   return (
     <section className="livehero">
@@ -55,7 +57,7 @@ export default async function LivePage() {
               </span>
               {branding.liveDelivery === "youtube" ? (
                 <iframe
-                  src={`https://www.youtube.com/embed/live_stream?channel=${PRIMARY_CHANNEL.channelId}&autoplay=1`}
+                  src={`https://www.youtube.com/embed/live_stream?channel=${channelId}&autoplay=1`}
                   title="Live on YouTube"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                   allowFullScreen
@@ -74,7 +76,7 @@ export default async function LivePage() {
 
             <div className="underplayer">
               <div className="actionrow">
-                <a className="btn btn-primary" href={PRIMARY_CHANNEL.url} target="_blank" rel="noopener noreferrer">
+                <a className="btn btn-primary" href={`https://www.youtube.com/channel/${channelId}/live`} target="_blank" rel="noopener noreferrer">
                   Watch on YouTube instead
                 </a>
                 <Link className="btn btn-ghost" href="/contact">Ask to join the show</Link>

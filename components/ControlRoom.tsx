@@ -58,6 +58,7 @@ export default function ControlRoom() {
   const [onSite, setOnSite] = useState(0);
   const [sessionCost, setSessionCost] = useState(0);
   const [liveDelivery, setLiveDelivery] = useState<"own" | "youtube">("own");
+  const [ytChannelId, setYtChannelId] = useState(PRIMARY_CHANNEL.channelId);
   const [pip, setPip] = useState(false);
   const onSiteRef = useRef(0);
   const wasLiveRef = useRef(false);
@@ -133,6 +134,7 @@ export default function ControlRoom() {
         if (d?.branding?.logo) broadcast.setBrandLogo(d.branding.logo);
         if (d?.branding?.accent) broadcast.setBrandAccent(d.branding.accent);
         if (d?.branding?.liveDelivery) setLiveDelivery(d.branding.liveDelivery);
+        if (d?.branding?.youtubeChannelId) setYtChannelId(d.branding.youtubeChannelId);
         if (d?.scene) { const sc = { tickerOn: false, tickerLabel: "", ticker: "", ...d.scene }; setScene(sc); broadcast.setScene(sc); }
         if (d?.bumper) { const bm = { enabled: false, mode: "card", headline: "Starting soon", subtext: "", background: "", videoUrl: "", startsAt: 0, ...d.bumper } as BumperCfg; setBumper(bm); broadcast.setBumper(bm); }
         if (Array.isArray(d?.schedule)) setSchedule(d.schedule);
@@ -481,7 +483,7 @@ export default function ControlRoom() {
             <span className="deliver-label">See the stream</span>
             <div className="filters" style={{ margin: 0 }}>
               <a className="filter-btn" href="/live" target="_blank" rel="noreferrer">Watch on website</a>
-              <a className="filter-btn" href={`https://www.youtube.com/channel/${PRIMARY_CHANNEL.channelId}/live`} target="_blank" rel="noreferrer">Watch on YouTube</a>
+              <a className="filter-btn" href={`https://www.youtube.com/channel/${ytChannelId}/live`} target="_blank" rel="noreferrer">Watch on YouTube</a>
             </div>
           </div>
         </div>
