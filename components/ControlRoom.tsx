@@ -703,15 +703,24 @@ export default function ControlRoom() {
               <div className="scene-uploads">
                 <div className="scene-up">
                   <div className="scene-prev" style={scene.background ? { backgroundImage: `url(${scene.background})` } : undefined}>{!scene.background && "Background"}</div>
-                  <button className="btn btn-ghost btn-sm" type="button" onClick={() => sceneBgInput.current?.click()}>{scene.background ? "Change" : "Upload"}</button>
+                  <div className="scene-up-btns">
+                    <button className="btn btn-ghost btn-sm" type="button" onClick={() => sceneBgInput.current?.click()}>{scene.background ? "Change" : "Upload"}</button>
+                    {scene.background && <button className="btn btn-ghost btn-sm" type="button" onClick={() => updateScene({ background: "" })}>Clear</button>}
+                  </div>
                 </div>
                 <div className="scene-up">
                   <div className="scene-prev" style={scene.frame ? { backgroundImage: `url(${scene.frame})` } : undefined}>{!scene.frame && "Frame"}</div>
-                  <button className="btn btn-ghost btn-sm" type="button" onClick={() => sceneFrameInput.current?.click()}>{scene.frame ? "Change" : "Upload"}</button>
+                  <div className="scene-up-btns">
+                    <button className="btn btn-ghost btn-sm" type="button" onClick={() => sceneFrameInput.current?.click()}>{scene.frame ? "Change" : "Upload"}</button>
+                    {scene.frame && <button className="btn btn-ghost btn-sm" type="button" onClick={() => updateScene({ frame: "" })}>Clear</button>}
+                  </div>
                 </div>
                 <div className="scene-up">
                   <div className="scene-prev logo" style={scene.logo ? { backgroundImage: `url(${scene.logo})` } : undefined}>{!scene.logo && "Logo"}</div>
-                  <button className="btn btn-ghost btn-sm" type="button" onClick={() => sceneLogoInput.current?.click()}>{scene.logo ? "Change" : "Upload"}</button>
+                  <div className="scene-up-btns">
+                    <button className="btn btn-ghost btn-sm" type="button" onClick={() => sceneLogoInput.current?.click()}>{scene.logo ? "Change" : "Upload"}</button>
+                    {scene.logo && <button className="btn btn-ghost btn-sm" type="button" onClick={() => updateScene({ logo: "" })}>Clear</button>}
+                  </div>
                 </div>
               </div>
 

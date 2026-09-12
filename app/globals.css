@@ -188,6 +188,8 @@ img{display:block;max-width:100%}
 .scene-prev{aspect-ratio:16/9;border-radius:8px;border:1px solid var(--line);background:var(--bg) center/cover no-repeat;display:grid;place-items:center;font-size:11px;color:var(--text-dim)}
 .scene-prev.logo{background-size:contain;background-position:center}
 .scene-up .btn{justify-content:center}
+.scene-up-btns{display:flex;gap:8px}
+.scene-up-btns .btn{flex:1}
 .sound-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px;margin-top:14px}
 .sound-pad{position:relative;aspect-ratio:1/1;border-radius:var(--radius);border:1px solid var(--line);background:var(--bg-card);display:grid;place-items:center;padding:14px;cursor:pointer;text-align:center;transition:border-color .12s,transform .08s,background .12s;-webkit-user-select:none;user-select:none}
 .sound-pad:hover{border-color:var(--amber)}
