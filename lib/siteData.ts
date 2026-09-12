@@ -238,7 +238,8 @@ export const DEFAULT_SOUNDS: SoundPad[] = [];
 // Rundown: a PTI-style right-rail list of the show's topics. The active topic
 // is highlighted and its image shows at the top of the rail. Optional segment
 // timer counts how long you've been on the current topic.
-export type RundownItem = { title: string; image: string }; // image = data URL or ""
+// seconds = segment length for a countdown clock (0 = count up "time on topic").
+export type RundownItem = { title: string; image: string; seconds: number }; // image = data URL or ""
 export type SiteRundown = {
   enabled: boolean;
   title: string;       // header label above the list, e.g. "RUNDOWN"

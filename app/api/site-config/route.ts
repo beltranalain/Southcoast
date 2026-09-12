@@ -122,6 +122,7 @@ export async function POST(request: Request) {
           return {
             title: String(it.title ?? "").slice(0, 40),
             image: image.startsWith("data:image") && image.length < 120_000 ? image : "",
+            seconds: Math.max(0, Math.min(Number(it.seconds) || 0, 3599)), // 0..59:59
           };
         })
         .filter((it: any) => it.title || it.image);

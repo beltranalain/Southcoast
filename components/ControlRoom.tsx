@@ -14,7 +14,7 @@ type SceneCfg = { enabled: boolean; mode: "none" | "chroma" | "ml"; chroma: stri
 type BumperCfg = { enabled: boolean; mode: "card" | "video"; headline: string; subtext: string; background: string; videoUrl: string; startsAt: number };
 type SoundPad = { id: string; label: string; url: string };
 type ScheduleItem = { when: string; title: string; note: string; startsAt?: number };
-type RundownItem = { title: string; image: string };
+type RundownItem = { title: string; image: string; seconds: number };
 type RundownCfg = { enabled: boolean; title: string; showTimer: boolean; activeIndex: number; items: RundownItem[] };
 
 // Resize a picked image for a scene layer (cover fill or contain). Frame/logo
@@ -36,6 +36,21 @@ function resizeScene(file: File, w: number, h: number, cover: boolean, png: bool
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("bad image")); };
     img.src = url;
   });
+}
+
+// "m:ss" (or plain seconds) <-> seconds, for the per-topic countdown length.
+function parseClock(v: string): number {
+  const s = v.trim();
+  if (!s) return 0;
+  if (s.includes(":")) {
+    const [m, sec] = s.split(":");
+    return Math.max(0, (parseInt(m, 10) || 0) * 60 + (parseInt(sec, 10) || 0));
+  }
+  return Math.max(0, parseInt(s, 10) || 0);
+}
+function formatClock(secs: number): string {
+  if (!secs) return "";
+  return `${Math.floor(secs / 60)}:${(secs % 60).toString().padStart(2, "0")}`;
 }
 
 export default function ControlRoom() {
@@ -143,7 +158,7 @@ export default function ControlRoom() {
         if (d?.branding?.youtubeChannelId) setYtChannelId(d.branding.youtubeChannelId);
         if (d?.scene) { const sc = { tickerOn: false, tickerLabel: "", ticker: "", ...d.scene }; setScene(sc); broadcast.setScene(sc); }
         if (d?.bumper) { const bm = { enabled: false, mode: "card", headline: "Starting soon", subtext: "", background: "", videoUrl: "", startsAt: 0, ...d.bumper } as BumperCfg; setBumper(bm); broadcast.setBumper(bm); }
-        if (d?.rundown) { const rn = { enabled: false, title: "RUNDOWN", showTimer: true, activeIndex: 0, items: [], ...d.rundown } as RundownCfg; setRundown(rn); broadcast.setRundown(rn); }
+        if (d?.rundown) { const rn = { enabled: false, title: "RUNDOWN", showTimer: true, activeIndex: 0, items: [], ...d.rundown } as RundownCfg; rn.items = (rn.items || []).map((it: any) => ({ title: it?.title ?? "", image: it?.image ?? "", seconds: Number(it?.seconds) || 0 })); setRundown(rn); broadcast.setRundown(rn); }
         if (Array.isArray(d?.schedule)) setSchedule(d.schedule);
         if (Array.isArray(d?.sounds)) {
           setSounds(d.sounds);
@@ -241,7 +256,7 @@ export default function ControlRoom() {
     });
   }
   function addRundownItem() {
-    updateRundown({ items: [...rundown.items, { title: "", image: "" }] });
+    updateRundown({ items: [...rundown.items, { title: "", image: "", seconds: 0 }] });
   }
   function removeRundownItem(i: number) {
     setRundown((r) => {
@@ -830,6 +845,16 @@ export default function ControlRoom() {
                     <div className="rundown-thumb" style={it.image ? { backgroundImage: `url(${it.image})` } : undefined}>{!it.image && "No image"}</div>
                     <div className="rundown-fields">
                       <input type="text" value={it.title} maxLength={40} placeholder={`Topic ${i + 1}`} onChange={(e) => updateRundownItem(i, { title: e.target.value })} />
+                      <div className="rundown-len">
+                        <label>Length</label>
+                        <input
+                          type="text"
+                          key={`len-${i}-${it.seconds}`}
+                          defaultValue={formatClock(it.seconds)}
+                          placeholder="m:ss (blank = count up)"
+                          onBlur={(e) => updateRundownItem(i, { seconds: parseClock(e.target.value) })}
+                        />
+                      </div>
                       <div className="rundown-btns">
                         <button className="btn btn-ghost btn-sm" type="button" onClick={() => { rundownFileIdx.current = i; rundownInput.current?.click(); }}>{it.image ? "Change image" : "Add image"}</button>
                         {it.image && <button className="btn btn-ghost btn-sm" type="button" onClick={() => updateRundownItem(i, { image: "" })}>Clear</button>}

@@ -113,7 +113,7 @@ class StudioEngine {
   rundownTitle = "RUNDOWN";
   rundownShowTimer = true;
   rundownActive = 0;
-  rundownItems: { title: string; image: string }[] = [];
+  rundownItems: { title: string; image: string; seconds?: number }[] = [];
   private rundownImgs: (HTMLImageElement | null)[] = [];
   private rundownActiveSince = 0; // perf timestamp the active topic was set
   // Intro / "starting soon" bumper: a branded holding screen (or looping intro
@@ -707,7 +707,7 @@ class StudioEngine {
   setChromaColor(c: string) { this.chromaColor = c; this.emit(); }
 
   // ---- Rundown (PTI-style topic rail) ----
-  setRundown(cfg: Partial<{ enabled: boolean; title: string; showTimer: boolean; activeIndex: number; items: { title: string; image: string }[] }>) {
+  setRundown(cfg: Partial<{ enabled: boolean; title: string; showTimer: boolean; activeIndex: number; items: { title: string; image: string; seconds?: number }[] }>) {
     if (typeof cfg.enabled === "boolean") this.rundownEnabled = cfg.enabled;
     if (cfg.title !== undefined) this.rundownTitle = cfg.title;
     if (typeof cfg.showTimer === "boolean") this.rundownShowTimer = cfg.showTimer;
@@ -755,15 +755,27 @@ class StudioEngine {
       y = 8;
     }
 
-    // On-topic timer (counts up from when the active topic was set).
+    // Topic clock. If the active topic has a length, count DOWN from it and turn
+    // red in the final 10s (and at 0). Otherwise count UP as "time on topic".
     if (this.rundownShowTimer) {
       const now = typeof performance !== "undefined" ? performance.now() : 0;
-      const secs = Math.max(0, Math.floor((now - this.rundownActiveSince) / 1000));
+      const elapsed = Math.max(0, Math.floor((now - this.rundownActiveSince) / 1000));
+      const dur = Math.max(0, Math.floor(this.rundownItems[this.rundownActive]?.seconds || 0));
+      let secs: number, danger = false;
+      if (dur > 0) {
+        const remain = dur - elapsed;
+        secs = Math.max(0, remain);
+        danger = remain <= 10; // last 10s + expired
+      } else {
+        secs = elapsed;
+      }
       const mm = Math.floor(secs / 60), ss = secs % 60;
       const clock = `${mm}:${ss.toString().padStart(2, "0")}`;
       ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
       ctx.font = "400 46px Anton, sans-serif";
-      ctx.fillStyle = "#F3EFE7";
+      // Blink while expired so it's obvious the segment is over.
+      const blinkOff = dur > 0 && dur - elapsed <= 0 && Math.floor(now / 500) % 2 === 0;
+      ctx.fillStyle = blinkOff ? "rgba(232,64,42,.35)" : danger ? "#E8402A" : "#F3EFE7";
       y += 52;
       ctx.fillText(clock, x0 + pad, y);
       y += 10;
