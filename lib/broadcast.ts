@@ -761,21 +761,25 @@ class StudioEngine {
       const now = typeof performance !== "undefined" ? performance.now() : 0;
       const elapsed = Math.max(0, Math.floor((now - this.rundownActiveSince) / 1000));
       const dur = Math.max(0, Math.floor(this.rundownItems[this.rundownActive]?.seconds || 0));
-      let secs: number, danger = false;
+      let secs: number, danger = false, over = false;
       if (dur > 0) {
         const remain = dur - elapsed;
-        secs = Math.max(0, remain);
-        danger = remain <= 10; // last 10s + expired
+        if (remain >= 0) {
+          secs = remain;
+          danger = remain <= 10; // warn in the final 10s
+        } else {
+          secs = -remain; // count how far past the segment length we are
+          over = true;
+        }
       } else {
         secs = elapsed;
       }
       const mm = Math.floor(secs / 60), ss = secs % 60;
-      const clock = `${mm}:${ss.toString().padStart(2, "0")}`;
+      const clock = `${over ? "+" : ""}${mm}:${ss.toString().padStart(2, "0")}`;
       ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
       ctx.font = "400 46px Anton, sans-serif";
-      // Blink while expired so it's obvious the segment is over.
-      const blinkOff = dur > 0 && dur - elapsed <= 0 && Math.floor(now / 500) % 2 === 0;
-      ctx.fillStyle = blinkOff ? "rgba(232,64,42,.35)" : danger ? "#E8402A" : "#F3EFE7";
+      // Red in the final 10s; stays red while running overtime (+m:ss).
+      ctx.fillStyle = danger || over ? "#E8402A" : "#F3EFE7";
       y += 52;
       ctx.fillText(clock, x0 + pad, y);
       y += 10;

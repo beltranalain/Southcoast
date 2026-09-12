@@ -872,7 +872,7 @@ export default function ControlRoom() {
                 <button className="btn btn-primary btn-sm" type="button" onClick={saveRundown}>Save rundown</button>
                 {rundownMsg && <span className="form-ok" style={{ margin: 0 }}>{rundownMsg}</span>}
               </div>
-              <p className="form-note" style={{ marginTop: 12 }}>Images look best around 16:9 (a headshot or logo per topic). The timer counts how long you&apos;ve been on the current topic and resets when you set a new one.</p>
+              <p className="form-note" style={{ marginTop: 12 }}>Images look best around 16:9 (a headshot or logo per topic). Set a <strong>Length</strong> to count down (turns red in the last 10s, then counts up in red as <strong>+m:ss</strong> overtime). Leave Length blank to just count up. The clock resets when you set a new topic live.</p>
             </div>
           )}
 
