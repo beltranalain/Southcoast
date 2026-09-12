@@ -235,6 +235,26 @@ export type SoundPad = { id: string; label: string; url: string };
 
 export const DEFAULT_SOUNDS: SoundPad[] = [];
 
+// Rundown: a PTI-style right-rail list of the show's topics. The active topic
+// is highlighted and its image shows at the top of the rail. Optional segment
+// timer counts how long you've been on the current topic.
+export type RundownItem = { title: string; image: string }; // image = data URL or ""
+export type SiteRundown = {
+  enabled: boolean;
+  title: string;       // header label above the list, e.g. "RUNDOWN"
+  showTimer: boolean;  // show the on-topic timer
+  activeIndex: number; // which topic is current (highlighted + image shown)
+  items: RundownItem[];
+};
+
+export const DEFAULT_RUNDOWN: SiteRundown = {
+  enabled: false,
+  title: "RUNDOWN",
+  showTimer: true,
+  activeIndex: 0,
+  items: [],
+};
+
 export const LIBRARY_FILTERS = [
   { key: "all", label: "All" },
   { key: "cane-show", label: "The South Coast Cane Show" },

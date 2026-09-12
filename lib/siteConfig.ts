@@ -7,12 +7,14 @@ import {
   DEFAULT_SCENE,
   DEFAULT_BUMPER,
   DEFAULT_SOUNDS,
+  DEFAULT_RUNDOWN,
   SCHEDULE,
   type SiteContent,
   type SiteBranding,
   type SiteScene,
   type SiteBumper,
   type SoundPad,
+  type SiteRundown,
   type ScheduleItem,
 } from "./siteData";
 
@@ -23,6 +25,7 @@ export type SiteConfig = {
   scene: SiteScene;
   bumper: SiteBumper;
   sounds: SoundPad[];
+  rundown: SiteRundown;
 };
 
 const FALLBACK: SiteConfig = {
@@ -32,6 +35,7 @@ const FALLBACK: SiteConfig = {
   scene: DEFAULT_SCENE,
   bumper: DEFAULT_BUMPER,
   sounds: DEFAULT_SOUNDS,
+  rundown: DEFAULT_RUNDOWN,
 };
 
 // Reads editable content + branding + schedule from Firestore, merged over the
@@ -41,13 +45,14 @@ export async function getSiteConfig(): Promise<SiteConfig> {
   try {
     const db = getAdminDb();
     if (!db) return FALLBACK;
-    const [c, b, s, sc, bm, sd] = await Promise.all([
+    const [c, b, s, sc, bm, sd, rd] = await Promise.all([
       db.collection("site").doc("content").get(),
       db.collection("site").doc("branding").get(),
       db.collection("site").doc("schedule").get(),
       db.collection("site").doc("scene").get(),
       db.collection("site").doc("bumper").get(),
       db.collection("site").doc("sounds").get(),
+      db.collection("site").doc("rundown").get(),
     ]);
     const scheduleItems = s.exists ? (s.data()?.items as ScheduleItem[] | undefined) : undefined;
     const soundItems = sd.exists ? (sd.data()?.items as SoundPad[] | undefined) : undefined;
@@ -58,6 +63,7 @@ export async function getSiteConfig(): Promise<SiteConfig> {
       scene: { ...DEFAULT_SCENE, ...(sc.exists ? (sc.data() as Partial<SiteScene>) : {}) },
       bumper: { ...DEFAULT_BUMPER, ...(bm.exists ? (bm.data() as Partial<SiteBumper>) : {}) },
       sounds: Array.isArray(soundItems) ? soundItems : DEFAULT_SOUNDS,
+      rundown: { ...DEFAULT_RUNDOWN, ...(rd.exists ? (rd.data() as Partial<SiteRundown>) : {}) },
     };
   } catch {
     return FALLBACK;

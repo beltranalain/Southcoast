@@ -8,12 +8,14 @@ import LivePipModal from "@/components/LivePipModal";
 import { PRIMARY_CHANNEL } from "@/lib/channels";
 
 const WS_BASE = process.env.NEXT_PUBLIC_CHAT_WS_URL || "";
-type Tab = "onair" | "chat" | "guests" | "sources" | "scene" | "intro" | "sounds" | "audio";
+type Tab = "onair" | "chat" | "guests" | "sources" | "scene" | "intro" | "sounds" | "audio" | "rundown";
 type ChatMessage = { id: string; name: string; text: string; uid?: string; tip?: number };
 type SceneCfg = { enabled: boolean; mode: "none" | "chroma" | "ml"; chroma: string; background: string; frame: string; logo: string; tickerOn: boolean; tickerLabel: string; ticker: string };
 type BumperCfg = { enabled: boolean; mode: "card" | "video"; headline: string; subtext: string; background: string; videoUrl: string; startsAt: number };
 type SoundPad = { id: string; label: string; url: string };
 type ScheduleItem = { when: string; title: string; note: string; startsAt?: number };
+type RundownItem = { title: string; image: string };
+type RundownCfg = { enabled: boolean; title: string; showTimer: boolean; activeIndex: number; items: RundownItem[] };
 
 // Resize a picked image for a scene layer (cover fill or contain). Frame/logo
 // keep transparency (PNG); background uses WebP.
@@ -59,6 +61,8 @@ export default function ControlRoom() {
   const [sessionCost, setSessionCost] = useState(0);
   const [liveDelivery, setLiveDelivery] = useState<"own" | "youtube">("own");
   const [ytChannelId, setYtChannelId] = useState(PRIMARY_CHANNEL.channelId);
+  const [rundown, setRundown] = useState<RundownCfg>({ enabled: false, title: "RUNDOWN", showTimer: true, activeIndex: 0, items: [] });
+  const [rundownMsg, setRundownMsg] = useState("");
   const [pip, setPip] = useState(false);
   const onSiteRef = useRef(0);
   const wasLiveRef = useRef(false);
@@ -125,6 +129,8 @@ export default function ControlRoom() {
   const sceneLogoInput = useRef<HTMLInputElement | null>(null);
   const soundInput = useRef<HTMLInputElement | null>(null);
   const bumperBgInput = useRef<HTMLInputElement | null>(null);
+  const rundownInput = useRef<HTMLInputElement | null>(null);
+  const rundownFileIdx = useRef<number>(-1); // which topic row an upload targets
 
   // Load the saved scene + sounds and apply them to the engine.
   useEffect(() => {
@@ -137,6 +143,7 @@ export default function ControlRoom() {
         if (d?.branding?.youtubeChannelId) setYtChannelId(d.branding.youtubeChannelId);
         if (d?.scene) { const sc = { tickerOn: false, tickerLabel: "", ticker: "", ...d.scene }; setScene(sc); broadcast.setScene(sc); }
         if (d?.bumper) { const bm = { enabled: false, mode: "card", headline: "Starting soon", subtext: "", background: "", videoUrl: "", startsAt: 0, ...d.bumper } as BumperCfg; setBumper(bm); broadcast.setBumper(bm); }
+        if (d?.rundown) { const rn = { enabled: false, title: "RUNDOWN", showTimer: true, activeIndex: 0, items: [], ...d.rundown } as RundownCfg; setRundown(rn); broadcast.setRundown(rn); }
         if (Array.isArray(d?.schedule)) setSchedule(d.schedule);
         if (Array.isArray(d?.sounds)) {
           setSounds(d.sounds);
@@ -219,6 +226,55 @@ export default function ControlRoom() {
       const d = await res.json();
       setSceneMsg(d.saved ? "Scene saved." : d.error || "Preview only - connect Firebase to save.");
     } catch { setSceneMsg("Could not save."); }
+  }
+
+  // ---- Rundown (PTI-style topic rail) ----
+  function updateRundown(patch: Partial<RundownCfg>) {
+    setRundown((r) => { const next = { ...r, ...patch }; broadcast.setRundown(next); return next; });
+  }
+  function updateRundownItem(i: number, patch: Partial<RundownItem>) {
+    setRundown((r) => {
+      const items = r.items.map((it, idx) => (idx === i ? { ...it, ...patch } : it));
+      const next = { ...r, items };
+      broadcast.setRundown(next);
+      return next;
+    });
+  }
+  function addRundownItem() {
+    updateRundown({ items: [...rundown.items, { title: "", image: "" }] });
+  }
+  function removeRundownItem(i: number) {
+    setRundown((r) => {
+      const items = r.items.filter((_, idx) => idx !== i);
+      const activeIndex = Math.max(0, Math.min(r.activeIndex, items.length - 1));
+      const next = { ...r, items, activeIndex };
+      broadcast.setRundown(next);
+      return next;
+    });
+  }
+  function setRundownActive(i: number) {
+    updateRundown({ activeIndex: i });
+    broadcast.setRundownActive(i);
+  }
+  async function pickRundownImg(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; e.target.value = "";
+    const idx = rundownFileIdx.current; rundownFileIdx.current = -1;
+    if (!file || idx < 0) return;
+    try { updateRundownItem(idx, { image: await resizeScene(file, 480, 300, true, false) }); }
+    catch { setRundownMsg("Could not read that image."); }
+  }
+  async function saveRundown() {
+    setRundownMsg("");
+    try {
+      const token = await getIdToken();
+      const res = await fetch("/api/site-config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ section: "rundown", data: rundown }),
+      });
+      const d = await res.json();
+      setRundownMsg(d.saved ? "Rundown saved." : d.error || "Preview only - connect Firebase to save.");
+    } catch { setRundownMsg("Could not save."); }
   }
 
   // ---- Intro / "starting soon" bumper ----
@@ -491,7 +547,7 @@ export default function ControlRoom() {
         {/* ---- Show controls ---- */}
         <div>
           <div className="filters" style={{ marginBottom: 16 }}>
-            {([["onair", "On air"], ["chat", "Chat"], ["guests", "Guests"], ["audio", "Audio"], ["scene", "Scene"], ["intro", "Intro"], ["sounds", "Sounds"], ["sources", "Sources"]] as [Tab, string][]).map(([k, label]) => (
+            {([["onair", "On air"], ["chat", "Chat"], ["guests", "Guests"], ["audio", "Audio"], ["scene", "Scene"], ["rundown", "Rundown"], ["intro", "Intro"], ["sounds", "Sounds"], ["sources", "Sources"]] as [Tab, string][]).map(([k, label]) => (
               <button key={k} className={`filter-btn${tab === k ? " active" : ""}`} type="button" onClick={() => setTab(k)}>{label}</button>
             ))}
           </div>
@@ -746,6 +802,52 @@ export default function ControlRoom() {
                 {sceneMsg && <span className="form-ok" style={{ margin: 0 }}>{sceneMsg}</span>}
               </div>
               <p className="form-note" style={{ marginTop: 12 }}>Frame should be a transparent 16:9 PNG. For green-screen, light the screen evenly and pick the exact green.</p>
+            </div>
+          )}
+
+          {tab === "rundown" && (
+            <div className="panel">
+              <input ref={rundownInput} type="file" accept="image/*" hidden onChange={pickRundownImg} />
+              <h3>Rundown</h3>
+              <div className="panel-sub">A PTI-style topic list down the right side of the broadcast. The current topic is highlighted and its image shows at the top. Click <strong>Set live</strong> on a topic to move to it.</div>
+
+              <div className="dest-row">
+                <div><div className="dest-name">Show rundown</div><div className="dest-meta">Overlays the topic rail on the broadcast</div></div>
+                <label className="toggle"><input type="checkbox" checked={rundown.enabled} onChange={(e) => updateRundown({ enabled: e.target.checked })} /><span className="track" /></label>
+              </div>
+
+              <div className="panel-split">
+                <div className="form-field"><label>Header label</label><input type="text" value={rundown.title} maxLength={24} placeholder="RUNDOWN" onChange={(e) => updateRundown({ title: e.target.value })} /></div>
+                <div className="form-field">
+                  <label>On-topic timer</label>
+                  <label className="toggle" style={{ marginTop: 6 }}><input type="checkbox" checked={rundown.showTimer} onChange={(e) => updateRundown({ showTimer: e.target.checked })} /><span className="track" /></label>
+                </div>
+              </div>
+
+              <div className="rundown-list">
+                {rundown.items.map((it, i) => (
+                  <div key={i} className={`rundown-row${i === rundown.activeIndex ? " active" : ""}`}>
+                    <div className="rundown-thumb" style={it.image ? { backgroundImage: `url(${it.image})` } : undefined}>{!it.image && "No image"}</div>
+                    <div className="rundown-fields">
+                      <input type="text" value={it.title} maxLength={40} placeholder={`Topic ${i + 1}`} onChange={(e) => updateRundownItem(i, { title: e.target.value })} />
+                      <div className="rundown-btns">
+                        <button className="btn btn-ghost btn-sm" type="button" onClick={() => { rundownFileIdx.current = i; rundownInput.current?.click(); }}>{it.image ? "Change image" : "Add image"}</button>
+                        {it.image && <button className="btn btn-ghost btn-sm" type="button" onClick={() => updateRundownItem(i, { image: "" })}>Clear</button>}
+                        <button className={`btn btn-sm ${i === rundown.activeIndex ? "btn-primary" : "btn-ghost"}`} type="button" onClick={() => setRundownActive(i)}>{i === rundown.activeIndex ? "Live" : "Set live"}</button>
+                        <button className="btn btn-ghost btn-sm" type="button" onClick={() => removeRundownItem(i)}>Remove</button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <button className="btn btn-ghost btn-sm" type="button" onClick={addRundownItem} style={{ marginTop: 12 }}>Add topic</button>
+
+              <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 16 }}>
+                <button className="btn btn-primary btn-sm" type="button" onClick={saveRundown}>Save rundown</button>
+                {rundownMsg && <span className="form-ok" style={{ margin: 0 }}>{rundownMsg}</span>}
+              </div>
+              <p className="form-note" style={{ marginTop: 12 }}>Images look best around 16:9 (a headshot or logo per topic). The timer counts how long you&apos;ve been on the current topic and resets when you set a new one.</p>
             </div>
           )}
 

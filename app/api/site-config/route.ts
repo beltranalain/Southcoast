@@ -23,7 +23,7 @@ export async function POST(request: Request) {
 
   const section = body?.section;
   const data = body?.data;
-  if (section !== "content" && section !== "branding" && section !== "schedule" && section !== "scene" && section !== "bumper" && section !== "sounds") {
+  if (section !== "content" && section !== "branding" && section !== "schedule" && section !== "scene" && section !== "bumper" && section !== "sounds" && section !== "rundown") {
     return NextResponse.json({ error: "Unknown section." }, { status: 400 });
   }
   if (!data || typeof data !== "object") {
@@ -107,6 +107,33 @@ export async function POST(request: Request) {
         startsAt: Number(data.startsAt) || 0,
       };
       await db.collection("site").doc("bumper").set(clean);
+      return NextResponse.json({ saved: true });
+    }
+
+    if (section === "rundown") {
+      // data = { enabled, title, showTimer, activeIndex, items:[{title,image}] }.
+      // Cap items and only keep small inline images so the doc stays under
+      // Firestore's 1MB limit.
+      const rawItems = Array.isArray(data.items) ? data.items : [];
+      const items = rawItems
+        .slice(0, 14)
+        .map((it: any) => {
+          const image = typeof it.image === "string" ? it.image : "";
+          return {
+            title: String(it.title ?? "").slice(0, 40),
+            image: image.startsWith("data:image") && image.length < 120_000 ? image : "",
+          };
+        })
+        .filter((it: any) => it.title || it.image);
+      const activeIndex = Math.max(0, Math.min(Number(data.activeIndex) || 0, Math.max(0, items.length - 1)));
+      const clean = {
+        enabled: Boolean(data.enabled),
+        title: String(data.title ?? "RUNDOWN").slice(0, 24),
+        showTimer: data.showTimer !== false,
+        activeIndex,
+        items,
+      };
+      await db.collection("site").doc("rundown").set(clean);
       return NextResponse.json({ saved: true });
     }
 

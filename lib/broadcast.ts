@@ -107,6 +107,15 @@ class StudioEngine {
   private tickerText = "";
   private tickerX = 0;
   private tickerLast = 0;
+  // PTI-style rundown rail: a topic list on the right, active topic highlighted
+  // with its image at the top + an optional on-topic timer.
+  rundownEnabled = false;
+  rundownTitle = "RUNDOWN";
+  rundownShowTimer = true;
+  rundownActive = 0;
+  rundownItems: { title: string; image: string }[] = [];
+  private rundownImgs: (HTMLImageElement | null)[] = [];
+  private rundownActiveSince = 0; // perf timestamp the active topic was set
   // Intro / "starting soon" bumper: a branded holding screen (or looping intro
   // video) that goes OUT on the broadcast before the live content starts.
   bumperEnabled = false;
@@ -618,6 +627,7 @@ class StudioEngine {
 
   private drawGraphics(ctx: CanvasRenderingContext2D) {
     ctx.textBaseline = "middle";
+    this.drawRundown(ctx);
     this.drawTicker(ctx);
     if (this.pinned) {
       const { x, y } = this.pinPos, w = PIN_W, h = PIN_H;
@@ -695,6 +705,110 @@ class StudioEngine {
   setSceneEnabled(v: boolean) { this.sceneEnabled = v; this.emit(); }
   setSceneMode(m: "none" | "chroma" | "ml") { this.sceneMode = m; this.emit(); }
   setChromaColor(c: string) { this.chromaColor = c; this.emit(); }
+
+  // ---- Rundown (PTI-style topic rail) ----
+  setRundown(cfg: Partial<{ enabled: boolean; title: string; showTimer: boolean; activeIndex: number; items: { title: string; image: string }[] }>) {
+    if (typeof cfg.enabled === "boolean") this.rundownEnabled = cfg.enabled;
+    if (cfg.title !== undefined) this.rundownTitle = cfg.title;
+    if (typeof cfg.showTimer === "boolean") this.rundownShowTimer = cfg.showTimer;
+    if (cfg.items !== undefined) {
+      // Reuse already-decoded images when a topic's image is unchanged, so
+      // editing a title doesn't reload every picture each keystroke.
+      const prev = this.rundownItems, prevImgs = this.rundownImgs;
+      this.rundownItems = cfg.items;
+      this.rundownImgs = cfg.items.map((it, i) =>
+        prev[i] && prev[i].image === it.image && prevImgs[i] ? prevImgs[i] : this.loadImg(it.image)
+      );
+    }
+    if (cfg.activeIndex !== undefined) {
+      const max = Math.max(0, this.rundownItems.length - 1);
+      const next = Math.max(0, Math.min(cfg.activeIndex, max));
+      if (next !== this.rundownActive) this.setRundownActive(next, false); // resets timer only on a real change
+    }
+    this.emit();
+  }
+  // Set the current topic (highlighted + image shown) and restart its timer.
+  setRundownActive(i: number, emit = true) {
+    const max = Math.max(0, this.rundownItems.length - 1);
+    this.rundownActive = Math.max(0, Math.min(i, max));
+    this.rundownActiveSince = typeof performance !== "undefined" ? performance.now() : 0;
+    if (emit) this.emit();
+  }
+  setRundownEnabled(v: boolean) { this.rundownEnabled = v; if (v) this.rundownActiveSince = typeof performance !== "undefined" ? performance.now() : 0; this.emit(); }
+
+  private drawRundown(ctx: CanvasRenderingContext2D) {
+    if (!this.rundownEnabled || this.rundownItems.length === 0) return;
+    const colW = 300, x0 = W - colW, pad = 18;
+    ctx.save();
+    // Rail background.
+    ctx.fillStyle = "rgba(10,9,8,.92)"; ctx.fillRect(x0, 0, colW, H);
+    ctx.fillStyle = this.brandAccent; ctx.fillRect(x0, 0, 4, H); // left accent edge
+    let y = 0;
+
+    // Active topic image across the top of the rail.
+    const active = this.rundownImgs[this.rundownActive];
+    const imgH = Math.round(colW * 0.6);
+    if (active?.complete && active.naturalWidth) {
+      coverDraw(ctx, active, active.naturalWidth, active.naturalHeight, x0 + 4, 0, colW - 4, imgH);
+      y = imgH;
+    } else {
+      y = 8;
+    }
+
+    // On-topic timer (counts up from when the active topic was set).
+    if (this.rundownShowTimer) {
+      const now = typeof performance !== "undefined" ? performance.now() : 0;
+      const secs = Math.max(0, Math.floor((now - this.rundownActiveSince) / 1000));
+      const mm = Math.floor(secs / 60), ss = secs % 60;
+      const clock = `${mm}:${ss.toString().padStart(2, "0")}`;
+      ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+      ctx.font = "400 46px Anton, sans-serif";
+      ctx.fillStyle = "#F3EFE7";
+      y += 52;
+      ctx.fillText(clock, x0 + pad, y);
+      y += 10;
+    } else {
+      y += 8;
+    }
+
+    // Header label.
+    ctx.font = "400 26px Anton, sans-serif";
+    ctx.fillStyle = this.brandAccent;
+    y += 30;
+    ctx.fillText((this.rundownTitle || "RUNDOWN").toUpperCase(), x0 + pad, y);
+    y += 14;
+
+    // Topic list. The active row gets an accent highlight bar; the rest are
+    // cream text. Rows are sized to fit the remaining rail height.
+    const remaining = H - y - pad;
+    const rowH = Math.max(30, Math.min(46, Math.floor(remaining / this.rundownItems.length)));
+    const fs = Math.min(30, rowH - 8);
+    ctx.font = `400 ${fs}px Anton, sans-serif`;
+    for (let i = 0; i < this.rundownItems.length; i++) {
+      const rowY = y + i * rowH;
+      if (rowY + rowH > H) break; // don't spill past the frame
+      const label = (this.rundownItems[i].title || "").toUpperCase();
+      const isActive = i === this.rundownActive;
+      if (isActive) {
+        ctx.fillStyle = this.brandAccent;
+        ctx.fillRect(x0 + 4, rowY, colW - 4, rowH);
+        ctx.fillStyle = "#151107";
+      } else {
+        ctx.fillStyle = "#F3EFE7";
+      }
+      ctx.fillText(this.fitText(ctx, label, colW - pad - pad), x0 + pad, rowY + rowH - 10);
+    }
+    ctx.restore();
+    ctx.textAlign = "left"; ctx.textBaseline = "middle";
+  }
+
+  // Truncate a label with an ellipsis so it fits maxW at the current font.
+  private fitText(ctx: CanvasRenderingContext2D, text: string, maxW: number): string {
+    if (ctx.measureText(text).width <= maxW) return text;
+    let s = text;
+    while (s.length > 1 && ctx.measureText(s + "...").width > maxW) s = s.slice(0, -1);
+    return s + "...";
+  }
 
   // Join the ticker lines into one scrolling string (separated by a bullet).
   private setTickerText(raw: string) {
